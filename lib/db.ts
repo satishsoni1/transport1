@@ -1,4 +1,53 @@
-import { sql } from '@vercel/postgres';
+import { Pool } from '@neondatabase/serverless';
+
+type QueryResult<T = any> = {
+  rows: T[];
+};
+
+let pool: Pool | null = null;
+
+function getConnectionString() {
+  const fromUrl =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.NEON_DATABASE_URL;
+  if (fromUrl) return fromUrl;
+
+  const host = process.env.PGHOST_UNPOOLED || process.env.PGHOST;
+  const user = process.env.PGUSER;
+  const password = process.env.PGPASSWORD;
+  const database = process.env.PGDATABASE;
+  if (!host || !user || !password || !database) {
+    throw new Error(
+      'Database connection is not configured. Set DATABASE_URL (recommended for Neon).'
+    );
+  }
+
+  const port = process.env.PGPORT || '5432';
+  const sslmode = process.env.PGSSLMODE || 'require';
+  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(
+    password
+  )}@${host}:${port}/${database}?sslmode=${sslmode}`;
+}
+
+function getPool() {
+  if (!pool) {
+    pool = new Pool({ connectionString: getConnectionString() });
+  }
+  return pool;
+}
+
+export async function sql<T = any>(
+  strings: TemplateStringsArray,
+  ...values: any[]
+): Promise<QueryResult<T>> {
+  let text = '';
+  for (let i = 0; i < strings.length; i++) {
+    text += strings[i];
+    if (i < values.length) text += `$${i + 1}`;
+  }
+  return getPool().query<T>(text, values);
+}
 
 let schemaReady = false;
 

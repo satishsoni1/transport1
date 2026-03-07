@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@vercel/postgres';
+import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
 
 function toResponseRow(row: any) {
@@ -14,7 +14,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching invoices', error);
     return NextResponse.json(
-      { success: false, error: 'Database error. Configure POSTGRES_URL for Vercel/local.' },
+      { success: false, error: 'Database error. Configure DATABASE_URL for Neon (or POSTGRES_URL).' },
       { status: 500 }
     );
   }
