@@ -39,6 +39,11 @@ interface Consignor {
   created_at: string;
 }
 
+interface City {
+  id: number;
+  city_name: string;
+}
+
 export default function ConsignorsPage() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -56,6 +61,10 @@ export default function ConsignorsPage() {
 
   const { data: consignors = [], mutate } = useSWR(
     '/api/masters/consignors',
+    apiClient.get
+  );
+  const { data: cities = [] } = useSWR<City[]>(
+    '/api/masters/cities',
     apiClient.get
   );
 
@@ -165,12 +174,18 @@ export default function ConsignorsPage() {
                   <Label htmlFor="city">City *</Label>
                   <Input
                     id="city"
+                    list="consignor-city-options"
                     value={formData.city}
                     onChange={(e) =>
                       setFormData({ ...formData, city: e.target.value })
                     }
                     placeholder="City"
                   />
+                  <datalist id="consignor-city-options">
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.city_name} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 

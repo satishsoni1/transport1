@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Eye } from 'lucide-react';
+import { Plus, Trash2, Edit2 } from 'lucide-react';
 import useSWR from 'swr';
 
 interface GoodsItem {
@@ -36,11 +36,20 @@ interface LREntry {
   consignee_id: number;
   from_city: string;
   to_city: string;
+  delivery_address: string;
   freight: number;
   hamali: number;
   lr_charge: number;
   advance: number;
   balance: number;
+  invoice_no: string;
+  invoice_date: string;
+  truck_no: string;
+  driver_name: string;
+  driver_mobile: string;
+  eway_no: string;
+  remarks: string;
+  goods_items: GoodsItem[];
   status: 'to_pay' | 'paid' | 'tbb';
   created_at: string;
 }
@@ -55,6 +64,24 @@ interface Consignee {
   id: number;
   name: string;
   city: string;
+}
+
+interface City {
+  id: number;
+  city_name: string;
+}
+
+interface Driver {
+  id: number;
+  driver_name: string;
+  mobile: string;
+}
+
+interface Vehicle {
+  id: number;
+  vehicle_no: string;
+  owner_name: string;
+  vehicle_type: string;
 }
 
 export default function LREntryPage() {
@@ -105,6 +132,18 @@ export default function LREntryPage() {
     '/api/masters/consignees',
     apiClient.get
   );
+  const { data: cities = [] } = useSWR<City[]>(
+    '/api/masters/cities',
+    apiClient.get
+  );
+  const { data: drivers = [] } = useSWR<Driver[]>(
+    '/api/masters/drivers',
+    apiClient.get
+  );
+  const { data: vehicles = [] } = useSWR<Vehicle[]>(
+    '/api/masters/vehicles',
+    apiClient.get
+  );
 
   const selectedConsignor = consignors.find(
     (item) => item.id === Number(formData.consignor_id)
@@ -146,6 +185,71 @@ export default function LREntryPage() {
   const removeGoodsItem = useCallback((index: number) => {
     setGoodsItems(goodsItems.filter((_, i) => i !== index));
   }, [goodsItems]);
+
+  const handleEdit = useCallback(
+    (entry: LREntry) => {
+      const consignor = consignors.find((item) => item.id === entry.consignor_id);
+      const consignee = consignees.find((item) => item.id === entry.consignee_id);
+
+      setEditingId(entry.id);
+      setConsignorSearch(consignor?.name || '');
+      setConsigneeSearch(consignee?.name || '');
+      setFormData({
+        consignor_id: String(entry.consignor_id),
+        consignee_id: String(entry.consignee_id),
+        from_city: entry.from_city || '',
+        to_city: entry.to_city || '',
+        delivery_address: entry.delivery_address || '',
+        freight: String(entry.freight ?? 0),
+        hamali: String(entry.hamali ?? 0),
+        lr_charge: String(entry.lr_charge ?? 0),
+        advance: String(entry.advance ?? 0),
+        invoice_no: entry.invoice_no || '',
+        invoice_date: entry.invoice_date
+          ? String(entry.invoice_date).split('T')[0]
+          : '',
+        truck_no: entry.truck_no || '',
+        driver_name: entry.driver_name || '',
+        driver_mobile: entry.driver_mobile || '',
+        eway_no: entry.eway_no || '',
+        remarks: entry.remarks || '',
+      });
+      setGoodsItems(
+        (entry.goods_items || []).map((item) => ({
+          description: item.description || '',
+          qty: Number(item.qty) || 0,
+          type: item.type || '',
+          weight_kg: Number(item.weight_kg) || 0,
+          rate: Number(item.rate) || 0,
+          amount: Number(item.amount) || 0,
+        }))
+      );
+      setCurrentItem({
+        description: '',
+        qty: 0,
+        type: '',
+        weight_kg: 0,
+        rate: 0,
+        amount: 0,
+      });
+      setActiveTab('form');
+    },
+    [consignors, consignees]
+  );
+
+  const handleDelete = useCallback(
+    async (id: number) => {
+      if (!confirm('Are you sure you want to delete this L.R. entry?')) return;
+      try {
+        await apiClient.delete(`/api/daily-entry/lr-entries/${id}`);
+        toast.success('L.R. entry deleted successfully');
+        mutate();
+      } catch {
+        toast.error('Failed to delete L.R. entry');
+      }
+    },
+    [mutate]
+  );
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -317,23 +421,35 @@ export default function LREntryPage() {
                   <Label htmlFor="from_city">From City</Label>
                   <Input
                     id="from_city"
+                    list="lr-from-city-options"
                     value={formData.from_city}
                     onChange={(e) =>
                       setFormData({ ...formData, from_city: e.target.value })
                     }
                     placeholder="Origin city"
                   />
+                  <datalist id="lr-from-city-options">
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.city_name} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <Label htmlFor="to_city">To City</Label>
                   <Input
                     id="to_city"
+                    list="lr-to-city-options"
                     value={formData.to_city}
                     onChange={(e) =>
                       setFormData({ ...formData, to_city: e.target.value })
                     }
                     placeholder="Destination city"
                   />
+                  <datalist id="lr-to-city-options">
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.city_name} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
               <div>
@@ -534,23 +650,62 @@ export default function LREntryPage() {
                   <Label htmlFor="truck_no">Truck Number</Label>
                   <Input
                     id="truck_no"
+                    list="lr-vehicle-options"
                     value={formData.truck_no}
-                    onChange={(e) =>
-                      setFormData({ ...formData, truck_no: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const value = e.target.value.toUpperCase();
+                      const selected = vehicles.find(
+                        (item) =>
+                          item.vehicle_no.toLowerCase() ===
+                          value.trim().toLowerCase()
+                      );
+                      setFormData({
+                        ...formData,
+                        truck_no: selected?.vehicle_no || value,
+                      });
+                    }}
                     placeholder="Vehicle number"
                   />
+                  <datalist id="lr-vehicle-options">
+                    {vehicles.map((vehicle) => (
+                      <option
+                        key={vehicle.id}
+                        value={vehicle.vehicle_no}
+                        label={`${vehicle.owner_name || '-'}${vehicle.vehicle_type ? ` | ${vehicle.vehicle_type}` : ''}`}
+                      />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <Label htmlFor="driver_name">Driver Name</Label>
                   <Input
                     id="driver_name"
+                    list="lr-driver-options"
                     value={formData.driver_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, driver_name: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const selected = drivers.find(
+                        (item) =>
+                          item.driver_name.toLowerCase() ===
+                          value.trim().toLowerCase()
+                      );
+                      setFormData({
+                        ...formData,
+                        driver_name: value,
+                        driver_mobile: selected?.mobile || formData.driver_mobile,
+                      });
+                    }}
                     placeholder="Driver name"
                   />
+                  <datalist id="lr-driver-options">
+                    {drivers.map((driver) => (
+                      <option
+                        key={driver.id}
+                        value={driver.driver_name}
+                        label={driver.mobile}
+                      />
+                    ))}
+                  </datalist>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -690,9 +845,22 @@ export default function LREntryPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost">
-                        <Eye className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(entry)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(entry.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

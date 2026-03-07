@@ -37,6 +37,11 @@ interface Consignee {
   created_at: string;
 }
 
+interface City {
+  id: number;
+  city_name: string;
+}
+
 export default function ConsigneesPage() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -52,6 +57,10 @@ export default function ConsigneesPage() {
 
   const { data: consignees = [], mutate } = useSWR(
     '/api/masters/consignees',
+    apiClient.get
+  );
+  const { data: cities = [] } = useSWR<City[]>(
+    '/api/masters/cities',
     apiClient.get
   );
 
@@ -157,12 +166,18 @@ export default function ConsigneesPage() {
                   <Label htmlFor="city">City *</Label>
                   <Input
                     id="city"
+                    list="consignee-city-options"
                     value={formData.city}
                     onChange={(e) =>
                       setFormData({ ...formData, city: e.target.value })
                     }
                     placeholder="City"
                   />
+                  <datalist id="consignee-city-options">
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.city_name} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 import useSWR from 'swr';
 import {
   Select,
@@ -42,15 +42,31 @@ interface Receipt {
   cheque_no?: string;
   cheque_date?: string;
   bank_name?: string;
+  remarks?: string;
+  items: ReceiptItem[];
   total_amount: number;
   status: 'pending' | 'cleared';
   created_at: string;
+}
+
+interface Consignor {
+  id: number;
+  name: string;
+}
+
+interface InvoiceApi {
+  id: number;
+  invoice_no: string;
+  party_name: string;
+  consignor_id: number;
+  total_amount: number;
 }
 
 export default function ReceiptPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [consignorSearch, setConsignorSearch] = useState('');
 
   const [formData, setFormData] = useState({
     consignor_id: '',
@@ -64,41 +80,127 @@ export default function ReceiptPage() {
   });
 
   const [receiptItems, setReceiptItems] = useState<ReceiptItem[]>([]);
-  const [currentItem, setCurrentItem] = useState<ReceiptItem>({
-    invoice_no: '',
-    invoice_amount: 0,
-    amount_received: 0,
-  });
+  const [currentInvoiceNo, setCurrentInvoiceNo] = useState('');
+  const [currentAmountReceived, setCurrentAmountReceived] = useState('0');
 
-  const { data: receipts = [], mutate } = useSWR(
+  const { data: receipts = [], mutate } = useSWR<Receipt[]>(
     '/api/daily-entry/receipts',
     apiClient.get
   );
+  const { data: consignors = [] } = useSWR<Consignor[]>(
+    '/api/masters/consignors',
+    apiClient.get
+  );
+  const { data: invoices = [] } = useSWR<InvoiceApi[]>(
+    '/api/daily-entry/invoices',
+    apiClient.get
+  );
 
-  const calculateTotalReceived = useCallback(() => {
-    return receiptItems.reduce((sum, item) => sum + item.amount_received, 0);
-  }, [receiptItems]);
+  const filteredInvoices = useMemo(
+    () =>
+      invoices.filter(
+        (inv) =>
+          String(inv.consignor_id) === formData.consignor_id &&
+          !receiptItems.some((item) => item.invoice_no === inv.invoice_no)
+      ),
+    [invoices, formData.consignor_id, receiptItems]
+  );
+
+  const calculateTotalReceived = useCallback(
+    () => receiptItems.reduce((sum, item) => sum + item.amount_received, 0),
+    [receiptItems]
+  );
 
   const addReceiptItem = useCallback(() => {
-    if (!currentItem.invoice_no || currentItem.amount_received <= 0) {
-      toast.error('Please fill Invoice No and Amount');
+    if (!currentInvoiceNo.trim()) {
+      toast.error('Please select invoice number');
       return;
     }
 
-    setReceiptItems([...receiptItems, currentItem]);
-    setCurrentItem({
-      invoice_no: '',
-      invoice_amount: 0,
-      amount_received: 0,
-    });
+    const selectedInvoice = filteredInvoices.find(
+      (inv) => inv.invoice_no === currentInvoiceNo.trim()
+    );
+    if (!selectedInvoice) {
+      toast.error('Invoice not found for selected consignor');
+      return;
+    }
+
+    const invoiceAmount = Number(selectedInvoice.total_amount) || 0;
+    const amountReceived = parseFloat(currentAmountReceived) || 0;
+    if (amountReceived <= 0) {
+      toast.error('Amount received must be greater than 0');
+      return;
+    }
+    if (amountReceived > invoiceAmount) {
+      toast.error('Amount received cannot exceed invoice amount');
+      return;
+    }
+
+    setReceiptItems([
+      ...receiptItems,
+      {
+        invoice_no: selectedInvoice.invoice_no,
+        invoice_amount: invoiceAmount,
+        amount_received: amountReceived,
+      },
+    ]);
+    setCurrentInvoiceNo('');
+    setCurrentAmountReceived('0');
     toast.success('Invoice added to receipt');
-  }, [currentItem, receiptItems]);
+  }, [currentInvoiceNo, currentAmountReceived, filteredInvoices, receiptItems]);
 
   const removeReceiptItem = useCallback(
     (index: number) => {
       setReceiptItems(receiptItems.filter((_, i) => i !== index));
     },
     [receiptItems]
+  );
+
+  const handleEdit = useCallback(
+    (receipt: Receipt) => {
+      const consignor = consignors.find((item) => item.id === receipt.consignor_id);
+      setEditingId(receipt.id);
+      setConsignorSearch(consignor?.name || '');
+      setFormData({
+        consignor_id: String(receipt.consignor_id),
+        party_name: receipt.party_name || '',
+        receipt_date: receipt.receipt_date
+          ? String(receipt.receipt_date).split('T')[0]
+          : '',
+        mode: receipt.mode || 'cash',
+        cheque_no: receipt.cheque_no || '',
+        cheque_date: receipt.cheque_date
+          ? String(receipt.cheque_date).split('T')[0]
+          : '',
+        bank_name: receipt.bank_name || '',
+        remarks: receipt.remarks || '',
+      });
+      setReceiptItems(
+        (receipt.items || []).map((item) => ({
+          invoice_no: item.invoice_no || '',
+          invoice_amount: Number(item.invoice_amount) || 0,
+          amount_received: Number(item.amount_received) || 0,
+        }))
+      );
+      setCurrentInvoiceNo('');
+      setCurrentAmountReceived('0');
+      setActiveTab('form');
+    },
+    [consignors]
+  );
+
+  const handleDelete = useCallback(
+    async (id: number) => {
+      if (!confirm('Are you sure you want to delete this receipt?')) return;
+      try {
+        await apiClient.delete(`/api/daily-entry/receipts/${id}`);
+        toast.success('Receipt deleted successfully');
+        mutate();
+      } catch {
+        toast.error('Failed to delete receipt');
+      }
+    },
+    [mutate]
   );
 
   const handleSubmit = useCallback(
@@ -109,12 +211,10 @@ export default function ReceiptPage() {
         toast.error('Please fill required fields');
         return;
       }
-
       if (receiptItems.length === 0) {
         toast.error('Please add at least one invoice');
         return;
       }
-
       if (formData.mode === 'cheque' && !formData.cheque_no) {
         toast.error('Please enter cheque number');
         return;
@@ -122,7 +222,7 @@ export default function ReceiptPage() {
 
       try {
         const payload = {
-          consignor_id: parseInt(formData.consignor_id),
+          consignor_id: parseInt(formData.consignor_id, 10),
           party_name: formData.party_name,
           receipt_date: formData.receipt_date,
           mode: formData.mode,
@@ -146,7 +246,9 @@ export default function ReceiptPage() {
         setActiveTab('list');
         setEditingId(null);
         setReceiptItems([]);
-      } catch (error) {
+        setCurrentInvoiceNo('');
+        setCurrentAmountReceived('0');
+      } catch {
         toast.error('Failed to save receipt');
       }
     },
@@ -165,6 +267,9 @@ export default function ReceiptPage() {
               setActiveTab('form');
               setEditingId(null);
               setReceiptItems([]);
+              setCurrentInvoiceNo('');
+              setCurrentAmountReceived('0');
+              setConsignorSearch('');
             }}
             className="gap-2"
           >
@@ -176,13 +281,41 @@ export default function ReceiptPage() {
 
       {activeTab === 'form' ? (
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Header Section */}
           <Card>
             <CardHeader>
               <CardTitle>Receipt Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="consignor_name">Consignor *</Label>
+                  <Input
+                    id="consignor_name"
+                    list="receipt-consignor-options"
+                    value={consignorSearch}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setConsignorSearch(value);
+                      const selected = consignors.find(
+                        (item) => item.name.toLowerCase() === value.trim().toLowerCase()
+                      );
+                      setFormData({
+                        ...formData,
+                        consignor_id: selected ? String(selected.id) : '',
+                        party_name: selected ? selected.name : formData.party_name,
+                      });
+                      setReceiptItems([]);
+                      setCurrentInvoiceNo('');
+                      setCurrentAmountReceived('0');
+                    }}
+                    placeholder="Type consignor name"
+                  />
+                  <datalist id="receipt-consignor-options">
+                    {consignors.map((item) => (
+                      <option key={item.id} value={item.name} />
+                    ))}
+                  </datalist>
+                </div>
                 <div>
                   <Label htmlFor="party_name">Party Name *</Label>
                   <Input
@@ -192,18 +325,6 @@ export default function ReceiptPage() {
                       setFormData({ ...formData, party_name: e.target.value })
                     }
                     placeholder="Enter party name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="consignor_id">Consignor ID *</Label>
-                  <Input
-                    id="consignor_id"
-                    type="number"
-                    value={formData.consignor_id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, consignor_id: e.target.value })
-                    }
-                    placeholder="Consignor ID"
                   />
                 </div>
               </div>
@@ -216,10 +337,7 @@ export default function ReceiptPage() {
                     type="date"
                     value={formData.receipt_date}
                     onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        receipt_date: e.target.value,
-                      })
+                      setFormData({ ...formData, receipt_date: e.target.value })
                     }
                   />
                 </div>
@@ -254,10 +372,7 @@ export default function ReceiptPage() {
                       id="cheque_no"
                       value={formData.cheque_no}
                       onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          cheque_no: e.target.value,
-                        })
+                        setFormData({ ...formData, cheque_no: e.target.value })
                       }
                       placeholder="Cheque number"
                     />
@@ -269,10 +384,7 @@ export default function ReceiptPage() {
                       type="date"
                       value={formData.cheque_date}
                       onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          cheque_date: e.target.value,
-                        })
+                        setFormData({ ...formData, cheque_date: e.target.value })
                       }
                     />
                   </div>
@@ -282,10 +394,7 @@ export default function ReceiptPage() {
                       id="bank_name"
                       value={formData.bank_name}
                       onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          bank_name: e.target.value,
-                        })
+                        setFormData({ ...formData, bank_name: e.target.value })
                       }
                       placeholder="Bank name"
                     />
@@ -295,7 +404,6 @@ export default function ReceiptPage() {
             </CardContent>
           </Card>
 
-          {/* Invoices Section */}
           <Card>
             <CardHeader>
               <CardTitle>Invoices to Receive Payment</CardTitle>
@@ -304,37 +412,31 @@ export default function ReceiptPage() {
               <div className="grid grid-cols-4 gap-2 mb-4">
                 <Input
                   placeholder="Invoice No"
-                  value={currentItem.invoice_no}
-                  onChange={(e) =>
-                    setCurrentItem({
-                      ...currentItem,
-                      invoice_no: e.target.value,
-                    })
-                  }
+                  list="receipt-invoice-options"
+                  value={currentInvoiceNo}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCurrentInvoiceNo(value);
+                    const selected = filteredInvoices.find(
+                      (inv) => inv.invoice_no === value.trim()
+                    );
+                    if (selected) {
+                      setCurrentAmountReceived(String(Number(selected.total_amount) || 0));
+                    }
+                  }}
                 />
-                <Input
-                  placeholder="Invoice Amount"
-                  type="number"
-                  value={currentItem.invoice_amount}
-                  onChange={(e) =>
-                    setCurrentItem({
-                      ...currentItem,
-                      invoice_amount: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
+                <datalist id="receipt-invoice-options">
+                  {filteredInvoices.map((inv) => (
+                    <option key={inv.id} value={inv.invoice_no} />
+                  ))}
+                </datalist>
                 <Input
                   placeholder="Amount Received"
                   type="number"
-                  value={currentItem.amount_received}
-                  onChange={(e) =>
-                    setCurrentItem({
-                      ...currentItem,
-                      amount_received: parseFloat(e.target.value) || 0,
-                    })
-                  }
+                  value={currentAmountReceived}
+                  onChange={(e) => setCurrentAmountReceived(e.target.value)}
                 />
-                <Button type="button" onClick={addReceiptItem}>
+                <Button type="button" onClick={addReceiptItem} className="col-span-2">
                   Add
                 </Button>
               </div>
@@ -354,16 +456,11 @@ export default function ReceiptPage() {
                     <TableBody>
                       {receiptItems.map((item, idx) => (
                         <TableRow key={idx}>
-                          <TableCell className="font-medium">
-                            {item.invoice_no}
-                          </TableCell>
+                          <TableCell className="font-medium">{item.invoice_no}</TableCell>
                           <TableCell>₹{item.invoice_amount.toFixed(2)}</TableCell>
                           <TableCell>₹{item.amount_received.toFixed(2)}</TableCell>
                           <TableCell>
-                            ₹
-                            {(item.invoice_amount - item.amount_received).toFixed(
-                              2
-                            )}
+                            ₹{(item.invoice_amount - item.amount_received).toFixed(2)}
                           </TableCell>
                           <TableCell>
                             <Button
@@ -389,7 +486,6 @@ export default function ReceiptPage() {
             </CardContent>
           </Card>
 
-          {/* Remarks Section */}
           <Card>
             <CardHeader>
               <CardTitle>Additional Information</CardTitle>
@@ -448,14 +544,10 @@ export default function ReceiptPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                receipts.map((receipt: Receipt) => (
+                receipts.map((receipt) => (
                   <TableRow key={receipt.id}>
-                    <TableCell className="font-medium">
-                      {receipt.receipt_no}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(receipt.receipt_date).toLocaleDateString()}
-                    </TableCell>
+                    <TableCell className="font-medium">{receipt.receipt_no}</TableCell>
+                    <TableCell>{new Date(receipt.receipt_date).toLocaleDateString()}</TableCell>
                     <TableCell>{receipt.party_name}</TableCell>
                     <TableCell className="capitalize">
                       {receipt.mode.replace('_', ' ')}
@@ -473,9 +565,22 @@ export default function ReceiptPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost">
-                        <Eye className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(receipt)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(receipt.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

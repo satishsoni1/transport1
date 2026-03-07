@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useAuth } from '@/app/context/auth-context';
+import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,8 +16,122 @@ import {
   downloadPDF,
   exportToCSV,
 } from '@/app/services/print-service';
+import useSWR from 'swr';
 
 type DocumentType = 'lr' | 'invoice' | 'challan' | 'bill';
+
+interface LREntry {
+  id: number;
+  lr_no: string;
+  lr_date: string;
+  consignor_id: number;
+  consignee_id: number;
+  from_city: string;
+  to_city: string;
+  goods_items: any[];
+  freight: number;
+  hamali: number;
+  lr_charge: number;
+  advance: number;
+  balance: number;
+  truck_no: string;
+  driver_name: string;
+  driver_mobile: string;
+  invoice_no: string;
+  remarks: string;
+}
+
+interface Invoice {
+  id: number;
+  invoice_no: string;
+  invoice_date: string;
+  party_name: string;
+  items: any[];
+  total_amount: number;
+  gst_amount: number;
+  net_amount: number;
+  gst_percentage: number;
+}
+
+interface Challan {
+  id: number;
+  challan_no: string;
+  challan_date: string;
+  from_city: string;
+  to_city: string;
+  truck_no: string;
+  driver_name: string;
+  lr_list: any[];
+  total_freight: number;
+}
+
+interface MonthlyBill {
+  id: number;
+  bill_no: string;
+  bill_date: string;
+  party_name: string;
+  period_from: string;
+  period_to: string;
+  items: any[];
+  total_amount: number;
+  tds_amount: number;
+  net_amount: number;
+}
+
+interface Consignor {
+  id: number;
+  name: string;
+}
+
+interface Consignee {
+  id: number;
+  name: string;
+}
+
+function generateChallanHTML(challan: Challan): string {
+  return `
+    <html><head><title>Challan ${challan.challan_no}</title></head>
+    <body style="font-family:Arial;padding:16px">
+      <h2>TRIMURTI TRANSPORT - CHALLAN</h2>
+      <p><b>No:</b> ${challan.challan_no} | <b>Date:</b> ${new Date(challan.challan_date).toLocaleDateString()}</p>
+      <p><b>Route:</b> ${challan.from_city} to ${challan.to_city}</p>
+      <p><b>Truck:</b> ${challan.truck_no} | <b>Driver:</b> ${challan.driver_name}</p>
+      <h3>L.R. List</h3>
+      <table border="1" cellspacing="0" cellpadding="6" width="100%">
+        <tr><th>L.R.</th><th>Consignee</th><th>City</th><th>Packages</th><th>Freight</th></tr>
+        ${(challan.lr_list || [])
+          .map(
+            (lr: any) =>
+              `<tr><td>${lr.lr_no || ''}</td><td>${lr.consignee || ''}</td><td>${lr.city || ''}</td><td>${lr.packages || 0}</td><td>${Number(lr.freight || 0).toFixed(2)}</td></tr>`
+          )
+          .join('')}
+      </table>
+      <p style="margin-top:12px"><b>Total Freight:</b> ₹${Number(challan.total_freight || 0).toFixed(2)}</p>
+    </body></html>
+  `;
+}
+
+function generateBillHTML(bill: MonthlyBill): string {
+  return `
+    <html><head><title>Bill ${bill.bill_no}</title></head>
+    <body style="font-family:Arial;padding:16px">
+      <h2>TRIMURTI TRANSPORT - MONTHLY BILL</h2>
+      <p><b>No:</b> ${bill.bill_no} | <b>Date:</b> ${new Date(bill.bill_date).toLocaleDateString()}</p>
+      <p><b>Party:</b> ${bill.party_name}</p>
+      <p><b>Period:</b> ${new Date(bill.period_from).toLocaleDateString()} - ${new Date(bill.period_to).toLocaleDateString()}</p>
+      <table border="1" cellspacing="0" cellpadding="6" width="100%">
+        <tr><th>Invoice No</th><th>Date</th><th>Amount</th><th>TDS</th><th>Net</th></tr>
+        ${(bill.items || [])
+          .map(
+            (item: any) =>
+              `<tr><td>${item.invoice_no || ''}</td><td>${item.invoice_date ? new Date(item.invoice_date).toLocaleDateString() : ''}</td><td>${Number(item.amount || 0).toFixed(2)}</td><td>${Number(item.tds || 0).toFixed(2)}</td><td>${Number(item.net_amount || 0).toFixed(2)}</td></tr>`
+          )
+          .join('')}
+      </table>
+      <p style="margin-top:12px"><b>Total:</b> ₹${Number(bill.total_amount || 0).toFixed(2)} | <b>TDS:</b> ₹${Number(bill.tds_amount || 0).toFixed(2)} | <b>Net:</b> ₹${Number(bill.net_amount || 0).toFixed(2)}</p>
+    </body></html>
+  `;
+}
 
 export default function PrintPreviewPage() {
   const { user } = useAuth();
@@ -24,6 +139,14 @@ export default function PrintPreviewPage() {
   const [documentNo, setDocumentNo] = useState('');
   const [previewHTML, setPreviewHTML] = useState('');
   const [loading, setLoading] = useState(false);
+  const [csvData, setCsvData] = useState<any[]>([]);
+
+  const { data: lrEntries = [] } = useSWR<LREntry[]>('/api/daily-entry/lr-entries', apiClient.get);
+  const { data: invoices = [] } = useSWR<Invoice[]>('/api/daily-entry/invoices', apiClient.get);
+  const { data: challans = [] } = useSWR<Challan[]>('/api/daily-entry/challans', apiClient.get);
+  const { data: bills = [] } = useSWR<MonthlyBill[]>('/api/daily-entry/monthly-bills', apiClient.get);
+  const { data: consignors = [] } = useSWR<Consignor[]>('/api/masters/consignors', apiClient.get);
+  const { data: consignees = [] } = useSWR<Consignee[]>('/api/masters/consignees', apiClient.get);
 
   const handleLoadPreview = useCallback(async () => {
     if (!documentNo.trim()) {
@@ -33,104 +156,109 @@ export default function PrintPreviewPage() {
 
     setLoading(true);
     try {
-      // Mock data - in production, would fetch from API
       let html = '';
+      let exportRows: any[] = [];
 
       if (documentType === 'lr') {
-        const mockData = {
-          lr_no: documentNo,
-          lr_date: new Date().toISOString(),
-          consignor: 'RALLIS INDIA LIMITED',
-          consignee: 'MAA SANTOSHI KRUSHI SEVA KENDRA',
-          from_city: 'AKOLA',
-          to_city: 'JAIPUR',
-          goods_items: [
-            {
-              description: 'Pesticides',
-              qty: 145,
-              type: 'BOX',
-              weight_kg: 5,
-              rate: 10,
-              amount: 1450,
-            },
-          ],
-          freight: 500,
-          hamali: 100,
-          lr_charge: 0,
-          advance: 200,
-          balance: 300,
-          truck_no: 'MH04BG1610',
-          driver_name: 'PRATAP SINGH THAKUR',
-          driver_mobile: '7517974410',
-          invoice_no: 'INV-001',
-          remarks: 'Delivery at JAIPUR',
-        };
-        html = generateLRPrintHTML(mockData);
+        const lr = lrEntries.find((item) => item.lr_no === documentNo.trim());
+        if (!lr) throw new Error('L.R. not found');
+
+        const consignorName =
+          consignors.find((item) => item.id === lr.consignor_id)?.name ||
+          `Consignor #${lr.consignor_id}`;
+        const consigneeName =
+          consignees.find((item) => item.id === lr.consignee_id)?.name ||
+          `Consignee #${lr.consignee_id}`;
+
+        html = generateLRPrintHTML({
+          ...lr,
+          consignor: consignorName,
+          consignee: consigneeName,
+        });
+        exportRows = lr.goods_items?.length
+          ? lr.goods_items.map((g: any) => ({
+              lr_no: lr.lr_no,
+              date: lr.lr_date,
+              consignor: consignorName,
+              consignee: consigneeName,
+              description: g.description,
+              qty: g.qty,
+              amount: g.amount,
+            }))
+          : [{ lr_no: lr.lr_no, date: lr.lr_date, consignor: consignorName, consignee: consigneeName, freight: lr.freight }];
       } else if (documentType === 'invoice') {
-        const mockData = {
-          invoice_no: documentNo,
-          invoice_date: new Date().toISOString(),
-          party_name: 'SAI RAM AGRITECH PVT LTD AKOLA',
-          items: [
-            {
-              description: 'Freight Services',
-              qty: 1,
-              rate: 4740,
-              amount: 4740,
-            },
-          ],
-          total_amount: 4740,
-          gst_amount: 853.2,
-          net_amount: 5593.2,
-          gst_percentage: 18,
-        };
-        html = generateInvoicePrintHTML(mockData);
+        const invoice = invoices.find((item) => item.invoice_no === documentNo.trim());
+        if (!invoice) throw new Error('Invoice not found');
+
+        html = generateInvoicePrintHTML({
+          ...invoice,
+          gst_percentage: Number(invoice.gst_percentage || 0),
+        });
+        exportRows = (invoice.items || []).map((i: any) => ({
+          invoice_no: invoice.invoice_no,
+          date: invoice.invoice_date,
+          party_name: invoice.party_name,
+          description: i.description,
+          qty: i.qty,
+          amount: i.amount,
+        }));
+      } else if (documentType === 'challan') {
+        const challan = challans.find((item) => item.challan_no === documentNo.trim());
+        if (!challan) throw new Error('Challan not found');
+        html = generateChallanHTML(challan);
+        exportRows = (challan.lr_list || []).map((lr: any) => ({
+          challan_no: challan.challan_no,
+          lr_no: lr.lr_no,
+          city: lr.city,
+          consignee: lr.consignee,
+          freight: lr.freight,
+        }));
+      } else if (documentType === 'bill') {
+        const bill = bills.find((item) => item.bill_no === documentNo.trim());
+        if (!bill) throw new Error('Monthly bill not found');
+        html = generateBillHTML(bill);
+        exportRows = (bill.items || []).map((i: any) => ({
+          bill_no: bill.bill_no,
+          invoice_no: i.invoice_no,
+          amount: i.amount,
+          tds: i.tds,
+          net_amount: i.net_amount,
+        }));
       }
 
-      if (html) {
-        setPreviewHTML(html);
-        toast.success('Document preview loaded');
-      }
+      setPreviewHTML(html);
+      setCsvData(exportRows);
+      toast.success('Document preview loaded');
     } catch (error) {
-      toast.error('Failed to load document preview');
+      toast.error(error instanceof Error ? error.message : 'Failed to load document preview');
     } finally {
       setLoading(false);
     }
-  }, [documentType, documentNo]);
+  }, [documentType, documentNo, lrEntries, invoices, challans, bills, consignors, consignees]);
 
   const handlePrint = useCallback(() => {
-    if (!previewHTML) {
-      toast.error('Please load a document first');
-      return;
-    }
+    if (!previewHTML) return toast.error('Please load a document first');
     printHTML(previewHTML);
   }, [previewHTML]);
 
   const handleDownloadPDF = useCallback(async () => {
-    if (!previewHTML) {
-      toast.error('Please load a document first');
-      return;
-    }
+    if (!previewHTML) return toast.error('Please load a document first');
     try {
       await downloadPDF(previewHTML, `${documentType}-${documentNo}`);
       toast.success('PDF downloaded successfully');
-    } catch (error) {
+    } catch {
       toast.error('Failed to download PDF');
     }
   }, [previewHTML, documentType, documentNo]);
 
   const handleExportCSV = useCallback(() => {
-    const mockData = [
-      {
-        lr_no: documentNo,
-        date: new Date().toLocaleDateString(),
-        consignor: 'RALLIS INDIA LIMITED',
-        freight: 500,
-      },
-    ];
-    exportToCSV(mockData, `${documentType}-${documentNo}`);
+    if (!csvData.length) {
+      toast.error('No export data');
+      return;
+    }
+    exportToCSV(csvData, `${documentType}-${documentNo}`);
     toast.success('CSV exported successfully');
-  }, [documentType, documentNo]);
+  }, [csvData, documentType, documentNo]);
 
   if (!user) return null;
 
@@ -140,7 +268,6 @@ export default function PrintPreviewPage() {
         <h1 className="text-3xl font-bold">Print & Export</h1>
       </div>
 
-      {/* Document Selection */}
       <Card>
         <CardHeader>
           <CardTitle>Select Document</CardTitle>
@@ -156,6 +283,7 @@ export default function PrintPreviewPage() {
                 onChange={(e) => {
                   setDocumentType(e.target.value as DocumentType);
                   setPreviewHTML('');
+                  setCsvData([]);
                 }}
               >
                 <option value="lr">Lorry Receipt (L.R.)</option>
@@ -168,57 +296,31 @@ export default function PrintPreviewPage() {
               <Label htmlFor="doc-no">Document Number</Label>
               <Input
                 id="doc-no"
-                placeholder={
-                  documentType === 'lr'
-                    ? 'e.g., LR-001'
-                    : documentType === 'invoice'
-                    ? 'e.g., INV-001'
-                    : 'Enter document number'
-                }
+                placeholder="Enter exact document number (e.g. LR00001)"
                 value={documentNo}
                 onChange={(e) => setDocumentNo(e.target.value)}
               />
             </div>
           </div>
-
-          <div className="flex gap-2">
-            <Button
-              onClick={handleLoadPreview}
-              disabled={loading}
-              className="flex-1"
-            >
-              {loading ? 'Loading...' : 'Load Preview'}
-            </Button>
-          </div>
+          <Button onClick={handleLoadPreview} disabled={loading} className="w-full">
+            {loading ? 'Loading...' : 'Load Preview'}
+          </Button>
         </CardContent>
       </Card>
 
-      {/* Action Buttons */}
       {previewHTML && (
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="pt-6">
             <div className="flex gap-2 flex-wrap">
-              <Button
-                onClick={handlePrint}
-                className="gap-2"
-                variant="default"
-              >
+              <Button onClick={handlePrint} className="gap-2">
                 <Printer className="w-4 h-4" />
                 Print
               </Button>
-              <Button
-                onClick={handleDownloadPDF}
-                className="gap-2"
-                variant="outline"
-              >
+              <Button onClick={handleDownloadPDF} className="gap-2" variant="outline">
                 <Download className="w-4 h-4" />
                 Download PDF
               </Button>
-              <Button
-                onClick={handleExportCSV}
-                className="gap-2"
-                variant="outline"
-              >
+              <Button onClick={handleExportCSV} className="gap-2" variant="outline">
                 <FileText className="w-4 h-4" />
                 Export CSV
               </Button>
@@ -227,8 +329,7 @@ export default function PrintPreviewPage() {
         </Card>
       )}
 
-      {/* Preview */}
-      {previewHTML && (
+      {previewHTML ? (
         <Card>
           <CardHeader>
             <CardTitle>Document Preview</CardTitle>
@@ -236,19 +337,12 @@ export default function PrintPreviewPage() {
           <CardContent>
             <iframe
               srcDoc={previewHTML}
-              style={{
-                width: '100%',
-                height: '600px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-              }}
+              style={{ width: '100%', height: '600px', border: '1px solid #ddd', borderRadius: '4px' }}
               title="Document Preview"
             />
           </CardContent>
         </Card>
-      )}
-
-      {!previewHTML && (
+      ) : (
         <Card className="bg-gray-50">
           <CardContent className="pt-6 text-center text-gray-500">
             <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
@@ -256,33 +350,6 @@ export default function PrintPreviewPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Export Formats Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Available Export Formats</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <h4 className="font-semibold mb-1">PDF Export</h4>
-            <p className="text-sm text-gray-600">
-              Download document as PDF with professional formatting and print-ready layout
-            </p>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-1">CSV Export</h4>
-            <p className="text-sm text-gray-600">
-              Export data in CSV format for use in Excel or other spreadsheet applications
-            </p>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-1">Print</h4>
-            <p className="text-sm text-gray-600">
-              Print document directly or save as PDF using your browser's print dialog
-            </p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

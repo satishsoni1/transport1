@@ -193,7 +193,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="p-4 border-t border-slate-700 space-y-2">
-        <Link href="/settings">
+        <Link href="/settings/users">
           <Button variant="ghost" className="w-full justify-start gap-2">
             <Settings size={18} />
             Settings

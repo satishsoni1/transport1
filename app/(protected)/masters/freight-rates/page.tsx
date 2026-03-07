@@ -36,6 +36,11 @@ interface FreightRate {
   created_at: string;
 }
 
+interface City {
+  id: number;
+  city_name: string;
+}
+
 export default function FreightRatesPage() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -50,6 +55,10 @@ export default function FreightRatesPage() {
 
   const { data: rates = [], mutate } = useSWR(
     '/api/masters/freight-rates',
+    apiClient.get
+  );
+  const { data: cities = [] } = useSWR<City[]>(
+    '/api/masters/cities',
     apiClient.get
   );
 
@@ -157,23 +166,35 @@ export default function FreightRatesPage() {
                   <Label htmlFor="from_city">From City *</Label>
                   <Input
                     id="from_city"
+                    list="freight-from-city-options"
                     value={formData.from_city}
                     onChange={(e) =>
                       setFormData({ ...formData, from_city: e.target.value })
                     }
                     placeholder="Origin city"
                   />
+                  <datalist id="freight-from-city-options">
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.city_name} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <Label htmlFor="to_city">To City *</Label>
                   <Input
                     id="to_city"
+                    list="freight-to-city-options"
                     value={formData.to_city}
                     onChange={(e) =>
                       setFormData({ ...formData, to_city: e.target.value })
                     }
                     placeholder="Destination city"
                   />
+                  <datalist id="freight-to-city-options">
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.city_name} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 
