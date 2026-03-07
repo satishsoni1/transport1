@@ -151,6 +151,42 @@ export async function ensureSchema() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL DEFAULT '',
+      details TEXT NOT NULL DEFAULT '',
+      user_name TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id INTEGER PRIMARY KEY,
+      company_name TEXT NOT NULL DEFAULT '',
+      company_email TEXT NOT NULL DEFAULT '',
+      company_phone TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      gst_no TEXT NOT NULL DEFAULT '',
+      default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18,
+      financial_year_start TEXT NOT NULL DEFAULT '04-01',
+      timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    INSERT INTO app_settings (
+      id, company_name, company_email, company_phone, address, gst_no,
+      default_gst_rate, financial_year_start, timezone
+    )
+    VALUES (1, '', '', '', '', '', 18, '04-01', 'Asia/Kolkata')
+    ON CONFLICT (id) DO NOTHING
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS freight_rates (
       id SERIAL PRIMARY KEY,
       from_city TEXT NOT NULL,

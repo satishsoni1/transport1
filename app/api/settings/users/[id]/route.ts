@@ -55,6 +55,18 @@ export async function PUT(
       WHERE id = ${id}
       RETURNING id, email, first_name, last_name, role, status, created_at
     `;
+
+    await sql`
+      INSERT INTO audit_logs (action, entity_type, entity_id, details, user_name)
+      VALUES (
+        'UPDATE',
+        'app_user',
+        ${String(id)},
+        ${`Updated user ${rows[0].email}`},
+        'system'
+      )
+    `;
+
     return NextResponse.json(rows[0], { status: 200 });
   } catch (error) {
     console.error('Error updating user', error);
@@ -87,6 +99,11 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    await sql`
+      INSERT INTO audit_logs (action, entity_type, entity_id, details, user_name)
+      VALUES ('DELETE', 'app_user', ${String(id)}, 'Deleted user', 'system')
+    `;
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

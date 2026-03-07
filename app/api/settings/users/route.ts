@@ -52,6 +52,18 @@ export async function POST(request: Request) {
       )
       RETURNING id, email, first_name, last_name, role, status, created_at
     `;
+
+    await sql`
+      INSERT INTO audit_logs (action, entity_type, entity_id, details, user_name)
+      VALUES (
+        'CREATE',
+        'app_user',
+        ${String(rows[0].id)},
+        ${`Created user ${rows[0].email}`},
+        'system'
+      )
+    `;
+
     return NextResponse.json(rows[0], { status: 201 });
   } catch (error) {
     console.error('Error creating user', error);
