@@ -45,10 +45,24 @@ interface LREntry {
   created_at: string;
 }
 
+interface Consignor {
+  id: number;
+  name: string;
+  city: string;
+}
+
+interface Consignee {
+  id: number;
+  name: string;
+  city: string;
+}
+
 export default function LREntryPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [consignorSearch, setConsignorSearch] = useState('');
+  const [consigneeSearch, setConsigneeSearch] = useState('');
 
   const [formData, setFormData] = useState({
     consignor_id: '',
@@ -82,6 +96,21 @@ export default function LREntryPage() {
   const { data: lrEntries = [], mutate } = useSWR(
     '/api/daily-entry/lr-entries',
     apiClient.get
+  );
+  const { data: consignors = [] } = useSWR<Consignor[]>(
+    '/api/masters/consignors',
+    apiClient.get
+  );
+  const { data: consignees = [] } = useSWR<Consignee[]>(
+    '/api/masters/consignees',
+    apiClient.get
+  );
+
+  const selectedConsignor = consignors.find(
+    (item) => item.id === Number(formData.consignor_id)
+  );
+  const selectedConsignee = consignees.find(
+    (item) => item.id === Number(formData.consignee_id)
   );
 
   const calculateBalance = useCallback(() => {
@@ -165,6 +194,8 @@ export default function LREntryPage() {
         setActiveTab('list');
         setEditingId(null);
         setGoodsItems([]);
+        setConsignorSearch('');
+        setConsigneeSearch('');
       } catch (error) {
         toast.error('Failed to save L.R.');
       }
@@ -183,6 +214,8 @@ export default function LREntryPage() {
             onClick={() => {
               setActiveTab('form');
               setEditingId(null);
+              setConsignorSearch('');
+              setConsigneeSearch('');
             }}
             className="gap-2"
           >
@@ -205,25 +238,69 @@ export default function LREntryPage() {
                   <Label htmlFor="consignor">Consignor *</Label>
                   <Input
                     id="consignor"
-                    type="number"
-                    value={formData.consignor_id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, consignor_id: e.target.value })
-                    }
-                    placeholder="Consignor ID"
+                    list="consignor-options"
+                    value={consignorSearch}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setConsignorSearch(value);
+                      const selected = consignors.find(
+                        (item) => item.name.toLowerCase() === value.trim().toLowerCase()
+                      );
+                      setFormData({
+                        ...formData,
+                        consignor_id: selected ? String(selected.id) : '',
+                      });
+                    }}
+                    placeholder="Type consignor name"
                   />
+                  <datalist id="consignor-options">
+                    {consignors.map((item) => (
+                      <option
+                        key={item.id}
+                        value={item.name}
+                        label={`${item.city} (ID: ${item.id})`}
+                      />
+                    ))}
+                  </datalist>
+                  {selectedConsignor && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Selected: {selectedConsignor.name} ({selectedConsignor.city}) - ID {selectedConsignor.id}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="consignee">Consignee *</Label>
                   <Input
                     id="consignee"
-                    type="number"
-                    value={formData.consignee_id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, consignee_id: e.target.value })
-                    }
-                    placeholder="Consignee ID"
+                    list="consignee-options"
+                    value={consigneeSearch}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setConsigneeSearch(value);
+                      const selected = consignees.find(
+                        (item) => item.name.toLowerCase() === value.trim().toLowerCase()
+                      );
+                      setFormData({
+                        ...formData,
+                        consignee_id: selected ? String(selected.id) : '',
+                      });
+                    }}
+                    placeholder="Type consignee name"
                   />
+                  <datalist id="consignee-options">
+                    {consignees.map((item) => (
+                      <option
+                        key={item.id}
+                        value={item.name}
+                        label={`${item.city} (ID: ${item.id})`}
+                      />
+                    ))}
+                  </datalist>
+                  {selectedConsignee && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Selected: {selectedConsignee.name} ({selectedConsignee.city}) - ID {selectedConsignee.id}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -564,6 +641,8 @@ export default function LREntryPage() {
                 setActiveTab('list');
                 setEditingId(null);
                 setGoodsItems([]);
+                setConsignorSearch('');
+                setConsigneeSearch('');
               }}
             >
               Cancel
