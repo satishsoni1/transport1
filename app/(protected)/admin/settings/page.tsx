@@ -17,6 +17,9 @@ interface AdminSettings {
   company_phone: string;
   address: string;
   gst_no: string;
+  logo_url: string;
+  signature_url: string;
+  transporter_qr_url: string;
   default_gst_rate: number;
   financial_year_start: string;
   timezone: string;
@@ -36,6 +39,9 @@ export default function AdminSettingsPage() {
     company_phone: '',
     address: '',
     gst_no: '',
+    logo_url: '',
+    signature_url: '',
+    transporter_qr_url: '',
     default_gst_rate: '18',
     financial_year_start: '04-01',
     timezone: 'Asia/Kolkata',
@@ -49,6 +55,9 @@ export default function AdminSettingsPage() {
       company_phone: data.company_phone || '',
       address: data.address || '',
       gst_no: data.gst_no || '',
+      logo_url: data.logo_url || '',
+      signature_url: data.signature_url || '',
+      transporter_qr_url: data.transporter_qr_url || '',
       default_gst_rate: String(data.default_gst_rate ?? 18),
       financial_year_start: data.financial_year_start || '04-01',
       timezone: data.timezone || 'Asia/Kolkata',
@@ -123,6 +132,34 @@ export default function AdminSettingsPage() {
               id="address"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="logo_url">Logo URL</Label>
+            <Input
+              id="logo_url"
+              value={formData.logo_url}
+              onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="signature_url">Authorized Signature URL</Label>
+            <Input
+              id="signature_url"
+              value={formData.signature_url}
+              onChange={(e) =>
+                setFormData({ ...formData, signature_url: e.target.value })
+              }
+            />
+          </div>
+          <div className="col-span-2">
+            <Label htmlFor="transporter_qr_url">Transporter QR URL (optional)</Label>
+            <Input
+              id="transporter_qr_url"
+              value={formData.transporter_qr_url}
+              onChange={(e) =>
+                setFormData({ ...formData, transporter_qr_url: e.target.value })
+              }
             />
           </div>
         </CardContent>

@@ -29,11 +29,13 @@ export async function POST(request: Request) {
     }
 
     const { rows } = await sql`
-      INSERT INTO consignees (name, address, city, gst_no, contact_person, mobile, status)
+      INSERT INTO consignees (name, name_mr, address, city, city_mr, gst_no, contact_person, mobile, status)
       VALUES (
         ${body.name},
+        ${body.name_mr || ''},
         ${body.address},
         ${body.city},
+        ${body.city_mr || ''},
         ${body.gst_no || ''},
         ${body.contact_person || ''},
         ${body.mobile || ''},

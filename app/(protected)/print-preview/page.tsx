@@ -39,6 +39,7 @@ interface LREntry {
   driver_mobile: string;
   invoice_no: string;
   remarks: string;
+  status: 'to_pay' | 'paid' | 'tbb';
 }
 
 interface Invoice {
@@ -81,18 +82,46 @@ interface MonthlyBill {
 interface Consignor {
   id: number;
   name: string;
+  address: string;
+  city: string;
+  gst_no: string;
+  mobile: string;
 }
 
 interface Consignee {
   id: number;
   name: string;
+  name_mr?: string;
+  address: string;
+  city: string;
+  city_mr?: string;
+  gst_no: string;
+  mobile: string;
 }
 
-function generateChallanHTML(challan: Challan): string {
+interface AdminSettings {
+  company_name?: string;
+  company_email?: string;
+  company_phone?: string;
+  address?: string;
+  gst_no?: string;
+  logo_url?: string;
+  signature_url?: string;
+  transporter_qr_url?: string;
+}
+
+function generateChallanHTML(challan: Challan, settings?: AdminSettings): string {
   return `
     <html><head><title>Challan ${challan.challan_no}</title></head>
     <body style="font-family:Arial;padding:16px">
-      <h2>TRIMURTI TRANSPORT - CHALLAN</h2>
+      <div style="display:flex;gap:8px;align-items:flex-start;border-bottom:1px solid #333;padding-bottom:8px;margin-bottom:8px;">
+        ${settings?.logo_url ? `<img src="${settings.logo_url}" style="width:48px;height:48px;object-fit:contain;" />` : ''}
+        <div>
+          <h2 style="margin:0">${settings?.company_name || 'TRIMURTI TRANSPORT'} - CHALLAN</h2>
+          <p style="margin:2px 0">${settings?.address || ''}</p>
+          <p style="margin:2px 0">${settings?.company_phone || ''}</p>
+        </div>
+      </div>
       <p><b>No:</b> ${challan.challan_no} | <b>Date:</b> ${new Date(challan.challan_date).toLocaleDateString()}</p>
       <p><b>Route:</b> ${challan.from_city} to ${challan.to_city}</p>
       <p><b>Truck:</b> ${challan.truck_no} | <b>Driver:</b> ${challan.driver_name}</p>
@@ -111,11 +140,18 @@ function generateChallanHTML(challan: Challan): string {
   `;
 }
 
-function generateBillHTML(bill: MonthlyBill): string {
+function generateBillHTML(bill: MonthlyBill, settings?: AdminSettings): string {
   return `
     <html><head><title>Bill ${bill.bill_no}</title></head>
     <body style="font-family:Arial;padding:16px">
-      <h2>TRIMURTI TRANSPORT - MONTHLY BILL</h2>
+      <div style="display:flex;gap:8px;align-items:flex-start;border-bottom:1px solid #333;padding-bottom:8px;margin-bottom:8px;">
+        ${settings?.logo_url ? `<img src="${settings.logo_url}" style="width:48px;height:48px;object-fit:contain;" />` : ''}
+        <div>
+          <h2 style="margin:0">${settings?.company_name || 'TRIMURTI TRANSPORT'} - MONTHLY BILL</h2>
+          <p style="margin:2px 0">${settings?.address || ''}</p>
+          <p style="margin:2px 0">${settings?.company_phone || ''}</p>
+        </div>
+      </div>
       <p><b>No:</b> ${bill.bill_no} | <b>Date:</b> ${new Date(bill.bill_date).toLocaleDateString()}</p>
       <p><b>Party:</b> ${bill.party_name}</p>
       <p><b>Period:</b> ${new Date(bill.period_from).toLocaleDateString()} - ${new Date(bill.period_to).toLocaleDateString()}</p>
@@ -147,6 +183,7 @@ export default function PrintPreviewPage() {
   const { data: bills = [] } = useSWR<MonthlyBill[]>('/api/daily-entry/monthly-bills', apiClient.get);
   const { data: consignors = [] } = useSWR<Consignor[]>('/api/masters/consignors', apiClient.get);
   const { data: consignees = [] } = useSWR<Consignee[]>('/api/masters/consignees', apiClient.get);
+  const { data: settings } = useSWR<AdminSettings>('/api/admin/settings', apiClient.get);
 
   const handleLoadPreview = useCallback(async () => {
     if (!documentNo.trim()) {
@@ -174,6 +211,18 @@ export default function PrintPreviewPage() {
           ...lr,
           consignor: consignorName,
           consignee: consigneeName,
+          consignor_address: consignors.find((item) => item.id === lr.consignor_id)?.address || '',
+          consignor_city: consignors.find((item) => item.id === lr.consignor_id)?.city || '',
+          consignor_mobile: consignors.find((item) => item.id === lr.consignor_id)?.mobile || '',
+          consignor_gst: consignors.find((item) => item.id === lr.consignor_id)?.gst_no || '',
+          consignee_address: consignees.find((item) => item.id === lr.consignee_id)?.address || '',
+          consignee_city: consignees.find((item) => item.id === lr.consignee_id)?.city || '',
+          consignee_city_mr: consignees.find((item) => item.id === lr.consignee_id)?.city_mr || '',
+          consignee_name_mr: consignees.find((item) => item.id === lr.consignee_id)?.name_mr || '',
+          consignee_mobile: consignees.find((item) => item.id === lr.consignee_id)?.mobile || '',
+          consignee_gst: consignees.find((item) => item.id === lr.consignee_id)?.gst_no || '',
+          freight_type: lr.status,
+          company: settings,
         });
         exportRows = lr.goods_items?.length
           ? lr.goods_items.map((g: any) => ({
@@ -193,6 +242,7 @@ export default function PrintPreviewPage() {
         html = generateInvoicePrintHTML({
           ...invoice,
           gst_percentage: Number(invoice.gst_percentage || 0),
+          company: settings,
         });
         exportRows = (invoice.items || []).map((i: any) => ({
           invoice_no: invoice.invoice_no,
@@ -205,7 +255,7 @@ export default function PrintPreviewPage() {
       } else if (documentType === 'challan') {
         const challan = challans.find((item) => item.challan_no === documentNo.trim());
         if (!challan) throw new Error('Challan not found');
-        html = generateChallanHTML(challan);
+        html = generateChallanHTML(challan, settings);
         exportRows = (challan.lr_list || []).map((lr: any) => ({
           challan_no: challan.challan_no,
           lr_no: lr.lr_no,
@@ -216,7 +266,7 @@ export default function PrintPreviewPage() {
       } else if (documentType === 'bill') {
         const bill = bills.find((item) => item.bill_no === documentNo.trim());
         if (!bill) throw new Error('Monthly bill not found');
-        html = generateBillHTML(bill);
+        html = generateBillHTML(bill, settings);
         exportRows = (bill.items || []).map((i: any) => ({
           bill_no: bill.bill_no,
           invoice_no: i.invoice_no,
@@ -234,7 +284,7 @@ export default function PrintPreviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [documentType, documentNo, lrEntries, invoices, challans, bills, consignors, consignees]);
+  }, [documentType, documentNo, lrEntries, invoices, challans, bills, consignors, consignees, settings]);
 
   const handlePrint = useCallback(() => {
     if (!previewHTML) return toast.error('Please load a document first');

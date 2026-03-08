@@ -71,8 +71,10 @@ export async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS consignees (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
+      name_mr TEXT NOT NULL DEFAULT '',
       address TEXT NOT NULL,
       city TEXT NOT NULL,
+      city_mr TEXT NOT NULL DEFAULT '',
       gst_no TEXT NOT NULL DEFAULT '',
       contact_person TEXT NOT NULL DEFAULT '',
       mobile TEXT NOT NULL DEFAULT '',
@@ -170,6 +172,9 @@ export async function ensureSchema() {
       company_phone TEXT NOT NULL DEFAULT '',
       address TEXT NOT NULL DEFAULT '',
       gst_no TEXT NOT NULL DEFAULT '',
+      logo_url TEXT NOT NULL DEFAULT '',
+      signature_url TEXT NOT NULL DEFAULT '',
+      transporter_qr_url TEXT NOT NULL DEFAULT '',
       default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18,
       financial_year_start TEXT NOT NULL DEFAULT '04-01',
       timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
@@ -180,11 +185,18 @@ export async function ensureSchema() {
   await sql`
     INSERT INTO app_settings (
       id, company_name, company_email, company_phone, address, gst_no,
+      logo_url, signature_url, transporter_qr_url,
       default_gst_rate, financial_year_start, timezone
     )
-    VALUES (1, '', '', '', '', '', 18, '04-01', 'Asia/Kolkata')
+    VALUES (1, '', '', '', '', '', '', '', '', 18, '04-01', 'Asia/Kolkata')
     ON CONFLICT (id) DO NOTHING
   `;
+
+  await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS name_mr TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS city_mr TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS signature_url TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS transporter_qr_url TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS freight_rates (

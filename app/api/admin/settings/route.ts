@@ -30,6 +30,9 @@ export async function PUT(request: Request) {
         company_phone = ${body.company_phone ?? existing.company_phone},
         address = ${body.address ?? existing.address},
         gst_no = ${body.gst_no ?? existing.gst_no},
+        logo_url = ${body.logo_url ?? existing.logo_url},
+        signature_url = ${body.signature_url ?? existing.signature_url},
+        transporter_qr_url = ${body.transporter_qr_url ?? existing.transporter_qr_url},
         default_gst_rate = ${
           body.default_gst_rate === undefined
             ? existing.default_gst_rate

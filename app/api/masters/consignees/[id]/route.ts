@@ -36,8 +36,10 @@ export async function PUT(
       UPDATE consignees
       SET
         name = ${body.name ?? existing.name},
+        name_mr = ${body.name_mr ?? existing.name_mr},
         address = ${body.address ?? existing.address},
         city = ${body.city ?? existing.city},
+        city_mr = ${body.city_mr ?? existing.city_mr},
         gst_no = ${body.gst_no ?? existing.gst_no},
         contact_person = ${body.contact_person ?? existing.contact_person},
         mobile = ${body.mobile ?? existing.mobile}
