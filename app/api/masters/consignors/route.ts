@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema } from '@/lib/db';
+import { createHash } from 'crypto';
 
 export async function GET() {
   try {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM consignors ORDER BY id DESC`;
+    const { rows } = await sql`
+      SELECT
+        id, name, name_mr, username, address, city, gst_no, contact_person, mobile,
+        bank_name, account_no, status, created_at
+      FROM consignors
+      ORDER BY id DESC
+    `;
     return NextResponse.json(rows, { status: 200 });
   } catch (error) {
     console.error('Error fetching consignors', error);
@@ -28,15 +35,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const passwordHash = createHash('sha256')
+      .update(String(body.password).trim())
+      .digest('hex');
+
     const { rows } = await sql`
       INSERT INTO consignors (
-        name, name_mr, username, password, address, city, gst_no, contact_person, mobile, bank_name, account_no, status
+        name, name_mr, username, password, password_hash, address, city, gst_no, contact_person, mobile, bank_name, account_no, status
       )
       VALUES (
         ${body.name},
         ${body.name_mr || ''},
         ${String(body.username).trim()},
-        ${String(body.password).trim()},
+        '',
+        ${passwordHash},
         ${body.address},
         ${body.city},
         ${body.gst_no || ''},
@@ -46,7 +58,7 @@ export async function POST(request: Request) {
         ${body.account_no || ''},
         'active'
       )
-      RETURNING *
+      RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, status, created_at
     `;
     return NextResponse.json(rows[0], { status: 201 });
   } catch (error) {

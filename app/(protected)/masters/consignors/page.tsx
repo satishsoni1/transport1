@@ -66,7 +66,7 @@ export default function ConsignorsPage() {
     account_no: '',
   });
 
-  const { data: consignors = [], mutate } = useSWR(
+  const { data: consignors = [], mutate } = useSWR<Consignor[]>(
     '/api/masters/consignors',
     apiClient.get
   );
@@ -133,7 +133,7 @@ export default function ConsignorsPage() {
       name: consignor.name,
       name_mr: consignor.name_mr || '',
       username: consignor.username || '',
-      password: consignor.password || '',
+      password: '',
       address: consignor.address,
       city: consignor.city,
       gst_no: consignor.gst_no,

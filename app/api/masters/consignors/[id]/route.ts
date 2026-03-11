@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema } from '@/lib/db';
+import { createHash } from 'crypto';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -41,13 +42,16 @@ export async function PUT(
       );
     }
 
+    const passwordHash = createHash('sha256').update(nextPassword).digest('hex');
+
     const { rows } = await sql`
       UPDATE consignors
       SET
         name = ${body.name ?? existing.name},
         name_mr = ${body.name_mr ?? existing.name_mr},
         username = ${nextUsername},
-        password = ${nextPassword},
+        password = '',
+        password_hash = ${passwordHash},
         address = ${body.address ?? existing.address},
         city = ${body.city ?? existing.city},
         gst_no = ${body.gst_no ?? existing.gst_no},
@@ -56,7 +60,7 @@ export async function PUT(
         bank_name = ${body.bank_name ?? existing.bank_name},
         account_no = ${body.account_no ?? existing.account_no}
       WHERE id = ${id}
-      RETURNING *
+      RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, status, created_at
     `;
     return NextResponse.json(rows[0], { status: 200 });
   } catch (error) {

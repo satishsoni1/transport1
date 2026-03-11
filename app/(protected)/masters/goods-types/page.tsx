@@ -42,7 +42,7 @@ export default function GoodsTypesPage() {
     description: '',
   });
 
-  const { data: goodsTypes = [], mutate } = useSWR(
+  const { data: goodsTypes = [], mutate } = useSWR<GoodsType[]>(
     '/api/masters/goods-types',
     apiClient.get
   );

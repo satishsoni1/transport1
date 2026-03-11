@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/app/context/auth-context';
 import {
@@ -85,8 +86,14 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [expandedItems, setExpandedItems] = useState<string[]>(['Master Data']);
+
+  const handleLogout = () => {
+    logout();
+    router.replace('/login');
+  };
 
   const toggleExpand = (label: string) => {
     setExpandedItems(prev =>
@@ -199,11 +206,9 @@ export function Sidebar() {
             Settings
           </Button>
         </Link>
-        <Link href="/login">
-          <Button variant="destructive" className="w-full">
-            Logout
-          </Button>
-        </Link>
+        <Button variant="destructive" className="w-full" onClick={handleLogout}>
+          Logout
+        </Button>
       </div>
     </div>
   );

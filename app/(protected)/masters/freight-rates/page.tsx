@@ -53,7 +53,7 @@ export default function FreightRatesPage() {
     vehicle_type: '',
   });
 
-  const { data: rates = [], mutate } = useSWR(
+  const { data: rates = [], mutate } = useSWR<FreightRate[]>(
     '/api/masters/freight-rates',
     apiClient.get
   );

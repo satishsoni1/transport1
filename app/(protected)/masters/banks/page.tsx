@@ -48,7 +48,7 @@ export default function BanksPage() {
     account_holder: '',
   });
 
-  const { data: banks = [], mutate } = useSWR(
+  const { data: banks = [], mutate } = useSWR<Bank[]>(
     '/api/masters/banks',
     apiClient.get
   );

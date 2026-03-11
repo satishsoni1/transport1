@@ -58,7 +58,7 @@ export default function ConsigneesPage() {
     mobile: '',
   });
 
-  const { data: consignees = [], mutate } = useSWR(
+  const { data: consignees = [], mutate } = useSWR<Consignee[]>(
     '/api/masters/consignees',
     apiClient.get
   );

@@ -103,7 +103,7 @@ export default function ChallanPage() {
   const [selectedLRs, setSelectedLRs] = useState<ChallanLR[]>([]);
   const [newLRInput, setNewLRInput] = useState('');
 
-  const { data: challans = [], mutate } = useSWR(
+  const { data: challans = [], mutate } = useSWR<Challan[]>(
     '/api/daily-entry/challans',
     apiClient.get
   );

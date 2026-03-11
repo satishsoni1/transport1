@@ -62,30 +62,28 @@ function formatMonth(d: Date) {
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  const { data: lrEntries = [] } = useSWR<LREntry[]>(
-    '/api/daily-entry/lr-entries',
-    apiClient.get
+  const { data: lrEntries = [], isLoading: lrLoading, error: lrError } = useSWR<LREntry[]>('/api/daily-entry/lr-entries', apiClient.get);
+  const { data: invoices = [], isLoading: invLoading, error: invError } = useSWR<Invoice[]>('/api/daily-entry/invoices', apiClient.get);
+  const { data: vehicles = [], isLoading: vehLoading, error: vehError } = useSWR<Vehicle[]>('/api/masters/vehicles', apiClient.get);
+  const { data: consignors = [], isLoading: consignorLoading, error: consignorError } = useSWR<Party[]>('/api/masters/consignors', apiClient.get);
+  const { data: consignees = [], isLoading: consigneeLoading, error: consigneeError } = useSWR<Party[]>('/api/masters/consignees', apiClient.get);
+  const { data: challans = [], isLoading: challanLoading, error: challanError } = useSWR<Challan[]>('/api/daily-entry/challans', apiClient.get);
+
+  const hasAnyError = Boolean(
+    lrError ||
+      invError ||
+      vehError ||
+      consignorError ||
+      consigneeError ||
+      challanError
   );
-  const { data: invoices = [] } = useSWR<Invoice[]>(
-    '/api/daily-entry/invoices',
-    apiClient.get
-  );
-  const { data: vehicles = [] } = useSWR<Vehicle[]>(
-    '/api/masters/vehicles',
-    apiClient.get
-  );
-  const { data: consignors = [] } = useSWR<Party[]>(
-    '/api/masters/consignors',
-    apiClient.get
-  );
-  const { data: consignees = [] } = useSWR<Party[]>(
-    '/api/masters/consignees',
-    apiClient.get
-  );
-  const { data: challans = [] } = useSWR<Challan[]>(
-    '/api/daily-entry/challans',
-    apiClient.get
-  );
+  const isDashboardLoading =
+    lrLoading ||
+    invLoading ||
+    vehLoading ||
+    consignorLoading ||
+    consigneeLoading ||
+    challanLoading;
 
   const totalFreight = useMemo(
     () => lrEntries.reduce((sum, item) => sum + (Number(item.freight) || 0), 0),
@@ -162,12 +160,34 @@ export default function DashboardPage() {
 
   const recentLrEntries = lrEntries.slice(0, 5);
 
+  if (isDashboardLoading && lrEntries.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <div className="h-8 w-72 animate-pulse rounded bg-slate-200" />
+          <div className="mt-2 h-4 w-96 animate-pulse rounded bg-slate-100" />
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} className="h-28 animate-pulse rounded-xl border bg-slate-50" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Welcome, {user?.firstName}</h1>
         <p className="text-muted-foreground mt-1">Transport Management System Dashboard</p>
       </div>
+
+      {hasAnyError && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+          Some dashboard data could not be loaded. Please refresh the page.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -298,7 +318,7 @@ export default function DashboardPage() {
                               : 'text-yellow-600'
                         }`}
                       >
-                        {entry.status}
+                        {entry.status.replace('_', ' ').toUpperCase()}
                       </p>
                     </div>
                   </div>
@@ -317,25 +337,25 @@ export default function DashboardPage() {
             <div className="space-y-3">
               <Link
                 href="/daily-entry/lr-entry"
-                className="block w-full px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md font-medium transition"
+                className="block w-full rounded-md border border-blue-200 bg-blue-50 px-4 py-2 font-medium text-blue-700 transition hover:bg-blue-100"
               >
                 New L.R. Entry
               </Link>
               <Link
                 href="/daily-entry/challan"
-                className="block w-full px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md font-medium transition"
+                className="block w-full rounded-md border border-violet-200 bg-violet-50 px-4 py-2 font-medium text-violet-700 transition hover:bg-violet-100"
               >
                 Create Challan
               </Link>
               <Link
                 href="/daily-entry/receipt"
-                className="block w-full px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-md font-medium transition"
+                className="block w-full rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 font-medium text-emerald-700 transition hover:bg-emerald-100"
               >
                 Record Receipt
               </Link>
               <Link
                 href="/daily-entry/invoice"
-                className="block w-full px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-md font-medium transition"
+                className="block w-full rounded-md border border-amber-200 bg-amber-50 px-4 py-2 font-medium text-amber-700 transition hover:bg-amber-100"
               >
                 Generate Invoice
               </Link>
