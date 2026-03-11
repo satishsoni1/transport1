@@ -24,10 +24,12 @@ import {
 import { toast } from 'sonner';
 import { Edit2, Trash2, Plus } from 'lucide-react';
 import useSWR from 'swr';
+import { transliterateToMarathi } from '@/app/services/marathi';
 
 interface Consignor {
   id: number;
   name: string;
+  name_mr?: string;
   address: string;
   city: string;
   gst_no: string;
@@ -50,6 +52,7 @@ export default function ConsignorsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
+    name_mr: '',
     address: '',
     city: '',
     gst_no: '',
@@ -73,6 +76,7 @@ export default function ConsignorsPage() {
       setEditingId(null);
       setFormData({
         name: '',
+        name_mr: '',
         address: '',
         city: '',
         gst_no: '',
@@ -115,6 +119,7 @@ export default function ConsignorsPage() {
     setEditingId(consignor.id);
     setFormData({
       name: consignor.name,
+      name_mr: consignor.name_mr || '',
       address: consignor.address,
       city: consignor.city,
       gst_no: consignor.gst_no,
@@ -165,9 +170,24 @@ export default function ConsignorsPage() {
                     id="name"
                     value={formData.name}
                     onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
+                      setFormData({
+                        ...formData,
+                        name: e.target.value,
+                        name_mr: transliterateToMarathi(e.target.value),
+                      })
                     }
                     placeholder="Consignor name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="name_mr">Name (Marathi)</Label>
+                  <Input
+                    id="name_mr"
+                    value={formData.name_mr}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name_mr: e.target.value })
+                    }
+                    placeholder="मराठी नाव"
                   />
                 </div>
                 <div>

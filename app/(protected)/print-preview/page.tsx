@@ -16,6 +16,7 @@ import {
   downloadPDF,
   exportToCSV,
 } from '@/app/services/print-service';
+import { transliterateToMarathi } from '@/app/services/marathi';
 import useSWR from 'swr';
 
 type DocumentType = 'lr' | 'invoice' | 'challan' | 'bill';
@@ -47,6 +48,7 @@ interface Invoice {
   invoice_no: string;
   invoice_date: string;
   party_name: string;
+  consignor_id?: number;
   items: any[];
   total_amount: number;
   gst_amount: number;
@@ -82,6 +84,7 @@ interface MonthlyBill {
 interface Consignor {
   id: number;
   name: string;
+  name_mr?: string;
   address: string;
   city: string;
   gst_no: string;
@@ -210,6 +213,9 @@ export default function PrintPreviewPage() {
         html = generateLRPrintHTML({
           ...lr,
           consignor: consignorName,
+          consignor_name_mr:
+            consignors.find((item) => item.id === lr.consignor_id)?.name_mr ||
+            transliterateToMarathi(consignorName),
           consignee: consigneeName,
           consignor_address: consignors.find((item) => item.id === lr.consignor_id)?.address || '',
           consignor_city: consignors.find((item) => item.id === lr.consignor_id)?.city || '',
@@ -242,6 +248,9 @@ export default function PrintPreviewPage() {
         html = generateInvoicePrintHTML({
           ...invoice,
           gst_percentage: Number(invoice.gst_percentage || 0),
+          party_name_mr:
+            consignors.find((item) => item.id === Number(invoice.consignor_id))?.name_mr ||
+            transliterateToMarathi(invoice.party_name || ''),
           company: settings,
         });
         exportRows = (invoice.items || []).map((i: any) => ({

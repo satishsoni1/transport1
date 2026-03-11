@@ -17,6 +17,7 @@ export interface LRPrintData {
   lr_no: string;
   lr_date: string;
   consignor: string;
+  consignor_name_mr?: string;
   consignee: string;
   consignor_address?: string;
   consignor_city?: string;
@@ -46,6 +47,7 @@ export interface InvoicePrintData {
   invoice_no: string;
   invoice_date: string;
   party_name: string;
+  party_name_mr?: string;
   items: any[];
   total_amount: number;
   gst_amount: number;
@@ -87,10 +89,59 @@ function getLRQr(lrNo: string) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${payload}`;
 }
 
+function numberToWords(num: number): string {
+  if (!Number.isFinite(num)) return '';
+  const n = Math.floor(Math.abs(num));
+  if (n === 0) return 'Zero';
+  const ones = [
+    '',
+    'One',
+    'Two',
+    'Three',
+    'Four',
+    'Five',
+    'Six',
+    'Seven',
+    'Eight',
+    'Nine',
+    'Ten',
+    'Eleven',
+    'Twelve',
+    'Thirteen',
+    'Fourteen',
+    'Fifteen',
+    'Sixteen',
+    'Seventeen',
+    'Eighteen',
+    'Nineteen',
+  ];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const toWords = (x: number): string => {
+    if (x < 20) return ones[x];
+    if (x < 100) return `${tens[Math.floor(x / 10)]}${x % 10 ? ` ${ones[x % 10]}` : ''}`;
+    if (x < 1000) return `${ones[Math.floor(x / 100)]} Hundred${x % 100 ? ` ${toWords(x % 100)}` : ''}`;
+    if (x < 100000) return `${toWords(Math.floor(x / 1000))} Thousand${x % 1000 ? ` ${toWords(x % 1000)}` : ''}`;
+    if (x < 10000000) return `${toWords(Math.floor(x / 100000))} Lakh${x % 100000 ? ` ${toWords(x % 100000)}` : ''}`;
+    return `${toWords(Math.floor(x / 10000000))} Crore${x % 10000000 ? ` ${toWords(x % 10000000)}` : ''}`;
+  };
+  return toWords(n);
+}
+
 export function generateLRPrintHTML(data: LRPrintData): string {
   const company = data.company || {};
   const freightTypeLabel =
     data.freight_type === 'paid' ? 'Paid' : data.freight_type === 'tbb' ? 'TBB' : 'To Pay';
+  const totalQty = (data.goods_items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  const totalWeightKg = (data.goods_items || []).reduce(
+    (sum, item) => sum + (Number(item.weight_kg) || 0),
+    0
+  );
+  const totalWeightMt = totalWeightKg / 1000;
+  const payableAmount = Number(data.freight || 0) + Number(data.hamali || 0) + Number(data.lr_charge || 0);
+  const amountWords = numberToWords(payableAmount);
+  const lrQr = getLRQr(data.lr_no);
+  const transporterQr = company.transporter_qr_url || '';
+  const showFreight = data.freight_type === 'to_pay';
 
   return `
   <!DOCTYPE html>
@@ -124,6 +175,10 @@ export function generateLRPrintHTML(data: LRPrintData): string {
           <h4>Route</h4>
           <div class="line"><span class="lbl">From:</span> ${data.from_city || '-'}</div>
           <div class="line"><span class="lbl">To:</span> ${data.to_city || '-'}</div>
+          <div style="margin-top:4px;text-align:right;">
+            <img src="${lrQr}" alt="lr qr" style="width:72px;height:72px;object-fit:contain;border:1px solid #666;padding:2px;" />
+            <div style="font-size:9px;">LR QR</div>
+          </div>
         </div>
       </div>
 
@@ -131,6 +186,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         <div class="box">
           <h4>Consignor</h4>
           <div class="line"><span class="lbl">Name:</span> ${data.consignor || '-'}</div>
+          <div class="line"><span class="lbl">Name (Mr):</span> ${data.consignor_name_mr || '-'}</div>
           <div class="line"><span class="lbl">Address:</span> ${data.consignor_address || '-'}</div>
           <div class="line"><span class="lbl">City:</span> ${data.consignor_city || '-'}</div>
           <div class="line"><span class="lbl">Contact:</span> ${data.consignor_mobile || '-'}</div>
@@ -138,11 +194,11 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         </div>
         <div class="box">
           <h4>Consignee</h4>
-          <div class="line"><span class="lbl">Name:</span> ${data.consignee || '-'}</div>
-          <div class="line"><span class="lbl">Name (Mr):</span> ${data.consignee_name_mr || '-'}</div>
-          <div class="line"><span class="lbl">City:</span> ${data.consignee_city || '-'}</div>
+          <div class="line" style="font-size:12px;font-weight:700;">${data.consignee || '-'}</div>
+          <div class="line" style="font-size:11px;">${data.consignee_name_mr || '-'}</div>
+          <div class="line" style="font-size:12px;font-weight:700;">${data.consignee_city || '-'}</div>
           <div class="line"><span class="lbl">City (Mr):</span> ${data.consignee_city_mr || '-'}</div>
-          <div class="line"><span class="lbl">Contact:</span> ${data.consignee_mobile || '-'}</div>
+          <div class="line" style="font-size:12px;font-weight:700;"><span class="lbl">Mobile:</span> ${data.consignee_mobile || '-'}</div>
           <div class="line"><span class="lbl">GST:</span> ${data.consignee_gst || '-'}</div>
         </div>
       </div>
@@ -179,27 +235,21 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       </table>
 
       <div class="totals">
-        <div class="box"><span class="lbl">Freight:</span> ${Number(data.freight || 0).toFixed(2)}</div>
+        <div class="box"><span class="lbl">Freight:</span> ${showFreight ? Number(data.freight || 0).toFixed(2) : '-'}</div>
         <div class="box"><span class="lbl">Hamali:</span> ${Number(data.hamali || 0).toFixed(2)}</div>
         <div class="box"><span class="lbl">L.R. Charge:</span> ${Number(data.lr_charge || 0).toFixed(2)}</div>
         <div class="box"><span class="lbl">Advance:</span> ${Number(data.advance || 0).toFixed(2)}</div>
-        <div class="box"><span class="lbl">Balance:</span> ${Number(data.balance || 0).toFixed(2)}</div>
+        <div class="box"><span class="lbl">Balance:</span> ${Number(data.balance || payableAmount).toFixed(2)}</div>
+        <div class="box"><span class="lbl">Total Qty / Weight:</span> ${totalQty} / ${totalWeightMt.toFixed(3)} MT</div>
       </div>
+      <div class="box" style="margin-top:6px;"><span class="lbl">Amount in Words:</span> ${amountWords} Only</div>
 
       ${data.remarks ? `<div class="box" style="margin-top:6px;"><span class="lbl">Remarks:</span> ${data.remarks}</div>` : ''}
 
       <div class="footer">
-        <div class="qr-row">
-          <div class="qr-box">
-            <img src="${company.transporter_qr_url || getLRQr(company.company_name || 'TRANSPORT')}" alt="transporter qr" />
-            <div>Transporter QR</div>
-          </div>
-          <div class="qr-box">
-            <img src="${getLRQr(data.lr_no)}" alt="lr qr" />
-            <div>LR QR (${data.lr_no})</div>
-          </div>
-        </div>
+        <div style="font-size:10px;font-weight:700;">Subject to Akola Jurisdiction</div>
         <div class="sig">
+          ${transporterQr ? `<img src="${transporterQr}" alt="transporter qr" style="width:56px;height:56px;object-fit:contain;border:1px solid #666;padding:2px;margin-bottom:4px;" />` : ''}
           ${company.signature_url ? `<img src="${company.signature_url}" alt="signature" />` : ''}
           <div class="sig-line">Authorised Sign</div>
         </div>
@@ -236,6 +286,7 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
           <div class="line"><span class="lbl">Invoice No:</span> ${data.invoice_no}</div>
           <div class="line"><span class="lbl">Date:</span> ${new Date(data.invoice_date).toLocaleDateString()}</div>
           <div class="line"><span class="lbl">Party:</span> ${data.party_name}</div>
+          <div class="line"><span class="lbl">Party (Mr):</span> ${data.party_name_mr || '-'}</div>
         </div>
       </div>
 
@@ -329,9 +380,7 @@ export async function downloadPDF(html: string, filename: string): Promise<void>
       body: JSON.stringify({ html, filename }),
     });
 
-    if (!response.ok) {
-      throw new Error('PDF generation failed');
-    }
+    if (!response.ok) throw new Error('PDF generation failed');
 
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -344,6 +393,15 @@ export async function downloadPDF(html: string, filename: string): Promise<void>
     URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Error downloading PDF:', error);
-    throw error;
+    // Fallback: download printable HTML if PDF API is not configured.
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 }

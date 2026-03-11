@@ -30,10 +30,11 @@ export async function POST(request: Request) {
 
     const { rows } = await sql`
       INSERT INTO consignors (
-        name, address, city, gst_no, contact_person, mobile, bank_name, account_no, status
+        name, name_mr, address, city, gst_no, contact_person, mobile, bank_name, account_no, status
       )
       VALUES (
         ${body.name},
+        ${body.name_mr || ''},
         ${body.address},
         ${body.city},
         ${body.gst_no || ''},

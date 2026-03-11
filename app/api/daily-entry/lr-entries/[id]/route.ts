@@ -40,6 +40,12 @@ export async function PUT(
 
     const existing = existingRows[0];
     const freight = body.freight === undefined ? existing.freight : Number(body.freight) || 0;
+    const hamali =
+      body.hamali === undefined ? Number(existing.hamali) || 0 : Number(body.hamali) || 0;
+    const lrCharge =
+      body.lr_charge === undefined
+        ? Number(existing.lr_charge) || 0
+        : Number(body.lr_charge) || 0;
     const advance = body.advance === undefined ? existing.advance : Number(body.advance) || 0;
     const statusValue =
       body.status === 'paid' || body.status === 'tbb' || body.status === 'to_pay'
@@ -55,10 +61,10 @@ export async function PUT(
         to_city = ${body.to_city ?? existing.to_city},
         delivery_address = ${body.delivery_address ?? existing.delivery_address},
         freight = ${freight},
-        hamali = ${body.hamali === undefined ? existing.hamali : Number(body.hamali) || 0},
-        lr_charge = ${body.lr_charge === undefined ? existing.lr_charge : Number(body.lr_charge) || 0},
+        hamali = ${hamali},
+        lr_charge = ${lrCharge},
         advance = ${advance},
-        balance = ${freight - advance},
+        balance = ${freight + hamali + lrCharge},
         invoice_no = ${body.invoice_no ?? existing.invoice_no},
         invoice_date = ${body.invoice_date ?? existing.invoice_date},
         truck_no = ${body.truck_no ?? existing.truck_no},

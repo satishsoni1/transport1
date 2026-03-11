@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import useSWR, { mutate as globalMutate } from 'swr';
+import { transliterateToMarathi } from '@/app/services/marathi';
 
 interface GoodsItem {
   qty: number;
@@ -57,6 +58,7 @@ interface LREntry {
 interface Consignor {
   id: number;
   name: string;
+  name_mr?: string;
   address: string;
   city: string;
   gst_no: string;
@@ -107,6 +109,7 @@ interface AdminSettings {
 
 const emptyNewConsignor = {
   name: '',
+  name_mr: '',
   address: '',
   city: '',
   gst_no: '',
@@ -206,9 +209,10 @@ export default function LREntryPage() {
 
   const calculateBalance = useCallback(() => {
     const freight = parseFloat(formData.freight) || 0;
-    const advance = parseFloat(formData.advance) || 0;
-    return freight - advance;
-  }, [formData.freight, formData.advance]);
+    const hamali = parseFloat(formData.hamali) || 0;
+    const lrCharge = parseFloat(formData.lr_charge) || 0;
+    return freight + hamali + lrCharge;
+  }, [formData.freight, formData.hamali, formData.lr_charge]);
 
   const calculateCurrentAmount = useCallback(() => {
     const qty = currentItem.qty || 0;
@@ -416,26 +420,25 @@ export default function LREntryPage() {
         const consignor = consignors.find((c) => c.id === created.consignor_id) || selectedConsignor;
         const consignee = consignees.find((c) => c.id === created.consignee_id) || selectedConsignee;
 
-        if (confirm(`L.R. ${created.lr_no} created. Do you want to print now?`)) {
-          const html = generateLRPrintHTML({
-            ...created,
-            consignor: consignor?.name || '',
-            consignor_address: consignor?.address || '',
-            consignor_city: consignor?.city || '',
-            consignor_mobile: consignor?.mobile || '',
-            consignor_gst: consignor?.gst_no || '',
-            consignee: consignee?.name || '',
-            consignee_name_mr: consignee?.name_mr || '',
-            consignee_address: consignee?.address || '',
-            consignee_city: consignee?.city || '',
-            consignee_city_mr: consignee?.city_mr || '',
-            consignee_mobile: consignee?.mobile || '',
-            consignee_gst: consignee?.gst_no || '',
-            freight_type: created.status,
-            company: settings,
-          });
-          printHTML(html);
-        }
+        const html = generateLRPrintHTML({
+          ...created,
+          consignor: consignor?.name || '',
+          consignor_name_mr: consignor?.name_mr || transliterateToMarathi(consignor?.name || ''),
+          consignor_address: consignor?.address || '',
+          consignor_city: consignor?.city || '',
+          consignor_mobile: consignor?.mobile || '',
+          consignor_gst: consignor?.gst_no || '',
+          consignee: consignee?.name || '',
+          consignee_name_mr: consignee?.name_mr || transliterateToMarathi(consignee?.name || ''),
+          consignee_address: consignee?.address || '',
+          consignee_city: consignee?.city || '',
+          consignee_city_mr: consignee?.city_mr || transliterateToMarathi(consignee?.city || ''),
+          consignee_mobile: consignee?.mobile || '',
+          consignee_gst: consignee?.gst_no || '',
+          freight_type: created.status,
+          company: settings,
+        });
+        printHTML(html);
 
         // Auto refresh to fresh new LR screen
         setActiveTab('form');
@@ -527,7 +530,24 @@ export default function LREntryPage() {
 
                   {showNewConsignor && (
                     <div className="mt-3 p-3 border rounded-md space-y-2">
-                      <Input placeholder="Name *" value={newConsignor.name} onChange={(e) => setNewConsignor({ ...newConsignor, name: e.target.value })} />
+                      <Input
+                        placeholder="Name *"
+                        value={newConsignor.name}
+                        onChange={(e) =>
+                          setNewConsignor({
+                            ...newConsignor,
+                            name: e.target.value,
+                            name_mr: transliterateToMarathi(e.target.value),
+                          })
+                        }
+                      />
+                      <Input
+                        placeholder="Name in Marathi"
+                        value={newConsignor.name_mr}
+                        onChange={(e) =>
+                          setNewConsignor({ ...newConsignor, name_mr: e.target.value })
+                        }
+                      />
                       <Input placeholder="Address *" value={newConsignor.address} onChange={(e) => setNewConsignor({ ...newConsignor, address: e.target.value })} />
                       <Input placeholder="City *" list="lr-city-options" value={newConsignor.city} onChange={(e) => setNewConsignor({ ...newConsignor, city: e.target.value })} />
                       <Input placeholder="Contact No" value={newConsignor.mobile} onChange={(e) => setNewConsignor({ ...newConsignor, mobile: e.target.value })} />
@@ -580,10 +600,31 @@ export default function LREntryPage() {
 
                   {showNewConsignee && (
                     <div className="mt-3 p-3 border rounded-md space-y-2">
-                      <Input placeholder="Name *" value={newConsignee.name} onChange={(e) => setNewConsignee({ ...newConsignee, name: e.target.value })} />
+                      <Input
+                        placeholder="Name *"
+                        value={newConsignee.name}
+                        onChange={(e) =>
+                          setNewConsignee({
+                            ...newConsignee,
+                            name: e.target.value,
+                            name_mr: transliterateToMarathi(e.target.value),
+                          })
+                        }
+                      />
                       <Input placeholder="Name in Marathi" value={newConsignee.name_mr} onChange={(e) => setNewConsignee({ ...newConsignee, name_mr: e.target.value })} />
                       <Input placeholder="Address *" value={newConsignee.address} onChange={(e) => setNewConsignee({ ...newConsignee, address: e.target.value })} />
-                      <Input placeholder="City *" list="lr-city-options" value={newConsignee.city} onChange={(e) => setNewConsignee({ ...newConsignee, city: e.target.value })} />
+                      <Input
+                        placeholder="City *"
+                        list="lr-city-options"
+                        value={newConsignee.city}
+                        onChange={(e) =>
+                          setNewConsignee({
+                            ...newConsignee,
+                            city: e.target.value,
+                            city_mr: transliterateToMarathi(e.target.value),
+                          })
+                        }
+                      />
                       <Input placeholder="City in Marathi" value={newConsignee.city_mr} onChange={(e) => setNewConsignee({ ...newConsignee, city_mr: e.target.value })} />
                       <Input placeholder="Contact No" value={newConsignee.mobile} onChange={(e) => setNewConsignee({ ...newConsignee, mobile: e.target.value })} />
                       <Input placeholder="GST No" value={newConsignee.gst_no} onChange={(e) => setNewConsignee({ ...newConsignee, gst_no: e.target.value })} />

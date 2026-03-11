@@ -36,6 +36,8 @@ export async function POST(request: Request) {
     }
 
     const freight = Number(body.freight) || 0;
+    const hamali = Number(body.hamali) || 0;
+    const lrCharge = Number(body.lr_charge) || 0;
     const advance = Number(body.advance) || 0;
 
     const seq = await sql`SELECT nextval(pg_get_serial_sequence('lr_entries','id')) AS id`;
@@ -58,10 +60,10 @@ export async function POST(request: Request) {
         ${body.to_city || ''},
         ${body.delivery_address || ''},
         ${freight},
-        ${Number(body.hamali) || 0},
-        ${Number(body.lr_charge) || 0},
+        ${hamali},
+        ${lrCharge},
         ${advance},
-        ${freight - advance},
+        ${freight + hamali + lrCharge},
         ${body.invoice_no || ''},
         ${body.invoice_date || ''},
         ${body.truck_no || ''},

@@ -87,6 +87,7 @@ export async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS consignors (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
+      name_mr TEXT NOT NULL DEFAULT '',
       address TEXT NOT NULL,
       city TEXT NOT NULL,
       gst_no TEXT NOT NULL DEFAULT '',
@@ -184,6 +185,7 @@ export async function ensureSchema() {
 
   await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS name_mr TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS city_mr TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS name_mr TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS signature_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS transporter_qr_url TEXT NOT NULL DEFAULT ''`;

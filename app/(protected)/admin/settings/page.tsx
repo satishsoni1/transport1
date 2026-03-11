@@ -78,6 +78,19 @@ export default function AdminSettingsPage() {
     }
   }, [formData, mutate, user]);
 
+  const handleFileUpload = useCallback(
+    (field: 'logo_url' | 'signature_url' | 'transporter_qr_url', file: File | null) => {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || '');
+        setFormData((prev) => ({ ...prev, [field]: result }));
+      };
+      reader.readAsDataURL(file);
+    },
+    []
+  );
+
   if (!user) return null;
 
   return (
@@ -134,15 +147,23 @@ export default function AdminSettingsPage() {
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
             />
           </div>
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="logo_url">Logo URL</Label>
             <Input
               id="logo_url"
               value={formData.logo_url}
               onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
             />
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileUpload('logo_url', e.target.files?.[0] || null)}
+            />
+            {formData.logo_url ? (
+              <img src={formData.logo_url} alt="Logo" className="h-12 w-auto border rounded p-1" />
+            ) : null}
           </div>
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="signature_url">Authorized Signature URL</Label>
             <Input
               id="signature_url"
@@ -151,8 +172,22 @@ export default function AdminSettingsPage() {
                 setFormData({ ...formData, signature_url: e.target.value })
               }
             />
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) =>
+                handleFileUpload('signature_url', e.target.files?.[0] || null)
+              }
+            />
+            {formData.signature_url ? (
+              <img
+                src={formData.signature_url}
+                alt="Signature"
+                className="h-12 w-auto border rounded p-1"
+              />
+            ) : null}
           </div>
-          <div className="col-span-2">
+          <div className="col-span-2 space-y-2">
             <Label htmlFor="transporter_qr_url">Transporter QR URL (optional)</Label>
             <Input
               id="transporter_qr_url"
@@ -161,6 +196,20 @@ export default function AdminSettingsPage() {
                 setFormData({ ...formData, transporter_qr_url: e.target.value })
               }
             />
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) =>
+                handleFileUpload('transporter_qr_url', e.target.files?.[0] || null)
+              }
+            />
+            {formData.transporter_qr_url ? (
+              <img
+                src={formData.transporter_qr_url}
+                alt="Transport QR"
+                className="h-16 w-16 border rounded p-1"
+              />
+            ) : null}
           </div>
         </CardContent>
       </Card>
