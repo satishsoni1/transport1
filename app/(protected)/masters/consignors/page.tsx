@@ -30,6 +30,8 @@ interface Consignor {
   id: number;
   name: string;
   name_mr?: string;
+  username?: string;
+  password?: string;
   address: string;
   city: string;
   gst_no: string;
@@ -53,6 +55,8 @@ export default function ConsignorsPage() {
   const [formData, setFormData] = useState({
     name: '',
     name_mr: '',
+    username: '',
+    password: '',
     address: '',
     city: '',
     gst_no: '',
@@ -77,6 +81,8 @@ export default function ConsignorsPage() {
       setFormData({
         name: '',
         name_mr: '',
+        username: '',
+        password: '',
         address: '',
         city: '',
         gst_no: '',
@@ -93,8 +99,14 @@ export default function ConsignorsPage() {
     async (e: React.FormEvent) => {
       e.preventDefault();
 
-      if (!formData.name || !formData.address || !formData.city) {
-        toast.error('Please fill required fields: Name, Address, City');
+      if (
+        !formData.name ||
+        !formData.username ||
+        !formData.password ||
+        !formData.address ||
+        !formData.city
+      ) {
+        toast.error('Please fill required fields: Name, Username, Password, Address, City');
         return;
       }
 
@@ -120,6 +132,8 @@ export default function ConsignorsPage() {
     setFormData({
       name: consignor.name,
       name_mr: consignor.name_mr || '',
+      username: consignor.username || '',
+      password: consignor.password || '',
       address: consignor.address,
       city: consignor.city,
       gst_no: consignor.gst_no,
@@ -206,6 +220,32 @@ export default function ConsignorsPage() {
                       <option key={city.id} value={city.city_name} />
                     ))}
                   </datalist>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="username">Username *</Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) =>
+                      setFormData({ ...formData, username: e.target.value })
+                    }
+                    placeholder="Consignor username"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="password">Password *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    placeholder="Consignor password"
+                  />
                 </div>
               </div>
 

@@ -21,20 +21,22 @@ export async function POST(request: Request) {
     await ensureSchema();
     const body = await request.json();
 
-    if (!body.name || !body.address || !body.city) {
+    if (!body.name || !body.address || !body.city || !body.username || !body.password) {
       return NextResponse.json(
-        { success: false, error: 'Name, address, and city are required' },
+        { success: false, error: 'Name, username, password, address, and city are required' },
         { status: 400 }
       );
     }
 
     const { rows } = await sql`
       INSERT INTO consignors (
-        name, name_mr, address, city, gst_no, contact_person, mobile, bank_name, account_no, status
+        name, name_mr, username, password, address, city, gst_no, contact_person, mobile, bank_name, account_no, status
       )
       VALUES (
         ${body.name},
         ${body.name_mr || ''},
+        ${String(body.username).trim()},
+        ${String(body.password).trim()},
         ${body.address},
         ${body.city},
         ${body.gst_no || ''},

@@ -59,6 +59,8 @@ interface Consignor {
   id: number;
   name: string;
   name_mr?: string;
+  username?: string;
+  password?: string;
   address: string;
   city: string;
   gst_no: string;
@@ -110,6 +112,8 @@ interface AdminSettings {
 const emptyNewConsignor = {
   name: '',
   name_mr: '',
+  username: '',
+  password: '',
   address: '',
   city: '',
   gst_no: '',
@@ -273,8 +277,14 @@ export default function LREntryPage() {
   }, []);
 
   const saveNewConsignor = useCallback(async () => {
-    if (!newConsignor.name || !newConsignor.address || !newConsignor.city) {
-      toast.error('Name, address and city are required for new consignor');
+    if (
+      !newConsignor.name ||
+      !newConsignor.username ||
+      !newConsignor.password ||
+      !newConsignor.address ||
+      !newConsignor.city
+    ) {
+      toast.error('Name, username, password, address and city are required for new consignor');
       return;
     }
     try {
@@ -546,6 +556,21 @@ export default function LREntryPage() {
                         value={newConsignor.name_mr}
                         onChange={(e) =>
                           setNewConsignor({ ...newConsignor, name_mr: e.target.value })
+                        }
+                      />
+                      <Input
+                        placeholder="Username *"
+                        value={newConsignor.username}
+                        onChange={(e) =>
+                          setNewConsignor({ ...newConsignor, username: e.target.value })
+                        }
+                      />
+                      <Input
+                        placeholder="Password *"
+                        type="password"
+                        value={newConsignor.password}
+                        onChange={(e) =>
+                          setNewConsignor({ ...newConsignor, password: e.target.value })
                         }
                       />
                       <Input placeholder="Address *" value={newConsignor.address} onChange={(e) => setNewConsignor({ ...newConsignor, address: e.target.value })} />

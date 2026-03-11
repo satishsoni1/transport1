@@ -32,11 +32,22 @@ export async function PUT(
     }
 
     const existing = existingRows[0];
+    const nextUsername = String(body.username ?? existing.username ?? '').trim();
+    const nextPassword = String(body.password ?? existing.password ?? '').trim();
+    if (!nextUsername || !nextPassword) {
+      return NextResponse.json(
+        { success: false, error: 'Username and password are required' },
+        { status: 400 }
+      );
+    }
+
     const { rows } = await sql`
       UPDATE consignors
       SET
         name = ${body.name ?? existing.name},
         name_mr = ${body.name_mr ?? existing.name_mr},
+        username = ${nextUsername},
+        password = ${nextPassword},
         address = ${body.address ?? existing.address},
         city = ${body.city ?? existing.city},
         gst_no = ${body.gst_no ?? existing.gst_no},
