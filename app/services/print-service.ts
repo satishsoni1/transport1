@@ -30,7 +30,9 @@ export interface LRPrintData {
   consignee_mobile?: string;
   consignee_gst?: string;
   from_city: string;
+  from_city_mr?: string;
   to_city: string;
+  to_city_mr?: string;
   goods_items: any[];
   freight: number;
   hamali: number;
@@ -59,23 +61,31 @@ export interface InvoicePrintData {
 const basePrintStyle = `
   * { box-sizing: border-box; }
   body { font-family: Arial, sans-serif; margin: 0; color: #111; }
-  @page { size: A5 portrait; margin: 8mm; }
-  .sheet { width: 100%; min-height: 100%; border: 1px solid #222; padding: 6mm; }
-  .header { display: flex; gap: 8px; border-bottom: 1px solid #222; padding-bottom: 6px; margin-bottom: 8px; }
+  @page { size: A5 portrait; margin: 4mm; }
+  .sheet {
+    width: 100%;
+    min-height: calc(210mm - 8mm);
+    border: 1px solid #222;
+    padding: 3mm;
+    display: flex;
+    flex-direction: column;
+  }
+  .header { display: flex; gap: 8px; border-bottom: 1px solid #222; padding-bottom: 4px; margin-bottom: 4px; min-height: 56px; }
   .logo { width: 48px; height: 48px; object-fit: contain; }
-  .title { font-size: 16px; font-weight: 700; }
-  .sub { font-size: 10px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .box { border: 1px solid #666; padding: 6px; font-size: 10px; }
+  .title { font-size: 15px; font-weight: 700; line-height: 1.1; }
+  .sub { font-size: 9px; line-height: 1.25; }
+  .content { flex: 1; min-height: 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .box { border: 1px solid #666; padding: 4px; font-size: 9px; }
   .box h4 { margin: 0 0 4px 0; font-size: 11px; }
-  .line { margin: 2px 0; }
+  .line { margin: 1px 0; }
   .lbl { font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-  th, td { border: 1px solid #666; padding: 4px; font-size: 9px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; table-layout: fixed; }
+  th, td { border: 1px solid #666; padding: 2px; font-size: 8.5px; height: 18px; }
   th { background: #f4f4f4; }
-  .totals { margin-top: 6px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .totals { margin-top: 4px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
   .totals .box { padding: 4px; }
-  .footer { margin-top: 8px; display: flex; justify-content: space-between; align-items: end; gap: 8px; }
+  .footer { margin-top: 4px; display: flex; justify-content: space-between; align-items: end; gap: 8px; min-height: 56px; }
   .sig { text-align: center; min-width: 120px; }
   .sig img { max-height: 36px; max-width: 100px; display: block; margin: 0 auto 2px; }
   .sig-line { border-top: 1px solid #222; font-size: 10px; padding-top: 2px; }
@@ -143,6 +153,14 @@ export function generateLRPrintHTML(data: LRPrintData): string {
   const transporterQr = company.transporter_qr_url || '';
   const showFreight = data.freight_type === 'to_pay';
 
+  const cityToMr = data.to_city_mr || data.consignee_city_mr || '';
+  const cityFromMr = data.from_city_mr || '';
+  const fixedRows = 8;
+  const rows = [...(data.goods_items || [])];
+  while (rows.length < fixedRows) {
+    rows.push({});
+  }
+
   return `
   <!DOCTYPE html>
   <html>
@@ -163,6 +181,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         </div>
       </div>
 
+      <div class="content">
       <div class="grid2">
         <div class="box">
           <h4>L.R. Details</h4>
@@ -174,7 +193,9 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         <div class="box">
           <h4>Route</h4>
           <div class="line"><span class="lbl">From:</span> ${data.from_city || '-'}</div>
+          <div class="line"><span class="lbl">From (Mr):</span> ${cityFromMr || '-'}</div>
           <div class="line"><span class="lbl">To:</span> ${data.to_city || '-'}</div>
+          <div class="line"><span class="lbl">To (Mr):</span> ${cityToMr || '-'}</div>
           <div style="margin-top:4px;text-align:right;">
             <img src="${lrQr}" alt="lr qr" style="width:72px;height:72px;object-fit:contain;border:1px solid #666;padding:2px;" />
             <div style="font-size:9px;">LR QR</div>
@@ -216,7 +237,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
           </tr>
         </thead>
         <tbody>
-          ${(data.goods_items || [])
+          ${rows
             .map(
               (item, idx) => `
               <tr>
@@ -225,8 +246,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
                 <td>${item.type ?? ''}</td>
                 <td>${item.nature ?? item.description ?? ''}</td>
                 <td>${item.weight_kg ?? ''}</td>
-                <td>${Number(item.rate || 0).toFixed(2)}</td>
-                <td>${Number(item.amount || 0).toFixed(2)}</td>
+                <td>${item.rate !== undefined ? Number(item.rate || 0).toFixed(2) : ''}</td>
+                <td>${item.amount !== undefined ? Number(item.amount || 0).toFixed(2) : ''}</td>
               </tr>
             `
             )
@@ -245,6 +266,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       <div class="box" style="margin-top:6px;"><span class="lbl">Amount in Words:</span> ${amountWords} Only</div>
 
       ${data.remarks ? `<div class="box" style="margin-top:6px;"><span class="lbl">Remarks:</span> ${data.remarks}</div>` : ''}
+      </div>
 
       <div class="footer">
         <div style="font-size:10px;font-weight:700;">Subject to Akola Jurisdiction</div>

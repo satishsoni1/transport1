@@ -20,6 +20,8 @@ interface AdminSettings {
   logo_url: string;
   signature_url: string;
   transporter_qr_url: string;
+  lr_prefix: string;
+  invoice_prefix: string;
   default_gst_rate: number;
   financial_year_start: string;
   timezone: string;
@@ -42,6 +44,8 @@ export default function AdminSettingsPage() {
     logo_url: '',
     signature_url: '',
     transporter_qr_url: '',
+    lr_prefix: '',
+    invoice_prefix: '',
     default_gst_rate: '18',
     financial_year_start: '04-01',
     timezone: 'Asia/Kolkata',
@@ -58,6 +62,8 @@ export default function AdminSettingsPage() {
       logo_url: data.logo_url || '',
       signature_url: data.signature_url || '',
       transporter_qr_url: data.transporter_qr_url || '',
+      lr_prefix: data.lr_prefix || '',
+      invoice_prefix: data.invoice_prefix || '',
       default_gst_rate: String(data.default_gst_rate ?? 18),
       financial_year_start: data.financial_year_start || '04-01',
       timezone: data.timezone || 'Asia/Kolkata',
@@ -210,6 +216,24 @@ export default function AdminSettingsPage() {
                 className="h-16 w-16 border rounded p-1"
               />
             ) : null}
+          </div>
+          <div>
+            <Label htmlFor="lr_prefix">LR Prefix (optional)</Label>
+            <Input
+              id="lr_prefix"
+              value={formData.lr_prefix}
+              onChange={(e) => setFormData({ ...formData, lr_prefix: e.target.value.toUpperCase() })}
+              placeholder="LR"
+            />
+          </div>
+          <div>
+            <Label htmlFor="invoice_prefix">Invoice Prefix (optional)</Label>
+            <Input
+              id="invoice_prefix"
+              value={formData.invoice_prefix}
+              onChange={(e) => setFormData({ ...formData, invoice_prefix: e.target.value.toUpperCase() })}
+              placeholder="INV"
+            />
           </div>
         </CardContent>
       </Card>

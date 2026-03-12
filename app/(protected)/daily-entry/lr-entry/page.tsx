@@ -132,9 +132,17 @@ const emptyNewConsignee = {
   mobile: '',
 };
 
+const LAST_GOODS_TYPE_KEY = 'lr_last_goods_type';
+const LAST_GOODS_NATURE_KEY = 'lr_last_goods_nature';
+
 export default function LREntryPage() {
   const { user } = useAuth();
+  const consignorInputRef = useRef<HTMLInputElement | null>(null);
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
+  const typeInputRef = useRef<HTMLInputElement | null>(null);
+  const natureInputRef = useRef<HTMLInputElement | null>(null);
+  const weightInputRef = useRef<HTMLInputElement | null>(null);
+  const rateInputRef = useRef<HTMLInputElement | null>(null);
 
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -211,6 +219,20 @@ export default function LREntryPage() {
     setFormData((prev) => ({ ...prev, freight: freightAuto.toFixed(2) }));
   }, [goodsItems]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const lastType = localStorage.getItem(LAST_GOODS_TYPE_KEY) || '';
+    const lastNature = localStorage.getItem(LAST_GOODS_NATURE_KEY) || '';
+    if (!lastType && !lastNature) return;
+    setCurrentItem((prev) => ({ ...prev, type: lastType, nature: lastNature }));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(LAST_GOODS_TYPE_KEY, currentItem.type || '');
+    localStorage.setItem(LAST_GOODS_NATURE_KEY, currentItem.nature || '');
+  }, [currentItem.type, currentItem.nature]);
+
   const calculateBalance = useCallback(() => {
     const freight = parseFloat(formData.freight) || 0;
     const hamali = parseFloat(formData.hamali) || 0;
@@ -233,7 +255,11 @@ export default function LREntryPage() {
     setNewConsignor(emptyNewConsignor);
     setNewConsignee(emptyNewConsignee);
     setGoodsItems([]);
-    setCurrentItem({ qty: 0, type: '', nature: '', weight_kg: 0, rate: 0, amount: 0 });
+    const lastType =
+      typeof window !== 'undefined' ? localStorage.getItem(LAST_GOODS_TYPE_KEY) || '' : '';
+    const lastNature =
+      typeof window !== 'undefined' ? localStorage.getItem(LAST_GOODS_NATURE_KEY) || '' : '';
+    setCurrentItem({ qty: 0, type: lastType, nature: lastNature, weight_kg: 0, rate: 0, amount: 0 });
     setFormData({
       consignor_id: '',
       consignee_id: '',
@@ -252,7 +278,7 @@ export default function LREntryPage() {
       eway_no: '',
       remarks: '',
     });
-    setTimeout(() => qtyInputRef.current?.focus(), 30);
+    setTimeout(() => consignorInputRef.current?.focus(), 30);
   }, []);
 
   const addGoodsItem = useCallback(() => {
@@ -268,9 +294,35 @@ export default function LREntryPage() {
 
     const amount = calculateCurrentAmount();
     setGoodsItems((prev) => [...prev, { ...currentItem, amount }]);
-    setCurrentItem({ qty: 0, type: '', nature: '', weight_kg: 0, rate: 0, amount: 0 });
+    setCurrentItem((prev) => ({
+      qty: 0,
+      type: prev.type,
+      nature: prev.nature,
+      weight_kg: 0,
+      rate: 0,
+      amount: 0,
+    }));
     setTimeout(() => qtyInputRef.current?.focus(), 20);
   }, [calculateCurrentAmount, currentItem]);
+
+  const handleGoodsFieldEnter = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>, field: 'qty' | 'type' | 'nature' | 'weight' | 'rate') => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (field === 'qty') {
+        typeInputRef.current?.focus();
+      } else if (field === 'type') {
+        natureInputRef.current?.focus();
+      } else if (field === 'nature') {
+        weightInputRef.current?.focus();
+      } else if (field === 'weight') {
+        rateInputRef.current?.focus();
+      } else {
+        addGoodsItem();
+      }
+    },
+    [addGoodsItem]
+  );
 
   const removeGoodsItem = useCallback((index: number) => {
     setGoodsItems((prev) => prev.filter((_, i) => i !== index));
@@ -362,7 +414,7 @@ export default function LREntryPage() {
       );
       setCurrentItem({ qty: 0, type: '', nature: '', weight_kg: 0, rate: 0, amount: 0 });
       setActiveTab('form');
-      setTimeout(() => qtyInputRef.current?.focus(), 20);
+      setTimeout(() => consignorInputRef.current?.focus(), 20);
     },
     [consignors, consignees]
   );
@@ -443,6 +495,10 @@ export default function LREntryPage() {
           consignee_address: consignee?.address || '',
           consignee_city: consignee?.city || '',
           consignee_city_mr: consignee?.city_mr || transliterateToMarathi(consignee?.city || ''),
+          from_city_mr: transliterateToMarathi(created.from_city || ''),
+          to_city_mr:
+            consignee?.city_mr ||
+            transliterateToMarathi(created.to_city || consignee?.city || ''),
           consignee_mobile: consignee?.mobile || '',
           consignee_gst: consignee?.gst_no || '',
           freight_type: created.status,
@@ -508,6 +564,7 @@ export default function LREntryPage() {
                   </div>
                   <Input
                     id="consignor"
+                    ref={consignorInputRef}
                     list="consignor-options"
                     value={consignorSearch}
                     onChange={(e) => {
@@ -720,12 +777,39 @@ export default function LREntryPage() {
                   placeholder="Qty"
                   type="number"
                   value={currentItem.qty}
+                  onKeyDown={(e) => handleGoodsFieldEnter(e, 'qty')}
                   onChange={(e) => setCurrentItem({ ...currentItem, qty: parseFloat(e.target.value) || 0 })}
                 />
-                <Input placeholder="Type" value={currentItem.type} onChange={(e) => setCurrentItem({ ...currentItem, type: e.target.value })} />
-                <Input placeholder="Nature" value={currentItem.nature} onChange={(e) => setCurrentItem({ ...currentItem, nature: e.target.value })} />
-                <Input placeholder="Weight" type="number" value={currentItem.weight_kg} onChange={(e) => setCurrentItem({ ...currentItem, weight_kg: parseFloat(e.target.value) || 0 })} />
-                <Input placeholder="Rate" type="number" value={currentItem.rate} onChange={(e) => setCurrentItem({ ...currentItem, rate: parseFloat(e.target.value) || 0 })} />
+                <Input
+                  ref={typeInputRef}
+                  placeholder="Type"
+                  value={currentItem.type}
+                  onKeyDown={(e) => handleGoodsFieldEnter(e, 'type')}
+                  onChange={(e) => setCurrentItem({ ...currentItem, type: e.target.value })}
+                />
+                <Input
+                  ref={natureInputRef}
+                  placeholder="Nature"
+                  value={currentItem.nature}
+                  onKeyDown={(e) => handleGoodsFieldEnter(e, 'nature')}
+                  onChange={(e) => setCurrentItem({ ...currentItem, nature: e.target.value })}
+                />
+                <Input
+                  ref={weightInputRef}
+                  placeholder="Weight"
+                  type="number"
+                  value={currentItem.weight_kg}
+                  onKeyDown={(e) => handleGoodsFieldEnter(e, 'weight')}
+                  onChange={(e) => setCurrentItem({ ...currentItem, weight_kg: parseFloat(e.target.value) || 0 })}
+                />
+                <Input
+                  ref={rateInputRef}
+                  placeholder="Rate"
+                  type="number"
+                  value={currentItem.rate}
+                  onKeyDown={(e) => handleGoodsFieldEnter(e, 'rate')}
+                  onChange={(e) => setCurrentItem({ ...currentItem, rate: parseFloat(e.target.value) || 0 })}
+                />
                 <Input placeholder="Amount" value={calculateCurrentAmount().toFixed(2)} readOnly />
                 <Button type="button" onClick={addGoodsItem} className="w-full">Add</Button>
               </div>

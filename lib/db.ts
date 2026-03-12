@@ -180,6 +180,8 @@ export async function ensureSchema() {
       logo_url TEXT NOT NULL DEFAULT '',
       signature_url TEXT NOT NULL DEFAULT '',
       transporter_qr_url TEXT NOT NULL DEFAULT '',
+      lr_prefix TEXT NOT NULL DEFAULT '',
+      invoice_prefix TEXT NOT NULL DEFAULT '',
       default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18,
       financial_year_start TEXT NOT NULL DEFAULT '04-01',
       timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
@@ -196,14 +198,16 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS signature_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS transporter_qr_url TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_prefix TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_prefix TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     INSERT INTO app_settings (
       id, company_name, company_email, company_phone, address, gst_no,
-      logo_url, signature_url, transporter_qr_url,
+      logo_url, signature_url, transporter_qr_url, lr_prefix, invoice_prefix,
       default_gst_rate, financial_year_start, timezone
     )
-    VALUES (1, '', '', '', '', '', '', '', '', 18, '04-01', 'Asia/Kolkata')
+    VALUES (1, '', '', '', '', '', '', '', '', '', '', 18, '04-01', 'Asia/Kolkata')
     ON CONFLICT (id) DO NOTHING
   `;
 

@@ -35,7 +35,13 @@ export async function POST(request: Request) {
 
     const seq = await sql`SELECT nextval(pg_get_serial_sequence('invoices','id')) AS id`;
     const id = Number(seq.rows[0].id);
-    const invoiceNo = `INV${String(id).padStart(5, '0')}`;
+    const { rows: settingsRows } = await sql`
+      SELECT COALESCE(NULLIF(TRIM(invoice_prefix), ''), 'INV') AS invoice_prefix
+      FROM app_settings
+      WHERE id = 1
+    `;
+    const invoicePrefix = String(settingsRows[0]?.invoice_prefix || 'INV');
+    const invoiceNo = `${invoicePrefix}${String(id).padStart(5, '0')}`;
 
     const { rows } = await sql`
       INSERT INTO invoices (
