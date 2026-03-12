@@ -46,6 +46,7 @@ const navItems: NavItem[] = [
       { label: 'Cities', href: '/masters/cities', icon: <Package size={18} /> },
       { label: 'Banks', href: '/masters/banks', icon: <DollarSign size={18} /> },
       { label: 'Goods Types', href: '/masters/goods-types', icon: <Package size={18} /> },
+      { label: 'Goods Natures', href: '/masters/goods-natures', icon: <Package size={18} /> },
       { label: 'Freight Rates', href: '/masters/freight-rates', icon: <DollarSign size={18} /> },
     ],
   },

@@ -35,6 +35,8 @@ export async function PUT(request: Request) {
         transporter_qr_url = ${body.transporter_qr_url ?? existing.transporter_qr_url},
         lr_prefix = ${body.lr_prefix ?? existing.lr_prefix},
         invoice_prefix = ${body.invoice_prefix ?? existing.invoice_prefix},
+        lr_print_format = ${body.lr_print_format ?? existing.lr_print_format},
+        invoice_print_format = ${body.invoice_print_format ?? existing.invoice_print_format},
         default_gst_rate = ${
           body.default_gst_rate === undefined
             ? existing.default_gst_rate

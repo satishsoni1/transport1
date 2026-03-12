@@ -51,9 +51,17 @@ export async function sql<T = any>(
 }
 
 let schemaReady = false;
+let schemaInitPromise: Promise<void> | null = null;
 
 export async function ensureSchema() {
   if (schemaReady) return;
+  if (schemaInitPromise) {
+    await schemaInitPromise;
+    return;
+  }
+
+  schemaInitPromise = (async () => {
+    if (schemaReady) return;
 
   await sql`
     CREATE TABLE IF NOT EXISTS banks (
@@ -113,6 +121,24 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS goods_natures (
+        id SERIAL PRIMARY KEY,
+        nature_name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+  } catch (error) {
+    const pgErr = error as { code?: string; detail?: string };
+    const isConcurrentCreateRace =
+      pgErr?.code === '23505' &&
+      String(pgErr?.detail || '').toLowerCase().includes('goods_natures');
+    if (!isConcurrentCreateRace) throw error;
+  }
 
   await sql`
     CREATE TABLE IF NOT EXISTS cities (
@@ -182,6 +208,8 @@ export async function ensureSchema() {
       transporter_qr_url TEXT NOT NULL DEFAULT '',
       lr_prefix TEXT NOT NULL DEFAULT '',
       invoice_prefix TEXT NOT NULL DEFAULT '',
+      lr_print_format TEXT NOT NULL DEFAULT 'classic',
+      invoice_print_format TEXT NOT NULL DEFAULT 'classic',
       default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18,
       financial_year_start TEXT NOT NULL DEFAULT '04-01',
       timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
@@ -200,14 +228,16 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS transporter_qr_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_prefix TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_prefix TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_print_format TEXT NOT NULL DEFAULT 'classic'`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_print_format TEXT NOT NULL DEFAULT 'classic'`;
 
   await sql`
     INSERT INTO app_settings (
       id, company_name, company_email, company_phone, address, gst_no,
-      logo_url, signature_url, transporter_qr_url, lr_prefix, invoice_prefix,
+      logo_url, signature_url, transporter_qr_url, lr_prefix, invoice_prefix, lr_print_format, invoice_print_format,
       default_gst_rate, financial_year_start, timezone
     )
-    VALUES (1, '', '', '', '', '', '', '', '', '', '', 18, '04-01', 'Asia/Kolkata')
+    VALUES (1, '', '', '', '', '', '', '', '', '', '', 'classic', 'classic', 18, '04-01', 'Asia/Kolkata')
     ON CONFLICT (id) DO NOTHING
   `;
 
@@ -333,6 +363,13 @@ export async function ensureSchema() {
   `;
 
   schemaReady = true;
+  })();
+
+  try {
+    await schemaInitPromise;
+  } finally {
+    schemaInitPromise = null;
+  }
 }
 
 export function parseJsonField<T>(value: unknown, fallback: T): T {

@@ -111,6 +111,8 @@ interface AdminSettings {
   logo_url?: string;
   signature_url?: string;
   transporter_qr_url?: string;
+  lr_print_format?: 'classic' | 'compact' | 'detailed';
+  invoice_print_format?: 'classic' | 'compact' | 'detailed';
 }
 
 function generateChallanHTML(challan: Challan, settings?: AdminSettings): string {
@@ -228,6 +230,7 @@ export default function PrintPreviewPage() {
           consignee_mobile: consignees.find((item) => item.id === lr.consignee_id)?.mobile || '',
           consignee_gst: consignees.find((item) => item.id === lr.consignee_id)?.gst_no || '',
           freight_type: lr.status,
+          format: settings?.lr_print_format || 'classic',
           company: settings,
         });
         exportRows = lr.goods_items?.length
@@ -251,6 +254,7 @@ export default function PrintPreviewPage() {
           party_name_mr:
             consignors.find((item) => item.id === Number(invoice.consignor_id))?.name_mr ||
             transliterateToMarathi(invoice.party_name || ''),
+          format: settings?.invoice_print_format || 'classic',
           company: settings,
         });
         exportRows = (invoice.items || []).map((i: any) => ({

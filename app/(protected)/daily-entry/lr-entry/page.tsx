@@ -98,6 +98,16 @@ interface Vehicle {
   vehicle_type: string;
 }
 
+interface GoodsTypeMaster {
+  id: number;
+  type_name: string;
+}
+
+interface GoodsNatureMaster {
+  id: number;
+  nature_name: string;
+}
+
 interface AdminSettings {
   company_name?: string;
   company_email?: string;
@@ -107,6 +117,8 @@ interface AdminSettings {
   logo_url?: string;
   signature_url?: string;
   transporter_qr_url?: string;
+  lr_print_format?: 'classic' | 'compact' | 'detailed';
+  invoice_print_format?: 'classic' | 'compact' | 'detailed';
 }
 
 const emptyNewConsignor = {
@@ -137,6 +149,7 @@ const LAST_GOODS_NATURE_KEY = 'lr_last_goods_nature';
 
 export default function LREntryPage() {
   const { user } = useAuth();
+  const lrFormRef = useRef<HTMLFormElement | null>(null);
   const consignorInputRef = useRef<HTMLInputElement | null>(null);
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
   const typeInputRef = useRef<HTMLInputElement | null>(null);
@@ -204,6 +217,14 @@ export default function LREntryPage() {
     apiClient.get
   );
   const { data: settings } = useSWR<AdminSettings>('/api/admin/settings', apiClient.get);
+  const { data: goodsTypes = [] } = useSWR<GoodsTypeMaster[]>(
+    '/api/masters/goods-types',
+    apiClient.get
+  );
+  const { data: goodsNatures = [] } = useSWR<GoodsNatureMaster[]>(
+    '/api/masters/goods-natures',
+    apiClient.get
+  );
 
   const selectedConsignor = useMemo(
     () => consignors.find((item) => item.id === Number(formData.consignor_id)),
@@ -281,7 +302,7 @@ export default function LREntryPage() {
     setTimeout(() => consignorInputRef.current?.focus(), 30);
   }, []);
 
-  const addGoodsItem = useCallback(() => {
+  const addGoodsItem = useCallback(async () => {
     if (currentItem.qty <= 0) {
       toast.error('Please enter qty');
       qtyInputRef.current?.focus();
@@ -290,6 +311,28 @@ export default function LREntryPage() {
     if (!currentItem.type.trim()) {
       toast.error('Please enter type');
       return;
+    }
+
+    const typeName = currentItem.type.trim();
+    const natureName = currentItem.nature.trim();
+    const typeExists = goodsTypes.some(
+      (item) => item.type_name.toLowerCase() === typeName.toLowerCase()
+    );
+    const natureExists = goodsNatures.some(
+      (item) => item.nature_name.toLowerCase() === natureName.toLowerCase()
+    );
+
+    try {
+      if (typeName && !typeExists) {
+        await apiClient.post('/api/masters/goods-types', { type_name: typeName });
+        globalMutate('/api/masters/goods-types');
+      }
+      if (natureName && !natureExists) {
+        await apiClient.post('/api/masters/goods-natures', { nature_name: natureName });
+        globalMutate('/api/masters/goods-natures');
+      }
+    } catch {
+      // Keep LR flow resilient even if master upsert fails due race/duplication.
     }
 
     const amount = calculateCurrentAmount();
@@ -303,12 +346,13 @@ export default function LREntryPage() {
       amount: 0,
     }));
     setTimeout(() => qtyInputRef.current?.focus(), 20);
-  }, [calculateCurrentAmount, currentItem]);
+  }, [calculateCurrentAmount, currentItem, goodsTypes, goodsNatures]);
 
   const handleGoodsFieldEnter = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>, field: 'qty' | 'type' | 'nature' | 'weight' | 'rate') => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
+      e.stopPropagation();
       if (field === 'qty') {
         typeInputRef.current?.focus();
       } else if (field === 'type') {
@@ -318,11 +362,46 @@ export default function LREntryPage() {
       } else if (field === 'weight') {
         rateInputRef.current?.focus();
       } else {
-        addGoodsItem();
+        void addGoodsItem();
       }
     },
     [addGoodsItem]
   );
+
+  const handleFormEnterNavigation = useCallback((e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== 'Enter' || e.defaultPrevented) return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    if (
+      !(target instanceof HTMLInputElement || target instanceof HTMLSelectElement) ||
+      target instanceof HTMLTextAreaElement
+    ) {
+      return;
+    }
+
+    const type = (target as HTMLInputElement).type;
+    if (type === 'submit' || type === 'button' || type === 'file' || type === 'checkbox') return;
+
+    e.preventDefault();
+    const form = lrFormRef.current;
+    if (!form) return;
+
+    const focusables = Array.from(
+      form.querySelectorAll<HTMLElement>('input, select, button, textarea')
+    ).filter((el) => {
+      if (el.hasAttribute('disabled')) return false;
+      if (el.getAttribute('type') === 'hidden') return false;
+      if (el.getAttribute('tabindex') === '-1') return false;
+      if (el instanceof HTMLButtonElement) return false;
+      return true;
+    });
+
+    const idx = focusables.indexOf(target);
+    if (idx < 0) return;
+    const next = focusables[idx + 1];
+    next?.focus();
+  }, []);
 
   const removeGoodsItem = useCallback((index: number) => {
     setGoodsItems((prev) => prev.filter((_, i) => i !== index));
@@ -502,6 +581,7 @@ export default function LREntryPage() {
           consignee_mobile: consignee?.mobile || '',
           consignee_gst: consignee?.gst_no || '',
           freight_type: created.status,
+          format: settings?.lr_print_format || 'classic',
           company: settings,
         });
         printHTML(html);
@@ -548,7 +628,12 @@ export default function LREntryPage() {
       </div>
 
       {activeTab === 'form' ? (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form
+          ref={lrFormRef}
+          onSubmit={handleSubmit}
+          onKeyDown={handleFormEnterNavigation}
+          className="space-y-6"
+        >
           <Card>
             <CardHeader>
               <CardTitle>Parties Information</CardTitle>
@@ -783,6 +868,7 @@ export default function LREntryPage() {
                 <Input
                   ref={typeInputRef}
                   placeholder="Type"
+                  list="lr-goods-type-options"
                   value={currentItem.type}
                   onKeyDown={(e) => handleGoodsFieldEnter(e, 'type')}
                   onChange={(e) => setCurrentItem({ ...currentItem, type: e.target.value })}
@@ -790,6 +876,7 @@ export default function LREntryPage() {
                 <Input
                   ref={natureInputRef}
                   placeholder="Nature"
+                  list="lr-goods-nature-options"
                   value={currentItem.nature}
                   onKeyDown={(e) => handleGoodsFieldEnter(e, 'nature')}
                   onChange={(e) => setCurrentItem({ ...currentItem, nature: e.target.value })}
@@ -811,8 +898,18 @@ export default function LREntryPage() {
                   onChange={(e) => setCurrentItem({ ...currentItem, rate: parseFloat(e.target.value) || 0 })}
                 />
                 <Input placeholder="Amount" value={calculateCurrentAmount().toFixed(2)} readOnly />
-                <Button type="button" onClick={addGoodsItem} className="w-full">Add</Button>
+                <Button type="button" onClick={() => void addGoodsItem()} className="w-full">Add</Button>
               </div>
+              <datalist id="lr-goods-type-options">
+                {goodsTypes.map((item) => (
+                  <option key={item.id} value={item.type_name} />
+                ))}
+              </datalist>
+              <datalist id="lr-goods-nature-options">
+                {goodsNatures.map((item) => (
+                  <option key={item.id} value={item.nature_name} />
+                ))}
+              </datalist>
 
               {goodsItems.length > 0 && (
                 <Table>

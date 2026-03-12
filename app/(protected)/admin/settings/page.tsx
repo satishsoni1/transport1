@@ -22,6 +22,8 @@ interface AdminSettings {
   transporter_qr_url: string;
   lr_prefix: string;
   invoice_prefix: string;
+  lr_print_format: 'classic' | 'compact' | 'detailed';
+  invoice_print_format: 'classic' | 'compact' | 'detailed';
   default_gst_rate: number;
   financial_year_start: string;
   timezone: string;
@@ -46,6 +48,8 @@ export default function AdminSettingsPage() {
     transporter_qr_url: '',
     lr_prefix: '',
     invoice_prefix: '',
+    lr_print_format: 'classic',
+    invoice_print_format: 'classic',
     default_gst_rate: '18',
     financial_year_start: '04-01',
     timezone: 'Asia/Kolkata',
@@ -64,6 +68,8 @@ export default function AdminSettingsPage() {
       transporter_qr_url: data.transporter_qr_url || '',
       lr_prefix: data.lr_prefix || '',
       invoice_prefix: data.invoice_prefix || '',
+      lr_print_format: data.lr_print_format || 'classic',
+      invoice_print_format: data.invoice_print_format || 'classic',
       default_gst_rate: String(data.default_gst_rate ?? 18),
       financial_year_start: data.financial_year_start || '04-01',
       timezone: data.timezone || 'Asia/Kolkata',
@@ -234,6 +240,42 @@ export default function AdminSettingsPage() {
               onChange={(e) => setFormData({ ...formData, invoice_prefix: e.target.value.toUpperCase() })}
               placeholder="INV"
             />
+          </div>
+          <div>
+            <Label htmlFor="lr_print_format">LR Print Format</Label>
+            <select
+              id="lr_print_format"
+              className="w-full border rounded-md px-3 py-2 text-sm"
+              value={formData.lr_print_format}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  lr_print_format: e.target.value as 'classic' | 'compact' | 'detailed',
+                })
+              }
+            >
+              <option value="classic">Classic</option>
+              <option value="compact">Compact</option>
+              <option value="detailed">Detailed</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="invoice_print_format">Invoice Print Format</Label>
+            <select
+              id="invoice_print_format"
+              className="w-full border rounded-md px-3 py-2 text-sm"
+              value={formData.invoice_print_format}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  invoice_print_format: e.target.value as 'classic' | 'compact' | 'detailed',
+                })
+              }
+            >
+              <option value="classic">Classic</option>
+              <option value="compact">Compact</option>
+              <option value="detailed">Detailed</option>
+            </select>
           </div>
         </CardContent>
       </Card>

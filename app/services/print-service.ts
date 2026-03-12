@@ -11,7 +11,12 @@ export interface CompanyPrintData {
   logo_url?: string;
   signature_url?: string;
   transporter_qr_url?: string;
+  lr_print_format?: LRPrintFormat;
+  invoice_print_format?: InvoicePrintFormat;
 }
+
+export type LRPrintFormat = 'classic' | 'compact' | 'detailed';
+export type InvoicePrintFormat = 'classic' | 'compact' | 'detailed';
 
 export interface LRPrintData {
   lr_no: string;
@@ -42,6 +47,7 @@ export interface LRPrintData {
   invoice_no: string;
   remarks: string;
   freight_type?: 'to_pay' | 'paid' | 'tbb';
+  format?: LRPrintFormat;
   company?: CompanyPrintData;
 }
 
@@ -55,10 +61,29 @@ export interface InvoicePrintData {
   gst_amount: number;
   net_amount: number;
   gst_percentage: number;
+  format?: InvoicePrintFormat;
   company?: CompanyPrintData;
 }
 
-const basePrintStyle = `
+function getPrintStyle(format: 'classic' | 'compact' | 'detailed') {
+  const variant =
+    format === 'compact'
+      ? `
+  .title { font-size: 14px; }
+  .sub { font-size: 8px; }
+  .box { font-size: 8px; padding: 3px; }
+  th, td { font-size: 8px; height: 16px; padding: 1.5px; }
+`
+      : format === 'detailed'
+        ? `
+  .title { font-size: 16px; }
+  .sub { font-size: 9.5px; }
+  .box { font-size: 9.5px; padding: 4px; }
+  th, td { font-size: 8.8px; height: 19px; padding: 2px; }
+`
+        : '';
+
+  return `
   * { box-sizing: border-box; }
   body { font-family: Arial, sans-serif; margin: 0; color: #111; }
   @page { size: A5 portrait; margin: 4mm; }
@@ -92,7 +117,9 @@ const basePrintStyle = `
   .qr-row { display: flex; gap: 8px; }
   .qr-box { border: 1px solid #666; padding: 4px; text-align: center; font-size: 9px; }
   .qr-box img { width: 64px; height: 64px; object-fit: contain; }
+  ${variant}
 `;
+}
 
 function getLRQr(lrNo: string) {
   const payload = encodeURIComponent(`LR:${lrNo}`);
@@ -139,6 +166,7 @@ function numberToWords(num: number): string {
 
 export function generateLRPrintHTML(data: LRPrintData): string {
   const company = data.company || {};
+  const resolvedFormat = data.format || company.lr_print_format || 'classic';
   const freightTypeLabel =
     data.freight_type === 'paid' ? 'Paid' : data.freight_type === 'tbb' ? 'TBB' : 'To Pay';
   const totalQty = (data.goods_items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
@@ -155,7 +183,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 
   const cityToMr = data.to_city_mr || data.consignee_city_mr || '';
   const cityFromMr = data.from_city_mr || '';
-  const fixedRows = 8;
+  const fixedRows = resolvedFormat === 'compact' ? 9 : resolvedFormat === 'detailed' ? 7 : 8;
   const rows = [...(data.goods_items || [])];
   while (rows.length < fixedRows) {
     rows.push({});
@@ -167,7 +195,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
   <head>
     <meta charset="UTF-8" />
     <title>LR ${data.lr_no}</title>
-    <style>${basePrintStyle}</style>
+    <style>${getPrintStyle(resolvedFormat)}</style>
   </head>
   <body>
     <div class="sheet">
@@ -283,13 +311,14 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 
 export function generateInvoicePrintHTML(data: InvoicePrintData): string {
   const company = data.company || {};
+  const resolvedFormat = data.format || company.invoice_print_format || 'classic';
   return `
   <!DOCTYPE html>
   <html>
   <head>
     <meta charset="UTF-8" />
     <title>Invoice ${data.invoice_no}</title>
-    <style>${basePrintStyle}</style>
+    <style>${getPrintStyle(resolvedFormat)}</style>
   </head>
   <body>
     <div class="sheet">
