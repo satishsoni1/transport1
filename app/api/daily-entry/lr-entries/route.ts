@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   try {
     await ensureSchema();
     const body = await request.json();
+    const invoiceNo = String(body.invoice_no || '').trim();
 
     if (!body.consignor_id || !body.consignee_id) {
       return NextResponse.json(
@@ -35,10 +36,40 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!Array.isArray(body.goods_items) || body.goods_items.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'At least one goods detail row is required' },
+        { status: 400 }
+      );
+    }
+
+    if (body.goods_items.length > 5) {
+      return NextResponse.json(
+        { success: false, error: 'Only 5 goods rows are allowed in one LR' },
+        { status: 400 }
+      );
+    }
+
+    if (invoiceNo) {
+      const { rows: duplicateRows } = await sql`
+        SELECT id
+        FROM lr_entries
+        WHERE LOWER(BTRIM(invoice_no)) = LOWER(BTRIM(${invoiceNo}))
+        LIMIT 1
+      `;
+      if (duplicateRows.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'This invoice no is already in use' },
+          { status: 400 }
+        );
+      }
+    }
+
     const freight = Number(body.freight) || 0;
     const hamali = Number(body.hamali) || 0;
     const lrCharge = Number(body.lr_charge) || 0;
     const advance = Number(body.advance) || 0;
+    const balance = freight + hamali + lrCharge - advance;
 
     const seq = await sql`SELECT nextval(pg_get_serial_sequence('lr_entries','id')) AS id`;
     const id = Number(seq.rows[0].id);
@@ -69,8 +100,8 @@ export async function POST(request: Request) {
         ${hamali},
         ${lrCharge},
         ${advance},
-        ${freight + hamali + lrCharge},
-        ${body.invoice_no || ''},
+        ${balance},
+        ${invoiceNo},
         ${body.invoice_date || ''},
         ${body.truck_no || ''},
         ${body.driver_name || ''},

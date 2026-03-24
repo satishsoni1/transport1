@@ -11,6 +11,7 @@ export interface CompanyPrintData {
   logo_url?: string;
   signature_url?: string;
   transporter_qr_url?: string;
+  transporter_name_font?: string;
   lr_print_format?: LRPrintFormat;
   invoice_print_format?: InvoicePrintFormat;
 }
@@ -24,6 +25,7 @@ export interface LRPrintData {
   consignor: string;
   consignor_name_mr?: string;
   consignee: string;
+  delivery_address?: string;
   consignor_address?: string;
   consignor_city?: string;
   consignor_mobile?: string;
@@ -46,6 +48,10 @@ export interface LRPrintData {
   balance: number;
   invoice_no: string;
   remarks: string;
+  truck_no?: string;
+  driver_name?: string;
+  driver_mobile?: string;
+  eway_no?: string;
   freight_type?: 'to_pay' | 'paid' | 'tbb';
   format?: LRPrintFormat;
   company?: CompanyPrintData;
@@ -121,6 +127,15 @@ function getPrintStyle(format: 'classic' | 'compact' | 'detailed') {
 `;
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function getLRQr(lrNo: string) {
   const payload = encodeURIComponent(`LR:${lrNo}`);
   return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${payload}`;
@@ -167,6 +182,7 @@ function numberToWords(num: number): string {
 export function generateLRPrintHTML(data: LRPrintData): string {
   const company = data.company || {};
   const resolvedFormat = data.format || company.lr_print_format || 'classic';
+  const transporterNameFont = escapeHtml(company.transporter_name_font || 'Arial');
   const freightTypeLabel =
     data.freight_type === 'paid' ? 'Paid' : data.freight_type === 'tbb' ? 'TBB' : 'To Pay';
   const totalQty = (data.goods_items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
@@ -183,7 +199,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 
   const cityToMr = data.to_city_mr || data.consignee_city_mr || '';
   const cityFromMr = data.from_city_mr || '';
-  const fixedRows = resolvedFormat === 'compact' ? 9 : resolvedFormat === 'detailed' ? 7 : 8;
+  const fixedRows = 5;
   const rows = [...(data.goods_items || [])];
   while (rows.length < fixedRows) {
     rows.push({});
@@ -196,68 +212,185 @@ export function generateLRPrintHTML(data: LRPrintData): string {
     <meta charset="UTF-8" />
     <title>LR ${data.lr_no}</title>
     <style>${getPrintStyle(resolvedFormat)}</style>
+    <style>
+      body { font-family: Arial, sans-serif; }
+      .sheet.lr-sheet {
+        min-height: calc(148mm - 8mm);
+        height: calc(148mm - 8mm);
+        padding: 2.5mm;
+      }
+      .lr-sheet .header {
+        align-items: center;
+        min-height: 62px;
+        padding-bottom: 3px;
+        margin-bottom: 3px;
+      }
+      .lr-sheet .transport-name {
+        font-family: ${transporterNameFont}, Arial, sans-serif;
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: 0.3px;
+        line-height: 1.05;
+      }
+      .lr-sheet .header-meta {
+        font-size: 9px;
+        line-height: 1.2;
+      }
+      .lr-sheet .lr-meta-grid,
+      .lr-sheet .party-grid,
+      .lr-sheet .info-grid {
+        display: grid;
+        gap: 4px;
+      }
+      .lr-sheet .lr-meta-grid {
+        grid-template-columns: 1.05fr 0.95fr;
+      }
+      .lr-sheet .party-grid {
+        grid-template-columns: 1fr 1fr;
+        margin-top: 4px;
+      }
+      .lr-sheet .info-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: 4px;
+      }
+      .lr-sheet .box {
+        padding: 3px 4px;
+        font-size: 8.4px;
+      }
+      .lr-sheet .box h4 {
+        font-size: 10px;
+        margin-bottom: 3px;
+      }
+      .lr-sheet .key-value {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 1px 0;
+      }
+      .lr-sheet .goods-table {
+        margin-top: 4px;
+      }
+      .lr-sheet .goods-table th,
+      .lr-sheet .goods-table td {
+        font-size: 8px;
+        height: 22px;
+        text-align: center;
+        vertical-align: middle;
+      }
+      .lr-sheet .goods-table td.desc-cell {
+        text-align: left;
+        padding-left: 4px;
+      }
+      .lr-sheet .goods-table col:nth-child(1) { width: 8%; }
+      .lr-sheet .goods-table col:nth-child(2) { width: 11%; }
+      .lr-sheet .goods-table col:nth-child(3) { width: 21%; }
+      .lr-sheet .goods-table col:nth-child(4) { width: 18%; }
+      .lr-sheet .goods-table col:nth-child(5) { width: 13%; }
+      .lr-sheet .goods-table col:nth-child(6) { width: 13%; }
+      .lr-sheet .goods-table col:nth-child(7) { width: 16%; }
+      .lr-sheet .totals {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-top: 4px;
+      }
+      .lr-sheet .remarks-box {
+        min-height: 32px;
+      }
+      .lr-sheet .footer {
+        margin-top: 4px;
+        min-height: 52px;
+      }
+      .lr-sheet .footer-note {
+        font-size: 9px;
+        font-weight: 700;
+      }
+      .lr-sheet .payment-box {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .lr-sheet .payment-box img {
+        width: 52px;
+        height: 52px;
+        border: 1px solid #666;
+        padding: 2px;
+      }
+      .lr-sheet .payment-copy {
+        font-size: 8.6px;
+        line-height: 1.2;
+      }
+    </style>
   </head>
   <body>
-    <div class="sheet">
+    <div class="sheet lr-sheet">
       <div class="header">
         ${company.logo_url ? `<img class="logo" src="${company.logo_url}" alt="logo" />` : ''}
         <div>
-          <div class="title">${company.company_name || 'TRIMURTI TRANSPORT'}</div>
-          <div class="sub">${company.address || ''}</div>
-          <div class="sub">${company.company_phone || ''} ${company.company_email ? `| ${company.company_email}` : ''}</div>
-          ${company.gst_no ? `<div class="sub">GSTIN: ${company.gst_no}</div>` : ''}
+          <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
+          <div class="header-meta">${escapeHtml(company.address || '')}</div>
+          <div class="header-meta">${escapeHtml(company.company_phone || '')} ${company.company_email ? `| ${escapeHtml(company.company_email)}` : ''}</div>
+          ${company.gst_no ? `<div class="header-meta">GSTIN: ${escapeHtml(company.gst_no)}</div>` : ''}
         </div>
       </div>
 
       <div class="content">
-      <div class="grid2">
+      <div class="lr-meta-grid">
         <div class="box">
           <h4>L.R. Details</h4>
-          <div class="line"><span class="lbl">LR No:</span> ${data.lr_no}</div>
-          <div class="line"><span class="lbl">Date:</span> ${new Date(data.lr_date).toLocaleDateString()}</div>
-          <div class="line"><span class="lbl">Invoice No:</span> ${data.invoice_no || '-'}</div>
-          <div class="line"><span class="lbl">Freight Type:</span> ${freightTypeLabel}</div>
+          <div class="key-value"><span class="lbl">LR No</span><span>${escapeHtml(data.lr_no)}</span></div>
+          <div class="key-value"><span class="lbl">Date</span><span>${escapeHtml(new Date(data.lr_date).toLocaleDateString('en-IN'))}</span></div>
+          <div class="key-value"><span class="lbl">Invoice No</span><span>${escapeHtml(data.invoice_no || '-')}</span></div>
+          <div class="key-value"><span class="lbl">Freight Type</span><span>${escapeHtml(freightTypeLabel)}</span></div>
         </div>
         <div class="box">
-          <h4>Route</h4>
-          <div class="line"><span class="lbl">From:</span> ${data.from_city || '-'}</div>
-          <div class="line"><span class="lbl">From (Mr):</span> ${cityFromMr || '-'}</div>
-          <div class="line"><span class="lbl">To:</span> ${data.to_city || '-'}</div>
-          <div class="line"><span class="lbl">To (Mr):</span> ${cityToMr || '-'}</div>
-          <div style="margin-top:4px;text-align:right;">
-            <img src="${lrQr}" alt="lr qr" style="width:72px;height:72px;object-fit:contain;border:1px solid #666;padding:2px;" />
-            <div style="font-size:9px;">LR QR</div>
+          <h4>Delivery & Route</h4>
+          <div class="key-value"><span class="lbl">Booking From</span><span>${escapeHtml(data.from_city || '-')}</span></div>
+          <div class="key-value"><span class="lbl">Destination</span><span>${escapeHtml(data.to_city || '-')}</span></div>
+          <div class="line"><span class="lbl">To (Mr):</span> ${escapeHtml(cityToMr || '-')}</div>
+          <div class="line"><span class="lbl">Delivery At:</span> ${escapeHtml(data.delivery_address || data.consignee_address || '-')}</div>
+          <div style="margin-top:3px;text-align:right;">
+            <img src="${lrQr}" alt="lr qr" style="width:58px;height:58px;object-fit:contain;border:1px solid #666;padding:2px;" />
+            <div style="font-size:8px;">LR QR</div>
           </div>
         </div>
       </div>
 
-      <div class="grid2" style="margin-top:6px;">
+      <div class="party-grid">
         <div class="box">
           <h4>Consignor</h4>
-          <div class="line"><span class="lbl">Name:</span> ${data.consignor || '-'}</div>
-          <div class="line"><span class="lbl">Name (Mr):</span> ${data.consignor_name_mr || '-'}</div>
-          <div class="line"><span class="lbl">Address:</span> ${data.consignor_address || '-'}</div>
-          <div class="line"><span class="lbl">City:</span> ${data.consignor_city || '-'}</div>
-          <div class="line"><span class="lbl">Contact:</span> ${data.consignor_mobile || '-'}</div>
-          <div class="line"><span class="lbl">GST:</span> ${data.consignor_gst || '-'}</div>
+          <div class="line"><span class="lbl">Name:</span> ${escapeHtml(data.consignor || '-')}</div>
+          <div class="line"><span class="lbl">Name (Mr):</span> ${escapeHtml(data.consignor_name_mr || '-')}</div>
+          <div class="line"><span class="lbl">Address:</span> ${escapeHtml(data.consignor_address || '-')}</div>
+          <div class="line"><span class="lbl">City:</span> ${escapeHtml(data.consignor_city || '-')}</div>
+          <div class="line"><span class="lbl">Contact:</span> ${escapeHtml(data.consignor_mobile || '-')}</div>
+          <div class="line"><span class="lbl">GST:</span> ${escapeHtml(data.consignor_gst || '-')}</div>
         </div>
         <div class="box">
           <h4>Consignee</h4>
-          <div class="line" style="font-size:12px;font-weight:700;">${data.consignee || '-'}</div>
-          <div class="line" style="font-size:11px;">${data.consignee_name_mr || '-'}</div>
-          <div class="line" style="font-size:12px;font-weight:700;">${data.consignee_city || '-'}</div>
-          <div class="line"><span class="lbl">City (Mr):</span> ${data.consignee_city_mr || '-'}</div>
-          <div class="line" style="font-size:12px;font-weight:700;"><span class="lbl">Mobile:</span> ${data.consignee_mobile || '-'}</div>
-          <div class="line"><span class="lbl">GST:</span> ${data.consignee_gst || '-'}</div>
+          <div class="line" style="font-size:11px;font-weight:700;">${escapeHtml(data.consignee || '-')}</div>
+          <div class="line">${escapeHtml(data.consignee_name_mr || '-')}</div>
+          <div class="line">${escapeHtml(data.consignee_address || '-')}</div>
+          <div class="line"><span class="lbl">City:</span> ${escapeHtml(data.consignee_city || '-')}</div>
+          <div class="line"><span class="lbl">City (Mr):</span> ${escapeHtml(data.consignee_city_mr || '-')}</div>
+          <div class="line"><span class="lbl">Mobile:</span> ${escapeHtml(data.consignee_mobile || '-')}</div>
         </div>
       </div>
 
-      <table>
+      <div class="info-grid">
+        <div class="box"><span class="lbl">Truck No:</span> ${escapeHtml((data as any).truck_no || '-')}</div>
+        <div class="box"><span class="lbl">Driver:</span> ${escapeHtml((data as any).driver_name || '-')}</div>
+        <div class="box"><span class="lbl">Mobile:</span> ${escapeHtml((data as any).driver_mobile || '-')}</div>
+        <div class="box"><span class="lbl">E-Way No:</span> ${escapeHtml((data as any).eway_no || '-')}</div>
+      </div>
+
+      <table class="goods-table">
+        <colgroup>
+          <col /><col /><col /><col /><col /><col /><col />
+        </colgroup>
         <thead>
           <tr>
-            <th>Sr</th>
+            <th>No.</th>
             <th>Qty</th>
-            <th>Type</th>
+            <th>Goods Details</th>
             <th>Nature</th>
             <th>Weight</th>
             <th>Rate</th>
@@ -271,8 +404,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
               <tr>
                 <td>${idx + 1}</td>
                 <td>${item.qty ?? ''}</td>
-                <td>${item.type ?? ''}</td>
-                <td>${item.nature ?? item.description ?? ''}</td>
+                <td class="desc-cell">${escapeHtml(item.type ?? '')}</td>
+                <td class="desc-cell">${escapeHtml(item.nature ?? item.description ?? '')}</td>
                 <td>${item.weight_kg ?? ''}</td>
                 <td>${item.rate !== undefined ? Number(item.rate || 0).toFixed(2) : ''}</td>
                 <td>${item.amount !== undefined ? Number(item.amount || 0).toFixed(2) : ''}</td>
@@ -289,17 +422,27 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         <div class="box"><span class="lbl">L.R. Charge:</span> ${Number(data.lr_charge || 0).toFixed(2)}</div>
         <div class="box"><span class="lbl">Advance:</span> ${Number(data.advance || 0).toFixed(2)}</div>
         <div class="box"><span class="lbl">Balance:</span> ${Number(data.balance || payableAmount).toFixed(2)}</div>
-        <div class="box"><span class="lbl">Total Qty / Weight:</span> ${totalQty} / ${totalWeightMt.toFixed(3)} MT</div>
+        <div class="box"><span class="lbl">Qty / Weight:</span> ${totalQty} / ${totalWeightMt.toFixed(3)} MT</div>
       </div>
-      <div class="box" style="margin-top:6px;"><span class="lbl">Amount in Words:</span> ${amountWords} Only</div>
+      <div class="box" style="margin-top:4px;"><span class="lbl">Amount in Words:</span> ${escapeHtml(amountWords)} Only</div>
 
-      ${data.remarks ? `<div class="box" style="margin-top:6px;"><span class="lbl">Remarks:</span> ${data.remarks}</div>` : ''}
+      <div class="box remarks-box" style="margin-top:4px;"><span class="lbl">Remarks:</span> ${escapeHtml(data.remarks || '')}</div>
       </div>
 
       <div class="footer">
-        <div style="font-size:10px;font-weight:700;">Subject to Akola Jurisdiction</div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px;flex:1;">
+          <div class="footer-note">Subject to Akola Jurisdiction</div>
+          ${transporterQr ? `
+            <div class="payment-box">
+              <img src="${transporterQr}" alt="payment qr" />
+              <div class="payment-copy">
+                <div class="lbl">Payment QR</div>
+                <div>Scan to make freight payment</div>
+              </div>
+            </div>
+          ` : ''}
+        </div>
         <div class="sig">
-          ${transporterQr ? `<img src="${transporterQr}" alt="transporter qr" style="width:56px;height:56px;object-fit:contain;border:1px solid #666;padding:2px;margin-bottom:4px;" />` : ''}
           ${company.signature_url ? `<img src="${company.signature_url}" alt="signature" />` : ''}
           <div class="sig-line">Authorised Sign</div>
         </div>

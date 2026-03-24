@@ -30,6 +30,8 @@ export async function PUT(
     }
 
     const body = await request.json();
+    const invoiceNo =
+      body.invoice_no === undefined ? undefined : String(body.invoice_no || '').trim();
     const { rows: existingRows } = await sql`SELECT * FROM lr_entries WHERE id = ${id}`;
     if (existingRows.length === 0) {
       return NextResponse.json(
@@ -47,10 +49,43 @@ export async function PUT(
         ? Number(existing.lr_charge) || 0
         : Number(body.lr_charge) || 0;
     const advance = body.advance === undefined ? existing.advance : Number(body.advance) || 0;
+    const balance = freight + hamali + lrCharge - advance;
+    const goodsItems =
+      body.goods_items === undefined ? parseJsonField(existing.goods_items, []) : body.goods_items;
     const statusValue =
       body.status === 'paid' || body.status === 'tbb' || body.status === 'to_pay'
         ? body.status
         : existing.status;
+
+    if (!Array.isArray(goodsItems) || goodsItems.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'At least one goods detail row is required' },
+        { status: 400 }
+      );
+    }
+
+    if (goodsItems.length > 5) {
+      return NextResponse.json(
+        { success: false, error: 'Only 5 goods rows are allowed in one LR' },
+        { status: 400 }
+      );
+    }
+
+    if (invoiceNo) {
+      const { rows: duplicateRows } = await sql`
+        SELECT id
+        FROM lr_entries
+        WHERE id <> ${id}
+          AND LOWER(BTRIM(invoice_no)) = LOWER(BTRIM(${invoiceNo}))
+        LIMIT 1
+      `;
+      if (duplicateRows.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'This invoice no is already in use' },
+          { status: 400 }
+        );
+      }
+    }
 
     const { rows } = await sql`
       UPDATE lr_entries
@@ -64,17 +99,15 @@ export async function PUT(
         hamali = ${hamali},
         lr_charge = ${lrCharge},
         advance = ${advance},
-        balance = ${freight + hamali + lrCharge},
-        invoice_no = ${body.invoice_no ?? existing.invoice_no},
+        balance = ${balance},
+        invoice_no = ${invoiceNo ?? existing.invoice_no},
         invoice_date = ${body.invoice_date ?? existing.invoice_date},
         truck_no = ${body.truck_no ?? existing.truck_no},
         driver_name = ${body.driver_name ?? existing.driver_name},
         driver_mobile = ${body.driver_mobile ?? existing.driver_mobile},
         eway_no = ${body.eway_no ?? existing.eway_no},
         remarks = ${body.remarks ?? existing.remarks},
-        goods_items = ${JSON.stringify(
-          body.goods_items === undefined ? parseJsonField(existing.goods_items, []) : body.goods_items
-        )}::jsonb,
+        goods_items = ${JSON.stringify(goodsItems)}::jsonb,
         status = ${statusValue}
       WHERE id = ${id}
       RETURNING *

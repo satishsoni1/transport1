@@ -33,6 +33,7 @@ export async function PUT(request: Request) {
         logo_url = ${body.logo_url ?? existing.logo_url},
         signature_url = ${body.signature_url ?? existing.signature_url},
         transporter_qr_url = ${body.transporter_qr_url ?? existing.transporter_qr_url},
+        transporter_name_font = ${body.transporter_name_font ?? existing.transporter_name_font},
         lr_prefix = ${body.lr_prefix ?? existing.lr_prefix},
         invoice_prefix = ${body.invoice_prefix ?? existing.invoice_prefix},
         lr_print_format = ${body.lr_print_format ?? existing.lr_print_format},

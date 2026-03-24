@@ -206,6 +206,7 @@ export async function ensureSchema() {
       logo_url TEXT NOT NULL DEFAULT '',
       signature_url TEXT NOT NULL DEFAULT '',
       transporter_qr_url TEXT NOT NULL DEFAULT '',
+      transporter_name_font TEXT NOT NULL DEFAULT 'Arial',
       lr_prefix TEXT NOT NULL DEFAULT '',
       invoice_prefix TEXT NOT NULL DEFAULT '',
       lr_print_format TEXT NOT NULL DEFAULT 'classic',
@@ -226,6 +227,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS signature_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS transporter_qr_url TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS transporter_name_font TEXT NOT NULL DEFAULT 'Arial'`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_prefix TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_prefix TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_print_format TEXT NOT NULL DEFAULT 'classic'`;
@@ -234,10 +236,10 @@ export async function ensureSchema() {
   await sql`
     INSERT INTO app_settings (
       id, company_name, company_email, company_phone, address, gst_no,
-      logo_url, signature_url, transporter_qr_url, lr_prefix, invoice_prefix, lr_print_format, invoice_print_format,
+      logo_url, signature_url, transporter_qr_url, transporter_name_font, lr_prefix, invoice_prefix, lr_print_format, invoice_print_format,
       default_gst_rate, financial_year_start, timezone
     )
-    VALUES (1, '', '', '', '', '', '', '', '', '', '', 'classic', 'classic', 18, '04-01', 'Asia/Kolkata')
+    VALUES (1, '', '', '', '', '', '', '', '', 'Arial', '', '', 'classic', 'classic', 18, '04-01', 'Asia/Kolkata')
     ON CONFLICT (id) DO NOTHING
   `;
 

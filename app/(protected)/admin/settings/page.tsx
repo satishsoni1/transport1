@@ -20,6 +20,7 @@ interface AdminSettings {
   logo_url: string;
   signature_url: string;
   transporter_qr_url: string;
+  transporter_name_font: string;
   lr_prefix: string;
   invoice_prefix: string;
   lr_print_format: 'classic' | 'compact' | 'detailed';
@@ -46,6 +47,7 @@ export default function AdminSettingsPage() {
     logo_url: '',
     signature_url: '',
     transporter_qr_url: '',
+    transporter_name_font: 'Arial',
     lr_prefix: '',
     invoice_prefix: '',
     lr_print_format: 'classic',
@@ -66,6 +68,7 @@ export default function AdminSettingsPage() {
       logo_url: data.logo_url || '',
       signature_url: data.signature_url || '',
       transporter_qr_url: data.transporter_qr_url || '',
+      transporter_name_font: data.transporter_name_font || 'Arial',
       lr_prefix: data.lr_prefix || '',
       invoice_prefix: data.invoice_prefix || '',
       lr_print_format: data.lr_print_format || 'classic',
@@ -222,6 +225,24 @@ export default function AdminSettingsPage() {
                 className="h-16 w-16 border rounded p-1"
               />
             ) : null}
+          </div>
+          <div>
+            <Label htmlFor="transporter_name_font">Transporter Name Font</Label>
+            <select
+              id="transporter_name_font"
+              className="w-full border rounded-md px-3 py-2 text-sm"
+              value={formData.transporter_name_font}
+              onChange={(e) =>
+                setFormData({ ...formData, transporter_name_font: e.target.value })
+              }
+            >
+              <option value="Arial">Arial</option>
+              <option value="Segoe UI">Segoe UI</option>
+              <option value="Tahoma">Tahoma</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Trebuchet MS">Trebuchet MS</option>
+              <option value="Georgia">Georgia</option>
+            </select>
           </div>
           <div>
             <Label htmlFor="lr_prefix">LR Prefix (optional)</Label>

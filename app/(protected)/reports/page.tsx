@@ -26,16 +26,28 @@ import {
 import { Download, Filter } from 'lucide-react';
 
 interface LREntry {
+  id?: number;
+  lr_no?: string;
   lr_date: string;
+  consignor_id?: number;
+  consignee_id?: number;
   to_city: string;
+  from_city?: string;
+  invoice_no?: string;
   freight: number;
   status: 'to_pay' | 'paid' | 'tbb';
 }
 
 interface Invoice {
+  invoice_no?: string;
   invoice_date: string;
   consignor_id: number;
   total_amount: number;
+}
+
+interface Consignee {
+  id: number;
+  name: string;
 }
 
 interface Consignor {
@@ -86,6 +98,7 @@ export default function ReportsPage() {
   const { data: lrEntries = [] } = useSWR<LREntry[]>('/api/daily-entry/lr-entries', apiClient.get);
   const { data: invoices = [] } = useSWR<Invoice[]>('/api/daily-entry/invoices', apiClient.get);
   const { data: consignors = [] } = useSWR<Consignor[]>('/api/masters/consignors', apiClient.get);
+  const { data: consignees = [] } = useSWR<Consignee[]>('/api/masters/consignees', apiClient.get);
 
   const filteredLR = useMemo(
     () => lrEntries.filter((item) => inRange(item.lr_date, appliedRange.from, appliedRange.to)),
@@ -175,15 +188,57 @@ export default function ReportsPage() {
     };
   }, [filteredLR]);
 
+  const reportRows = useMemo(() => {
+    const consignorMap = new Map(consignors.map((item) => [item.id, item.name]));
+    const consigneeMap = new Map(consignees.map((item) => [item.id, item.name]));
+
+    if (reportType === 'lr') {
+      return filteredLR.map((row, index) => ({
+        sr: index + 1,
+        lr_no: row.lr_no || '-',
+        date: new Date(row.lr_date).toLocaleDateString('en-IN'),
+        consignor: consignorMap.get(row.consignor_id || 0) || '-',
+        consignee: consigneeMap.get(row.consignee_id || 0) || '-',
+        invoice_no: row.invoice_no || '-',
+        route: `${row.from_city || '-'} -> ${row.to_city || '-'}`,
+        freight_type: row.status === 'to_pay' ? 'To Pay' : row.status === 'paid' ? 'Paid' : 'TBB',
+        amount: Number(row.freight || 0).toFixed(2),
+      }));
+    }
+
+    if (reportType === 'city') {
+      return cityData.map((row, index) => ({
+        sr: index + 1,
+        city: row.city,
+        freight_amount: Number(row.amount || 0).toFixed(2),
+      }));
+    }
+
+    if (reportType === 'consignor') {
+      return consignorData.map((row, index) => ({
+        sr: index + 1,
+        consignor: row.name,
+        invoices: row.invoices,
+        amount: Number(row.amount || 0).toFixed(2),
+      }));
+    }
+
+    return paymentData.map((row, index) => ({
+      sr: index + 1,
+      payment_type: row.name,
+      amount: Number(row.value || 0).toFixed(2),
+    }));
+  }, [reportType, filteredLR, cityData, consignorData, paymentData, consignors, consignees]);
+
+  const reportTitle = useMemo(() => {
+    if (reportType === 'lr') return 'L.R. Register';
+    if (reportType === 'city') return 'City Wise Freight Report';
+    if (reportType === 'consignor') return 'Consignor Summary';
+    return 'Payment Status Report';
+  }, [reportType]);
+
   const exportReport = useCallback(() => {
-    let rows: Array<Record<string, string | number>> = [];
-
-    if (reportType === 'lr') rows = monthlyLRData;
-    if (reportType === 'city') rows = cityData;
-    if (reportType === 'consignor') rows = consignorData;
-    if (reportType === 'payment') rows = paymentData.map(({ name, value }) => ({ name, value }));
-
-    const csv = toCSV(rows);
+    const csv = toCSV(reportRows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -191,14 +246,19 @@ export default function ReportsPage() {
     a.download = `report-${reportType}-${appliedRange.from}-to-${appliedRange.to}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [reportType, monthlyLRData, cityData, consignorData, paymentData, appliedRange]);
+  }, [reportRows, reportType, appliedRange]);
 
   if (!user) return null;
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Reports & Analytics</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Reports</h1>
+          <p className="text-sm text-muted-foreground">
+            Register-style operational reports with export support.
+          </p>
+        </div>
         <Button className="gap-2" onClick={exportReport}>
           <Download className="w-4 h-4" />
           Export CSV
@@ -241,7 +301,7 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <Button variant={reportType === 'lr' ? 'default' : 'outline'} onClick={() => setReportType('lr')}>
           L.R. Report
         </Button>
@@ -261,6 +321,34 @@ export default function ReportsPage() {
           Payment Status
         </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{reportTitle}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="rounded-lg border bg-slate-50 p-4">
+              <p className="text-sm text-gray-600">Period</p>
+              <p className="text-lg font-bold">
+                {appliedRange.from} to {appliedRange.to}
+              </p>
+            </div>
+            <div className="rounded-lg border bg-slate-50 p-4">
+              <p className="text-sm text-gray-600">Rows</p>
+              <p className="text-lg font-bold">{reportRows.length}</p>
+            </div>
+            <div className="rounded-lg border bg-slate-50 p-4">
+              <p className="text-sm text-gray-600">Total Freight</p>
+              <p className="text-lg font-bold">Rs {lrSummary.totalFreight.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="rounded-lg border bg-slate-50 p-4">
+              <p className="text-sm text-gray-600">Paid Freight</p>
+              <p className="text-lg font-bold">Rs {lrSummary.paid.toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {reportType === 'lr' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -452,6 +540,48 @@ export default function ReportsPage() {
           </Card>
         </div>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{reportTitle} Register</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-100">
+                <tr>
+                  {reportRows[0]
+                    ? Object.keys(reportRows[0]).map((key) => (
+                        <th key={key} className="border-b px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-600">
+                          {key.replace(/_/g, ' ')}
+                        </th>
+                      ))
+                    : null}
+                </tr>
+              </thead>
+              <tbody>
+                {reportRows.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-6 text-center text-muted-foreground" colSpan={8}>
+                      No report rows found for the selected period.
+                    </td>
+                  </tr>
+                ) : (
+                  reportRows.map((row, index) => (
+                    <tr key={index} className="border-b odd:bg-white even:bg-slate-50/60">
+                      {Object.values(row).map((value, valueIndex) => (
+                        <td key={valueIndex} className="px-3 py-2 whitespace-nowrap">
+                          {String(value)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
