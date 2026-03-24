@@ -198,7 +198,6 @@ export function generateLRPrintHTML(data: LRPrintData): string {
   const showFreight = data.freight_type === 'to_pay';
 
   const cityToMr = data.to_city_mr || data.consignee_city_mr || '';
-  const cityFromMr = data.from_city_mr || '';
   const fixedRows = 5;
   const rows = [...(data.goods_items || [])];
   while (rows.length < fixedRows) {
@@ -217,196 +216,372 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .sheet.lr-sheet {
         min-height: calc(148mm - 8mm);
         height: calc(148mm - 8mm);
-        padding: 2.5mm;
+        padding: 2mm;
+        border: 1.4px solid #222;
       }
-      .lr-sheet .header {
-        align-items: center;
-        min-height: 62px;
-        padding-bottom: 3px;
-        margin-bottom: 3px;
-      }
-      .lr-sheet .transport-name {
-        font-family: ${transporterNameFont}, Arial, sans-serif;
-        font-size: 19px;
-        font-weight: 800;
-        letter-spacing: 0.3px;
-        line-height: 1.05;
-      }
-      .lr-sheet .header-meta {
-        font-size: 9px;
-        line-height: 1.2;
-      }
-      .lr-sheet .lr-meta-grid,
-      .lr-sheet .party-grid,
-      .lr-sheet .info-grid {
-        display: grid;
-        gap: 4px;
-      }
-      .lr-sheet .lr-meta-grid {
-        grid-template-columns: 1.05fr 0.95fr;
-      }
-      .lr-sheet .party-grid {
-        grid-template-columns: 1fr 1fr;
-        margin-top: 4px;
-      }
-      .lr-sheet .info-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        margin-top: 4px;
-      }
-      .lr-sheet .box {
-        padding: 3px 4px;
-        font-size: 8.4px;
-      }
-      .lr-sheet .box h4 {
-        font-size: 10px;
-        margin-bottom: 3px;
-      }
-      .lr-sheet .key-value {
+      .lr-sheet .top-strip {
         display: flex;
         justify-content: space-between;
+        align-items: center;
+        font-size: 8px;
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+      .lr-sheet .header {
+        display: grid;
+        grid-template-columns: 78px 1fr;
+        align-items: stretch;
         gap: 8px;
-        margin: 1px 0;
+        min-height: 76px;
+        border: 1px solid #222;
+        padding: 4px 6px;
+        margin-bottom: 0;
+      }
+      .lr-sheet .transport-name {
+        font-family: ${transporterNameFont}, Georgia, 'Times New Roman', serif;
+        font-size: 34px;
+        font-weight: 500;
+        letter-spacing: 0.2px;
+        line-height: 1;
+        text-align: center;
+      }
+      .lr-sheet .header-meta {
+        font-size: 8px;
+        line-height: 1.15;
+        text-align: center;
+      }
+      .lr-sheet .header-logo-box {
+        border: 1px solid #222;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 64px;
+      }
+      .lr-sheet .header-logo-box img {
+        max-width: 64px;
+        max-height: 64px;
+        object-fit: contain;
+      }
+      .lr-sheet .party-section {
+        display: grid;
+        grid-template-columns: 1fr 1fr 0.66fr;
+        border-left: 1px solid #222;
+        border-right: 1px solid #222;
+      }
+      .lr-sheet .party-box,
+      .lr-sheet .lr-box {
+        min-height: 92px;
+        border-bottom: 1px solid #222;
+        border-right: 1px solid #222;
+        padding: 4px 6px;
+      }
+      .lr-sheet .party-section > :last-child {
+        border-right: 0;
+      }
+      .lr-sheet .box-label {
+        font-size: 7.5px;
+        font-weight: 700;
+        margin-bottom: 5px;
+      }
+      .lr-sheet .party-name {
+        font-size: 8px;
+        font-weight: 700;
+        min-height: 18px;
+        margin-bottom: 8px;
+      }
+      .lr-sheet .party-mobile {
+        font-size: 7px;
+        font-weight: 700;
+        min-height: 14px;
+        margin-bottom: 18px;
+      }
+      .lr-sheet .party-mr {
+        font-size: 7.5px;
+        font-weight: 700;
+      }
+      .lr-sheet .lr-box .kv {
+        display: grid;
+        grid-template-columns: 44px 8px 1fr;
+        font-size: 8px;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .lr-sheet .route-strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1.3fr;
+        border-left: 1px solid #222;
+        border-right: 1px solid #222;
+        border-bottom: 1px solid #222;
+      }
+      .lr-sheet .route-cell {
+        padding: 4px 6px;
+        border-right: 1px solid #222;
+        font-size: 8px;
+      }
+      .lr-sheet .route-strip > :last-child {
+        border-right: 0;
+      }
+      .lr-sheet .route-inline {
+        display: flex;
+        justify-content: center;
+        gap: 14px;
+        align-items: baseline;
+        font-weight: 700;
+      }
+      .lr-sheet .route-inline .muted {
+        font-weight: 400;
+      }
+      .lr-sheet .route-mr {
+        text-align: center;
+        font-size: 7.8px;
+        font-weight: 700;
       }
       .lr-sheet .goods-table {
-        margin-top: 4px;
+        margin-top: 0;
+        border-left: 1px solid #222;
+        border-right: 1px solid #222;
+        border-top: 0;
+        border-bottom: 0;
+        border-collapse: collapse;
       }
       .lr-sheet .goods-table th,
       .lr-sheet .goods-table td {
-        font-size: 8px;
-        height: 22px;
+        border: 1px solid #222;
+        font-size: 7.5px;
+        height: 20px;
+        min-height: 20px;
         text-align: center;
+        vertical-align: middle;
+        padding: 2px 2px;
+        line-height: 1.1;
+        overflow: hidden;
+      }
+      .lr-sheet .goods-table th {
+        background: #fff;
+        font-weight: 700;
         vertical-align: middle;
       }
       .lr-sheet .goods-table td.desc-cell {
         text-align: left;
-        padding-left: 4px;
-      }
-      .lr-sheet .goods-table col:nth-child(1) { width: 8%; }
-      .lr-sheet .goods-table col:nth-child(2) { width: 11%; }
-      .lr-sheet .goods-table col:nth-child(3) { width: 21%; }
-      .lr-sheet .goods-table col:nth-child(4) { width: 18%; }
-      .lr-sheet .goods-table col:nth-child(5) { width: 13%; }
-      .lr-sheet .goods-table col:nth-child(6) { width: 13%; }
-      .lr-sheet .goods-table col:nth-child(7) { width: 16%; }
-      .lr-sheet .totals {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        margin-top: 4px;
-      }
-      .lr-sheet .remarks-box {
-        min-height: 32px;
-      }
-      .lr-sheet .footer {
-        margin-top: 4px;
-        min-height: 52px;
-      }
-      .lr-sheet .footer-note {
-        font-size: 9px;
+        padding-left: 6px;
         font-weight: 700;
+        white-space: nowrap;
       }
-      .lr-sheet .payment-box {
+      .lr-sheet .goods-table tbody tr {
+        height: 20px;
+      }
+      .lr-sheet .goods-table col:nth-child(1) { width: 35%; }
+      .lr-sheet .goods-table col:nth-child(2) { width: 13%; }
+      .lr-sheet .goods-table col:nth-child(3) { width: 13%; }
+      .lr-sheet .goods-table col:nth-child(4) { width: 14%; }
+      .lr-sheet .goods-table col:nth-child(5) { width: 12%; }
+      .lr-sheet .goods-table col:nth-child(6) { width: 13%; }
+      .lr-sheet .summary-grid {
+        display: grid;
+        grid-template-columns: 1.18fr 1.45fr;
+        border-left: 1px solid #222;
+        border-right: 1px solid #222;
+        border-bottom: 1px solid #222;
+        margin-top: -1px;
+      }
+      .lr-sheet .stamp-box {
+        min-height: 92px;
+        border-right: 1px solid #222;
+        padding: 0;
+        display: grid;
+        grid-template-rows: 24px 1fr;
+      }
+      .lr-sheet .stamp-label {
+        border-bottom: 1px solid #222;
+        font-size: 7px;
+        font-weight: 700;
         display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: center;
+        text-align: center;
+        padding: 2px 4px;
       }
-      .lr-sheet .payment-box img {
-        width: 52px;
-        height: 52px;
-        border: 1px solid #666;
-        padding: 2px;
+      .lr-sheet .stamp-body {
+        padding: 4px 6px;
       }
-      .lr-sheet .payment-copy {
-        font-size: 8.6px;
-        line-height: 1.2;
+      .lr-sheet .calc-grid {
+        display: grid;
+        grid-template-rows: 24px 24px 1fr;
+      }
+      .lr-sheet .calc-row {
+        display: grid;
+        grid-template-columns: 0.9fr 0.9fr 0.75fr 0.85fr;
+      }
+      .lr-sheet .calc-row + .calc-row,
+      .lr-sheet .amount-words {
+        border-top: 1px solid #222;
+      }
+      .lr-sheet .calc-cell {
+        border-right: 1px solid #222;
+        padding: 3px 5px;
+        font-size: 7.5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-weight: 700;
+        line-height: 1;
+        min-height: 24px;
+        overflow: hidden;
+      }
+      .lr-sheet .calc-row > :last-child,
+      .lr-sheet .amount-words > :last-child,
+      .lr-sheet .bottom-strip > :last-child {
+        border-right: 0;
+      }
+      .lr-sheet .calc-label {
+        justify-content: flex-start;
+      }
+      .lr-sheet .calc-value {
+        justify-content: flex-end;
+      }
+      .lr-sheet .freight-type-cell {
+        font-size: 8px;
+      }
+      .lr-sheet .grand-total {
+        font-size: 9px;
+      }
+      .lr-sheet .amount-words {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+      .lr-sheet .amount-words .line1 {
+        padding: 3px 5px 1px;
+        font-size: 7px;
+        font-weight: 700;
+      }
+      .lr-sheet .amount-words .line2 {
+        padding: 1px 5px 4px;
+        font-size: 7px;
+        font-weight: 700;
+      }
+      .lr-sheet .bottom-strip {
+        display: grid;
+        grid-template-columns: 1fr 78px;
+        border-left: 1px solid #222;
+        border-right: 1px solid #222;
+        border-bottom: 1px solid #222;
+        min-height: 30px;
+        margin-top: -1px;
+      }
+      .lr-sheet .bottom-sign {
+        border-right: 1px solid #222;
+      }
+      .lr-sheet .sign-box {
+        position: relative;
+        padding: 2px 4px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 2px;
+      }
+      .lr-sheet .sign-box img.signature {
+        max-width: 58px;
+        max-height: 14px;
+        object-fit: contain;
+      }
+      .lr-sheet .sign-box img.qr {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
+        border: 1px solid #222;
+        padding: 1px;
+        background: #fff;
+      }
+      .lr-sheet .sign-title {
+        font-size: 6.8px;
+        font-weight: 700;
+        text-align: center;
+        line-height: 1.1;
       }
     </style>
   </head>
   <body>
     <div class="sheet lr-sheet">
+      <div class="top-strip">
+        <div>GST No. : ${escapeHtml(company.gst_no || '-')}</div>
+        <div>Subject to AKOLA Jurisdiction</div>
+      </div>
       <div class="header">
-        ${company.logo_url ? `<img class="logo" src="${company.logo_url}" alt="logo" />` : ''}
+        <div class="header-logo-box">
+          ${company.logo_url ? `<img src="${company.logo_url}" alt="logo" />` : ''}
+        </div>
         <div>
           <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
           <div class="header-meta">${escapeHtml(company.address || '')}</div>
           <div class="header-meta">${escapeHtml(company.company_phone || '')} ${company.company_email ? `| ${escapeHtml(company.company_email)}` : ''}</div>
-          ${company.gst_no ? `<div class="header-meta">GSTIN: ${escapeHtml(company.gst_no)}</div>` : ''}
         </div>
       </div>
 
       <div class="content">
-      <div class="lr-meta-grid">
-        <div class="box">
-          <h4>L.R. Details</h4>
-          <div class="key-value"><span class="lbl">LR No</span><span>${escapeHtml(data.lr_no)}</span></div>
-          <div class="key-value"><span class="lbl">Date</span><span>${escapeHtml(new Date(data.lr_date).toLocaleDateString('en-IN'))}</span></div>
-          <div class="key-value"><span class="lbl">Invoice No</span><span>${escapeHtml(data.invoice_no || '-')}</span></div>
-          <div class="key-value"><span class="lbl">Freight Type</span><span>${escapeHtml(freightTypeLabel)}</span></div>
+      <div class="party-section">
+        <div class="party-box">
+          <div class="box-label">CONSIGNOR :</div>
+          <div class="party-name">${escapeHtml(data.consignor || '-')}</div>
+          <div class="party-mobile">Mob. : ${escapeHtml(data.consignor_mobile || '-')}</div>
+          <div class="party-mr">${escapeHtml(data.consignor_name_mr || '-')}</div>
         </div>
-        <div class="box">
-          <h4>Delivery & Route</h4>
-          <div class="key-value"><span class="lbl">Booking From</span><span>${escapeHtml(data.from_city || '-')}</span></div>
-          <div class="key-value"><span class="lbl">Destination</span><span>${escapeHtml(data.to_city || '-')}</span></div>
-          <div class="line"><span class="lbl">To (Mr):</span> ${escapeHtml(cityToMr || '-')}</div>
-          <div class="line"><span class="lbl">Delivery At:</span> ${escapeHtml(data.delivery_address || data.consignee_address || '-')}</div>
-          <div style="margin-top:3px;text-align:right;">
-            <img src="${lrQr}" alt="lr qr" style="width:58px;height:58px;object-fit:contain;border:1px solid #666;padding:2px;" />
-            <div style="font-size:8px;">LR QR</div>
+        <div class="party-box">
+          <div class="box-label">CONSIGNEE :</div>
+          <div class="party-name">${escapeHtml(data.consignee || '-')}</div>
+          <div class="party-mobile">Mob. : ${escapeHtml(data.consignee_mobile || '-')}</div>
+          <div class="party-mr">${escapeHtml(data.consignee_name_mr || '-')}</div>
+        </div>
+        <div class="lr-box">
+          <div class="kv"><span>LR.No.</span><span>:</span><span>${escapeHtml(data.lr_no)}</span></div>
+          <div class="kv"><span>Date</span><span>:</span><span>${escapeHtml(new Date(data.lr_date).toLocaleDateString('en-IN'))}</span></div>
+          <div class="kv"><span>Inv. No.</span><span>:</span><span>${escapeHtml(data.invoice_no || '-')}</span></div>
+        </div>
+      </div>
+
+      <div class="route-strip">
+        <div class="route-cell">
+          <div class="route-inline">
+            <span class="muted">From :</span>
+            <span>${escapeHtml(data.from_city || '-')}</span>
+            <span class="muted">To</span>
+            <span>${escapeHtml(data.to_city || '-')}</span>
           </div>
         </div>
-      </div>
-
-      <div class="party-grid">
-        <div class="box">
-          <h4>Consignor</h4>
-          <div class="line"><span class="lbl">Name:</span> ${escapeHtml(data.consignor || '-')}</div>
-          <div class="line"><span class="lbl">Name (Mr):</span> ${escapeHtml(data.consignor_name_mr || '-')}</div>
-          <div class="line"><span class="lbl">Address:</span> ${escapeHtml(data.consignor_address || '-')}</div>
-          <div class="line"><span class="lbl">City:</span> ${escapeHtml(data.consignor_city || '-')}</div>
-          <div class="line"><span class="lbl">Contact:</span> ${escapeHtml(data.consignor_mobile || '-')}</div>
-          <div class="line"><span class="lbl">GST:</span> ${escapeHtml(data.consignor_gst || '-')}</div>
+        <div class="route-cell route-mr">${escapeHtml(cityToMr || '-')}</div>
+        <div class="route-cell">
+          <div style="font-size:7px;font-weight:700;">Delivery At :</div>
+          <div style="font-size:7.4px;font-weight:700;">${escapeHtml(data.delivery_address || data.consignee_address || '-')}</div>
         </div>
-        <div class="box">
-          <h4>Consignee</h4>
-          <div class="line" style="font-size:11px;font-weight:700;">${escapeHtml(data.consignee || '-')}</div>
-          <div class="line">${escapeHtml(data.consignee_name_mr || '-')}</div>
-          <div class="line">${escapeHtml(data.consignee_address || '-')}</div>
-          <div class="line"><span class="lbl">City:</span> ${escapeHtml(data.consignee_city || '-')}</div>
-          <div class="line"><span class="lbl">City (Mr):</span> ${escapeHtml(data.consignee_city_mr || '-')}</div>
-          <div class="line"><span class="lbl">Mobile:</span> ${escapeHtml(data.consignee_mobile || '-')}</div>
-        </div>
-      </div>
-
-      <div class="info-grid">
-        <div class="box"><span class="lbl">Truck No:</span> ${escapeHtml((data as any).truck_no || '-')}</div>
-        <div class="box"><span class="lbl">Driver:</span> ${escapeHtml((data as any).driver_name || '-')}</div>
-        <div class="box"><span class="lbl">Mobile:</span> ${escapeHtml((data as any).driver_mobile || '-')}</div>
-        <div class="box"><span class="lbl">E-Way No:</span> ${escapeHtml((data as any).eway_no || '-')}</div>
       </div>
 
       <table class="goods-table">
         <colgroup>
-          <col /><col /><col /><col /><col /><col /><col />
+          <col /><col /><col /><col /><col /><col />
         </colgroup>
         <thead>
           <tr>
-            <th>No.</th>
-            <th>Qty</th>
-            <th>Goods Details</th>
-            <th>Nature</th>
-            <th>Weight</th>
+            <th>DESCRIPTION</th>
+            <th>QTY</th>
+            <th>TYPE</th>
+            <th>WEIGHT/KG</th>
             <th>Rate</th>
-            <th>Amount</th>
+            <th>FREIGHT TO PAY</th>
           </tr>
         </thead>
         <tbody>
           ${rows
             .map(
-              (item, idx) => `
+              (item) => `
               <tr>
-                <td>${idx + 1}</td>
-                <td>${item.qty ?? ''}</td>
                 <td class="desc-cell">${escapeHtml(item.type ?? '')}</td>
-                <td class="desc-cell">${escapeHtml(item.nature ?? item.description ?? '')}</td>
-                <td>${item.weight_kg ?? ''}</td>
+                <td>${item.qty ?? ''}</td>
+                <td>${escapeHtml(item.nature ?? item.description ?? '')}</td>
+                <td>${item.weight_kg ? `${Number(item.weight_kg)} Kg.` : ''}</td>
                 <td>${item.rate !== undefined ? Number(item.rate || 0).toFixed(2) : ''}</td>
                 <td>${item.amount !== undefined ? Number(item.amount || 0).toFixed(2) : ''}</td>
               </tr>
@@ -416,36 +591,37 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         </tbody>
       </table>
 
-      <div class="totals">
-        <div class="box"><span class="lbl">Freight:</span> ${showFreight ? Number(data.freight || 0).toFixed(2) : '-'}</div>
-        <div class="box"><span class="lbl">Hamali:</span> ${Number(data.hamali || 0).toFixed(2)}</div>
-        <div class="box"><span class="lbl">L.R. Charge:</span> ${Number(data.lr_charge || 0).toFixed(2)}</div>
-        <div class="box"><span class="lbl">Advance:</span> ${Number(data.advance || 0).toFixed(2)}</div>
-        <div class="box"><span class="lbl">Balance:</span> ${Number(data.balance || payableAmount).toFixed(2)}</div>
-        <div class="box"><span class="lbl">Qty / Weight:</span> ${totalQty} / ${totalWeightMt.toFixed(3)} MT</div>
-      </div>
-      <div class="box" style="margin-top:4px;"><span class="lbl">Amount in Words:</span> ${escapeHtml(amountWords)} Only</div>
-
-      <div class="box remarks-box" style="margin-top:4px;"><span class="lbl">Remarks:</span> ${escapeHtml(data.remarks || '')}</div>
-      </div>
-
-      <div class="footer">
-        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px;flex:1;">
-          <div class="footer-note">Subject to Akola Jurisdiction</div>
-          ${transporterQr ? `
-            <div class="payment-box">
-              <img src="${transporterQr}" alt="payment qr" />
-              <div class="payment-copy">
-                <div class="lbl">Payment QR</div>
-                <div>Scan to make freight payment</div>
-              </div>
-            </div>
-          ` : ''}
+      <div class="summary-grid">
+        <div class="stamp-box">
+          <div class="stamp-label">CONSIGNEE SIGNATURE &amp; STAMP</div>
+          <div class="stamp-body"></div>
         </div>
-        <div class="sig">
-          ${company.signature_url ? `<img src="${company.signature_url}" alt="signature" />` : ''}
-          <div class="sig-line">Authorised Sign</div>
+        <div class="calc-grid">
+          <div class="calc-row">
+            <div class="calc-cell">${totalQty}</div>
+            <div class="calc-cell">TOTAL</div>
+            <div class="calc-cell">${totalWeightKg} Kg.</div>
+            <div class="calc-cell"><span class="calc-label">LR. CHARGE :</span>&nbsp;<span class="calc-value">${Number(data.lr_charge || 0).toFixed(2)}</span></div>
+          </div>
+          <div class="calc-row">
+            <div class="calc-cell calc-label" style="grid-column: span 2;">AMOUNT IN WORDS :</div>
+            <div class="calc-cell freight-type-cell">${escapeHtml(freightTypeLabel.replace('To Pay', 'ToPay'))}</div>
+            <div class="calc-cell grand-total"><span class="calc-label">GRAND TOTAL :</span>&nbsp;<span class="calc-value">${Number(data.balance || payableAmount).toFixed(2)}</span></div>
+          </div>
+          <div class="amount-words">
+            <div class="line1">${escapeHtml(amountWords)} Only</div>
+          </div>
         </div>
+      </div>
+
+      <div class="bottom-strip">
+        <div class="bottom-sign"></div>
+        <div class="sign-box">
+          ${transporterQr ? `<img class="qr" src="${transporterQr}" alt="payment qr" />` : `<img class="qr" src="${lrQr}" alt="lr qr" />`}
+          ${company.signature_url ? `<img class="signature" src="${company.signature_url}" alt="signature" />` : ''}
+          <div class="sign-title">${escapeHtml(company.company_name || 'TRANSPORT')}</div>
+        </div>
+      </div>
       </div>
     </div>
   </body>
