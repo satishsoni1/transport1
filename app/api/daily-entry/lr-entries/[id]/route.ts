@@ -107,6 +107,9 @@ export async function PUT(
         driver_mobile = ${body.driver_mobile ?? existing.driver_mobile},
         eway_no = ${body.eway_no ?? existing.eway_no},
         remarks = ${body.remarks ?? existing.remarks},
+        return_status = ${body.return_status ?? existing.return_status},
+        return_remark = ${body.return_remark ?? existing.return_remark},
+        pod_received = ${body.pod_received ?? existing.pod_received},
         goods_items = ${JSON.stringify(goodsItems)}::jsonb,
         status = ${statusValue}
       WHERE id = ${id}

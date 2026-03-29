@@ -187,10 +187,10 @@ export function generateLRPrintHTML(data: LRPrintData): string {
     data.freight_type === 'paid' ? 'Paid' : data.freight_type === 'tbb' ? 'TBB' : 'To Pay';
   const totalQty = (data.goods_items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
   const totalWeightKg = (data.goods_items || []).reduce(
-    (sum, item) => sum + (Number(item.weight_kg) || 0),
+    (sum, item) => sum + (Number(item.qty) || 0) * (Number(item.weight_kg) || 0),
     0
   );
-  const totalWeightMt = totalWeightKg / 1000;
+  const totalWeightMt = totalWeightKg / 100;
   const payableAmount = Number(data.freight || 0) + Number(data.hamali || 0) + Number(data.lr_charge || 0);
   const amountWords = numberToWords(payableAmount);
   const lrQr = getLRQr(data.lr_no);
@@ -219,14 +219,6 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         padding: 2mm;
         border: 1.4px solid #222;
       }
-      .lr-sheet .top-strip {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 8px;
-        font-weight: 700;
-        margin-bottom: 2px;
-      }
       .lr-sheet .header {
         display: grid;
         grid-template-columns: 78px 1fr;
@@ -249,6 +241,12 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         font-size: 8px;
         line-height: 1.15;
         text-align: center;
+      }
+      .lr-sheet .header-gst {
+        font-size: 7.8px;
+        line-height: 1.15;
+        text-align: center;
+        font-weight: 700;
       }
       .lr-sheet .header-logo-box {
         border: 1px solid #222;
@@ -306,6 +304,15 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         font-weight: 700;
         margin-bottom: 6px;
       }
+      .lr-sheet .lr-box .kv.lr-number-row {
+        grid-template-columns: 44px 8px 1fr;
+        align-items: center;
+      }
+      .lr-sheet .lr-box .lr-number-value {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.2px;
+      }
       .lr-sheet .route-strip {
         display: grid;
         grid-template-columns: 1fr 1fr 1.3fr;
@@ -335,6 +342,11 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         text-align: center;
         font-size: 7.8px;
         font-weight: 700;
+      }
+      .lr-sheet .to-highlight {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.2px;
       }
       .lr-sheet .goods-table {
         margin-top: 0;
@@ -376,104 +388,95 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .lr-sheet .goods-table col:nth-child(4) { width: 14%; }
       .lr-sheet .goods-table col:nth-child(5) { width: 12%; }
       .lr-sheet .goods-table col:nth-child(6) { width: 13%; }
-      .lr-sheet .summary-grid {
-        display: grid;
-        grid-template-columns: 1.18fr 1.45fr;
-        border-left: 1px solid #222;
-        border-right: 1px solid #222;
-        border-bottom: 1px solid #222;
-        margin-top: -1px;
-      }
-      .lr-sheet .stamp-box {
-        min-height: 92px;
-        border-right: 1px solid #222;
-        padding: 0;
-        display: grid;
-        grid-template-rows: 24px 1fr;
-      }
-      .lr-sheet .stamp-label {
-        border-bottom: 1px solid #222;
-        font-size: 7px;
+      .lr-sheet .goods-table .totals-row td,
+      .lr-sheet .goods-table .amount-row td,
+      .lr-sheet .goods-table .words-row td {
         font-weight: 700;
+        vertical-align: middle;
+      }
+      .lr-sheet .goods-table .stamp-cell {
+        padding: 0;
+        vertical-align: top;
+      }
+      .lr-sheet .goods-table .stamp-wrap {
+        min-height: 66px;
+        height: 66px;
+        display: grid;
+        grid-template-rows: 22px 1fr;
+      }
+      .lr-sheet .goods-table .stamp-label {
+        border-bottom: 1px solid #222;
         display: flex;
         align-items: center;
         justify-content: center;
         text-align: center;
+        font-size: 7px;
+        font-weight: 700;
         padding: 2px 4px;
       }
-      .lr-sheet .stamp-body {
-        padding: 4px 6px;
+      .lr-sheet .goods-table .stamp-body {
+        min-height: 44px;
       }
-      .lr-sheet .calc-grid {
-        display: grid;
-        grid-template-rows: 24px 24px 1fr;
+      .lr-sheet .goods-table .label-cell {
+        text-align: left;
+        padding-left: 5px;
       }
-      .lr-sheet .calc-row {
-        display: grid;
-        grid-template-columns: 0.9fr 0.9fr 0.75fr 0.85fr;
-      }
-      .lr-sheet .calc-row + .calc-row,
-      .lr-sheet .amount-words {
-        border-top: 1px solid #222;
-      }
-      .lr-sheet .calc-cell {
-        border-right: 1px solid #222;
-        padding: 3px 5px;
-        font-size: 7.5px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+      .lr-sheet .goods-table .center-cell {
         text-align: center;
-        font-weight: 700;
-        line-height: 1;
-        min-height: 24px;
-        overflow: hidden;
       }
-      .lr-sheet .calc-row > :last-child,
-      .lr-sheet .amount-words > :last-child,
-      .lr-sheet .bottom-strip > :last-child {
-        border-right: 0;
+      .lr-sheet .goods-table .value-cell {
+        text-align: right;
+        padding-right: 5px;
       }
-      .lr-sheet .calc-label {
-        justify-content: flex-start;
+      .lr-sheet .goods-table .grand-total-cell {
+        text-align: left;
+        padding-left: 5px;
       }
-      .lr-sheet .calc-value {
-        justify-content: flex-end;
-      }
-      .lr-sheet .freight-type-cell {
-        font-size: 8px;
-      }
-      .lr-sheet .grand-total {
+      .lr-sheet .goods-table .grand-total-cell .amount {
+        float: right;
         font-size: 9px;
       }
-      .lr-sheet .amount-words {
-        display: grid;
-        grid-template-columns: 1fr;
-      }
-      .lr-sheet .amount-words .line1 {
-        padding: 3px 5px 1px;
-        font-size: 7px;
-        font-weight: 700;
-      }
-      .lr-sheet .amount-words .line2 {
-        padding: 1px 5px 4px;
-        font-size: 7px;
-        font-weight: 700;
+      .lr-sheet .goods-table .words-cell {
+        text-align: left;
+        padding-left: 5px;
       }
       .lr-sheet .bottom-strip {
         display: grid;
-        grid-template-columns: 1fr 78px;
+        grid-template-columns: 110px 1fr 78px;
         border-left: 1px solid #222;
         border-right: 1px solid #222;
         border-bottom: 1px solid #222;
-        min-height: 30px;
         margin-top: -1px;
+        min-height: 34px;
+      }
+      .lr-sheet .payment-box {
+        border-right: 1px solid #222;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 4px;
+      }
+      .lr-sheet .payment-box img {
+        width: 26px;
+        height: 26px;
+        object-fit: contain;
+        border: 1px solid #222;
+        padding: 1px;
+        background: #fff;
+      }
+      .lr-sheet .payment-copy {
+        font-size: 6.5px;
+        line-height: 1.1;
+        font-weight: 700;
       }
       .lr-sheet .bottom-sign {
         border-right: 1px solid #222;
+        padding: 3px 5px;
+        font-size: 7px;
+        font-weight: 700;
+        color: #b91c1c;
       }
       .lr-sheet .sign-box {
-        position: relative;
         padding: 2px 4px;
         display: flex;
         flex-direction: column;
@@ -486,17 +489,6 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         max-height: 14px;
         object-fit: contain;
       }
-      .lr-sheet .sign-box img.qr {
-        position: absolute;
-        top: 2px;
-        right: 2px;
-        width: 22px;
-        height: 22px;
-        object-fit: contain;
-        border: 1px solid #222;
-        padding: 1px;
-        background: #fff;
-      }
       .lr-sheet .sign-title {
         font-size: 6.8px;
         font-weight: 700;
@@ -507,10 +499,6 @@ export function generateLRPrintHTML(data: LRPrintData): string {
   </head>
   <body>
     <div class="sheet lr-sheet">
-      <div class="top-strip">
-        <div>GST No. : ${escapeHtml(company.gst_no || '-')}</div>
-        <div>Subject to AKOLA Jurisdiction</div>
-      </div>
       <div class="header">
         <div class="header-logo-box">
           ${company.logo_url ? `<img src="${company.logo_url}" alt="logo" />` : ''}
@@ -518,7 +506,9 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         <div>
           <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
           <div class="header-meta">${escapeHtml(company.address || '')}</div>
+          <div class="header-gst">GSTIN : ${escapeHtml(company.gst_no || '-')}</div>
           <div class="header-meta">${escapeHtml(company.company_phone || '')} ${company.company_email ? `| ${escapeHtml(company.company_email)}` : ''}</div>
+          <div class="header-meta">Subject to AKOLA Jurisdiction</div>
         </div>
       </div>
 
@@ -537,7 +527,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
           <div class="party-mr">${escapeHtml(data.consignee_name_mr || '-')}</div>
         </div>
         <div class="lr-box">
-          <div class="kv"><span>LR.No.</span><span>:</span><span>${escapeHtml(data.lr_no)}</span></div>
+          <div class="kv lr-number-row"><span>LR.No.</span><span>:</span><span class="lr-number-value">${escapeHtml(data.lr_no)}</span></div>
           <div class="kv"><span>Date</span><span>:</span><span>${escapeHtml(new Date(data.lr_date).toLocaleDateString('en-IN'))}</span></div>
           <div class="kv"><span>Inv. No.</span><span>:</span><span>${escapeHtml(data.invoice_no || '-')}</span></div>
         </div>
@@ -549,7 +539,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
             <span class="muted">From :</span>
             <span>${escapeHtml(data.from_city || '-')}</span>
             <span class="muted">To</span>
-            <span>${escapeHtml(data.to_city || '-')}</span>
+            <span class="to-highlight">${escapeHtml(data.to_city || '-')}</span>
           </div>
         </div>
         <div class="route-cell route-mr">${escapeHtml(cityToMr || '-')}</div>
@@ -559,10 +549,10 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         </div>
       </div>
 
-      <table class="goods-table">
-        <colgroup>
-          <col /><col /><col /><col /><col /><col />
-        </colgroup>
+	      <table class="goods-table">
+	        <colgroup>
+	          <col /><col /><col /><col /><col /><col />
+	        </colgroup>
         <thead>
           <tr>
             <th>DESCRIPTION</th>
@@ -573,51 +563,57 @@ export function generateLRPrintHTML(data: LRPrintData): string {
             <th>FREIGHT TO PAY</th>
           </tr>
         </thead>
-        <tbody>
-          ${rows
-            .map(
-              (item) => `
-              <tr>
-                <td class="desc-cell">${escapeHtml(item.type ?? '')}</td>
-                <td>${item.qty ?? ''}</td>
-                <td>${escapeHtml(item.nature ?? item.description ?? '')}</td>
-                <td>${item.weight_kg ? `${Number(item.weight_kg)} Kg.` : ''}</td>
-                <td>${item.rate !== undefined ? Number(item.rate || 0).toFixed(2) : ''}</td>
-                <td>${item.amount !== undefined ? Number(item.amount || 0).toFixed(2) : ''}</td>
-              </tr>
-            `
-            )
-            .join('')}
-        </tbody>
-      </table>
-
-      <div class="summary-grid">
-        <div class="stamp-box">
-          <div class="stamp-label">CONSIGNEE SIGNATURE &amp; STAMP</div>
-          <div class="stamp-body"></div>
-        </div>
-        <div class="calc-grid">
-          <div class="calc-row">
-            <div class="calc-cell">${totalQty}</div>
-            <div class="calc-cell">TOTAL</div>
-            <div class="calc-cell">${totalWeightKg} Kg.</div>
-            <div class="calc-cell"><span class="calc-label">LR. CHARGE :</span>&nbsp;<span class="calc-value">${Number(data.lr_charge || 0).toFixed(2)}</span></div>
-          </div>
-          <div class="calc-row">
-            <div class="calc-cell calc-label" style="grid-column: span 2;">AMOUNT IN WORDS :</div>
-            <div class="calc-cell freight-type-cell">${escapeHtml(freightTypeLabel.replace('To Pay', 'ToPay'))}</div>
-            <div class="calc-cell grand-total"><span class="calc-label">GRAND TOTAL :</span>&nbsp;<span class="calc-value">${Number(data.balance || payableAmount).toFixed(2)}</span></div>
-          </div>
-          <div class="amount-words">
-            <div class="line1">${escapeHtml(amountWords)} Only</div>
-          </div>
-        </div>
-      </div>
+	        <tbody>
+	          ${rows
+	            .map(
+	              (item, idx) => `
+	              <tr>
+	                <td class="desc-cell">${escapeHtml(item.type ?? '')}</td>
+	                <td>${item.qty ?? ''}</td>
+	                <td>${escapeHtml(item.nature ?? item.description ?? '')}</td>
+	                <td>${item.weight_kg ? `${(Number(item.qty) || 0) * (Number(item.weight_kg) || 0)} Kg.` : ''}</td>
+	                <td>${item.rate !== undefined ? Number(item.rate || 0).toFixed(2) : ''}</td>
+	                <td>${item.amount !== undefined ? Number(item.amount || 0).toFixed(2) : ''}</td>
+	              </tr>
+	            `
+	            )
+	            .join('')}
+            <tr class="totals-row">
+              <td rowspan="3" class="stamp-cell">
+                <div class="stamp-wrap">
+                  <div class="stamp-label">CONSIGNEE SIGNATURE &amp; STAMP</div>
+                  <div class="stamp-body"></div>
+                </div>
+              </td>
+              <td>${totalQty}</td>
+              <td>TOTAL</td>
+              <td>${totalWeightKg} Kg.</td>
+              <td class="center-cell">LR. CHARGE</td>
+              <td class="value-cell">${Number(data.lr_charge || 0).toFixed(2)}</td>
+            </tr>
+            <tr class="amount-row">
+              <td></td>
+              <td></td>
+              <td>${totalWeightMt.toFixed(2)} M.T.</td>
+              <td class="center-cell">${escapeHtml(freightTypeLabel.replace('To Pay', 'ToPay'))}</td>
+              <td class="grand-total-cell">GRAND TOTAL : <span class="amount">${Number(data.balance || payableAmount).toFixed(2)}</span></td>
+            </tr>
+            <tr class="words-row">
+              <td colspan="5" class="words-cell">AMOUNT IN WORDS : ${escapeHtml(amountWords)} Only</td>
+            </tr>
+	        </tbody>
+	      </table>
 
       <div class="bottom-strip">
-        <div class="bottom-sign"></div>
+        <div class="payment-box">
+          <img src="${transporterQr || lrQr}" alt="payment qr" />
+          <div class="payment-copy">
+            <div>PAYMENT</div>
+            <div>SCAN QR</div>
+          </div>
+        </div>
+        <div class="bottom-sign">${escapeHtml(data.return_remark || data.remarks || '')}</div>
         <div class="sign-box">
-          ${transporterQr ? `<img class="qr" src="${transporterQr}" alt="payment qr" />` : `<img class="qr" src="${lrQr}" alt="lr qr" />`}
           ${company.signature_url ? `<img class="signature" src="${company.signature_url}" alt="signature" />` : ''}
           <div class="sign-title">${escapeHtml(company.company_name || 'TRANSPORT')}</div>
         </div>
@@ -732,9 +728,46 @@ export function exportToCSV(data: any[], filename: string): void {
 }
 
 export function printHTML(html: string): void {
+  let outputHtml = html;
+
+  if (html.includes('<title>LR ') && html.includes('sheet lr-sheet')) {
+    const bodyMatch = html.match(/<body>([\s\S]*)<\/body>/i);
+    if (bodyMatch) {
+      const bodyInner = bodyMatch[1];
+      const duplicatedBody = `
+        <body>
+          <div class="lr-a4-copies">
+            ${bodyInner}
+            ${bodyInner}
+          </div>
+        </body>
+      `;
+
+      outputHtml = html
+        .replace(/@page\s*\{[^}]*\}/, '@page { size: A4 portrait; margin: 6mm; }')
+        .replace(
+          '</style>',
+          `
+          .lr-a4-copies {
+            display: flex;
+            flex-direction: column;
+            gap: 6mm;
+          }
+          .lr-a4-copies .sheet.lr-sheet {
+            min-height: calc((297mm - 18mm) / 2);
+            height: calc((297mm - 18mm) / 2);
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          </style>`
+        )
+        .replace(/<body>[\s\S]*<\/body>/i, duplicatedBody);
+    }
+  }
+
   const printWindow = window.open('', '', 'height=700,width=900');
   if (printWindow) {
-    printWindow.document.write(html);
+    printWindow.document.write(outputHtml);
     printWindow.document.close();
     printWindow.print();
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import useSWR from 'swr';
@@ -28,6 +29,10 @@ interface ChallanLR {
   packages: number;
   freight: number;
   status: 'to_pay' | 'paid' | 'tbb';
+  remarks?: string;
+  return_status?: 'normal' | 'returned';
+  return_remark?: string;
+  previous_challan_no?: string;
 }
 
 interface LREntryApi {
@@ -38,6 +43,9 @@ interface LREntryApi {
   to_city: string;
   freight: number;
   status: 'to_pay' | 'paid' | 'tbb';
+  remarks?: string;
+  return_status?: 'normal' | 'returned';
+  return_remark?: string;
   goods_items: Array<{ qty?: number }>;
 }
 
@@ -55,6 +63,15 @@ interface Driver {
   id: number;
   driver_name: string;
   mobile: string;
+  address: string;
+  vehicle_no: string;
+  license_no: string;
+  license_valid_from: string;
+  license_valid_to: string;
+  renewal_date: string;
+  passport_photo_url: string;
+  thumb_image_url: string;
+  status: 'active' | 'inactive';
 }
 
 interface Vehicle {
@@ -73,8 +90,16 @@ interface Challan {
   truck_no: string;
   driver_name: string;
   driver_mobile: string;
+  driver_license_no?: string;
+  driver_address?: string;
   owner_name: string;
   eway_no: string;
+  engine_reading?: number;
+  short_reading?: number;
+  rate_per_km?: number;
+  reading_total?: number;
+  hamali?: number;
+  advance?: number;
   remarks: string;
   lr_list: ChallanLR[];
   total_freight: number;
@@ -95,8 +120,16 @@ export default function ChallanPage() {
     truck_no: '',
     driver_name: '',
     driver_mobile: '',
+    driver_license_no: '',
+    driver_address: '',
     owner_name: '',
     eway_no: '',
+    engine_reading: '0',
+    short_reading: '0',
+    rate_per_km: '0',
+    reading_total: '0',
+    hamali: '0',
+    advance: '0',
     remarks: '',
   });
 
@@ -128,6 +161,25 @@ export default function ChallanPage() {
     apiClient.get
   );
 
+  const selectedDriver = useMemo(
+    () =>
+      drivers.find(
+        (item) =>
+          item.driver_name.toLowerCase() === formData.driver_name.trim().toLowerCase()
+      ),
+    [drivers, formData.driver_name]
+  );
+
+  useEffect(() => {
+    const total =
+      (parseFloat(formData.short_reading) || 0) * (parseFloat(formData.rate_per_km) || 0);
+    setFormData((prev) => {
+      const next = total.toFixed(2);
+      if (prev.reading_total === next) return prev;
+      return { ...prev, reading_total: next };
+    });
+  }, [formData.short_reading, formData.rate_per_km]);
+
   const addLRToChallan = useCallback(() => {
     const lrNo = newLRInput.trim();
     if (!lrNo) {
@@ -154,6 +206,10 @@ export default function ChallanPage() {
       0
     );
 
+    const previousChallan = challans.find((challan) =>
+      (challan.lr_list || []).some((item) => item.lr_no === lrNo)
+    );
+
     const newLR: ChallanLR = {
       id: lrEntry.id,
       lr_no: lrEntry.lr_no,
@@ -163,6 +219,10 @@ export default function ChallanPage() {
       packages,
       freight: Number(lrEntry.freight) || 0,
       status: lrEntry.status,
+      remarks: lrEntry.remarks || '',
+      return_status: lrEntry.return_status || 'normal',
+      return_remark: lrEntry.return_remark || '',
+      previous_challan_no: previousChallan?.challan_no || '',
     };
 
     setSelectedLRs([...selectedLRs, newLR]);
@@ -181,8 +241,12 @@ export default function ChallanPage() {
     return {
       totalPackages: selectedLRs.reduce((sum, lr) => sum + lr.packages, 0),
       totalFreight: selectedLRs.reduce((sum, lr) => sum + lr.freight, 0),
-      totalToPay: selectedLRs.filter((lr) => lr.status === 'to_pay').length,
-      totalPaid: selectedLRs.filter((lr) => lr.status === 'paid').length,
+      totalToPay: selectedLRs
+        .filter((lr) => lr.status === 'to_pay')
+        .reduce((sum, lr) => sum + lr.freight, 0),
+      totalPaid: selectedLRs
+        .filter((lr) => lr.status === 'paid')
+        .reduce((sum, lr) => sum + lr.freight, 0),
     };
   }, [selectedLRs]);
 
@@ -194,8 +258,16 @@ export default function ChallanPage() {
       truck_no: challan.truck_no || '',
       driver_name: challan.driver_name || '',
       driver_mobile: challan.driver_mobile || '',
+      driver_license_no: (challan as any).driver_license_no || '',
+      driver_address: (challan as any).driver_address || '',
       owner_name: challan.owner_name || '',
       eway_no: challan.eway_no || '',
+      engine_reading: String((challan as any).engine_reading ?? 0),
+      short_reading: String((challan as any).short_reading ?? 0),
+      rate_per_km: String((challan as any).rate_per_km ?? 0),
+      reading_total: String((challan as any).reading_total ?? 0),
+      hamali: String((challan as any).hamali ?? 0),
+      advance: String((challan as any).advance ?? 0),
       remarks: challan.remarks || '',
     });
     setSelectedLRs(
@@ -207,6 +279,10 @@ export default function ChallanPage() {
         consignee: item.consignee || '',
         packages: Number(item.packages) || 0,
         freight: Number(item.freight) || 0,
+        remarks: item.remarks || '',
+        return_status: item.return_status || 'normal',
+        return_remark: item.return_remark || '',
+        previous_challan_no: item.previous_challan_no || '',
         status:
           item.status === 'paid' || item.status === 'tbb' || item.status === 'to_pay'
             ? item.status
@@ -252,8 +328,16 @@ export default function ChallanPage() {
           truck_no: formData.truck_no,
           driver_name: formData.driver_name,
           driver_mobile: formData.driver_mobile,
+          driver_license_no: formData.driver_license_no,
+          driver_address: formData.driver_address,
           owner_name: formData.owner_name,
           eway_no: formData.eway_no,
+          engine_reading: parseFloat(formData.engine_reading) || 0,
+          short_reading: parseFloat(formData.short_reading) || 0,
+          rate_per_km: parseFloat(formData.rate_per_km) || 0,
+          reading_total: parseFloat(formData.reading_total) || 0,
+          hamali: parseFloat(formData.hamali) || 0,
+          advance: parseFloat(formData.advance) || 0,
           remarks: formData.remarks,
           lr_list: selectedLRs,
         };
@@ -406,6 +490,9 @@ export default function ChallanPage() {
                         ...formData,
                         driver_name: value,
                         driver_mobile: selected?.mobile || formData.driver_mobile,
+                        driver_license_no: selected?.license_no || formData.driver_license_no,
+                        driver_address: selected?.address || formData.driver_address,
+                        truck_no: selected?.vehicle_no || formData.truck_no,
                       });
                     }}
                     placeholder="Driver name"
@@ -437,6 +524,37 @@ export default function ChallanPage() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="driver_license_no">License No</Label>
+                  <Input
+                    id="driver_license_no"
+                    value={formData.driver_license_no}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        driver_license_no: e.target.value,
+                      })
+                    }
+                    placeholder="License no"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="driver_address">Driver Address</Label>
+                  <Textarea
+                    id="driver_address"
+                    value={formData.driver_address}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        driver_address: e.target.value,
+                      })
+                    }
+                    rows={2}
+                    placeholder="Driver address"
+                  />
+                </div>
+                <div>
                   <Label htmlFor="owner_name">Owner Name</Label>
                   <Input
                     id="owner_name"
@@ -451,6 +569,24 @@ export default function ChallanPage() {
                   />
                 </div>
               </div>
+              {selectedDriver ? (
+                <div className="grid grid-cols-2 gap-4 rounded-lg border bg-slate-50 p-4">
+                  <div className="space-y-1 text-sm">
+                    <p><b>Vehicle No:</b> {selectedDriver.vehicle_no || '-'}</p>
+                    <p><b>Valid:</b> {selectedDriver.license_valid_from || '-'} to {selectedDriver.license_valid_to || '-'}</p>
+                    <p><b>Renewal:</b> {selectedDriver.renewal_date || '-'}</p>
+                    <p><b>Status:</b> {selectedDriver.status}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {selectedDriver.passport_photo_url ? (
+                      <img src={selectedDriver.passport_photo_url} alt="Driver" className="h-20 w-16 rounded border object-cover" />
+                    ) : null}
+                    {selectedDriver.thumb_image_url ? (
+                      <img src={selectedDriver.thumb_image_url} alt="Thumb" className="h-20 w-16 rounded border object-cover" />
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="eway_no">E-Way Number</Label>
@@ -462,6 +598,32 @@ export default function ChallanPage() {
                     }
                     placeholder="E-way number"
                   />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
+                <div>
+                  <Label htmlFor="engine_reading">Engine Reading</Label>
+                  <Input id="engine_reading" type="number" value={formData.engine_reading} onChange={(e) => setFormData({ ...formData, engine_reading: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="short_reading">Short Reading</Label>
+                  <Input id="short_reading" type="number" value={formData.short_reading} onChange={(e) => setFormData({ ...formData, short_reading: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="rate_per_km">Rate/KM</Label>
+                  <Input id="rate_per_km" type="number" value={formData.rate_per_km} onChange={(e) => setFormData({ ...formData, rate_per_km: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="reading_total">Total</Label>
+                  <Input id="reading_total" value={formData.reading_total} readOnly />
+                </div>
+                <div>
+                  <Label htmlFor="hamali">Hamali</Label>
+                  <Input id="hamali" type="number" value={formData.hamali} onChange={(e) => setFormData({ ...formData, hamali: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="advance">Advance</Label>
+                  <Input id="advance" type="number" value={formData.advance} onChange={(e) => setFormData({ ...formData, advance: e.target.value })} />
                 </div>
               </div>
             </CardContent>
@@ -520,6 +682,7 @@ export default function ChallanPage() {
                         <TableHead>Packages</TableHead>
                         <TableHead>Freight</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Remark</TableHead>
                         <TableHead>Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -546,6 +709,18 @@ export default function ChallanPage() {
                             </span>
                           </TableCell>
                           <TableCell>
+                            {lr.return_status === 'returned' ? (
+                              <div className="space-y-1 text-xs font-semibold text-red-600">
+                                <p>Return: {lr.return_remark || '-'}</p>
+                                {lr.previous_challan_no ? <p>Prev Challan: {lr.previous_challan_no}</p> : null}
+                              </div>
+                            ) : lr.remarks ? (
+                              <span className="text-xs font-semibold text-red-600">{lr.remarks}</span>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -570,11 +745,11 @@ export default function ChallanPage() {
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">To Pay</p>
-                      <p className="text-lg font-semibold">{totals.totalToPay}</p>
+                      <p className="text-lg font-semibold">₹{totals.totalToPay.toFixed(2)}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Paid</p>
-                      <p className="text-lg font-semibold">{totals.totalPaid}</p>
+                      <p className="text-lg font-semibold">₹{totals.totalPaid.toFixed(2)}</p>
                     </div>
                   </div>
                 </>
@@ -590,12 +765,13 @@ export default function ChallanPage() {
             <CardContent>
               <div>
                 <Label htmlFor="remarks">Remarks</Label>
-                <Input
+                <Textarea
                   id="remarks"
                   value={formData.remarks}
                   onChange={(e) =>
                     setFormData({ ...formData, remarks: e.target.value })
                   }
+                  rows={3}
                   placeholder="Any additional remarks"
                 />
               </div>

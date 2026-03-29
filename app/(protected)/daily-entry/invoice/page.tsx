@@ -37,6 +37,9 @@ interface LREntryApi {
   lr_no: string;
   consignor_id: number;
   freight: number;
+  status: 'to_pay' | 'paid' | 'tbb';
+  pod_received?: boolean;
+  return_status?: 'normal' | 'returned';
   goods_items: Array<{ description?: string; qty?: number; rate?: number }>;
 }
 
@@ -106,6 +109,9 @@ export default function InvoicePage() {
   const availableLREntries = lrEntries.filter(
     (entry) =>
       String(entry.consignor_id) === formData.consignor_id &&
+      entry.status !== 'paid' &&
+      !entry.pod_received &&
+      entry.return_status !== 'returned' &&
       !invoiceItems.some((item) => item.lr_no === entry.lr_no)
   );
 

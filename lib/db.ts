@@ -155,6 +155,13 @@ export async function ensureSchema() {
       driver_name TEXT NOT NULL,
       mobile TEXT NOT NULL DEFAULT '',
       license_no TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      vehicle_no TEXT NOT NULL DEFAULT '',
+      license_valid_from TEXT NOT NULL DEFAULT '',
+      license_valid_to TEXT NOT NULL DEFAULT '',
+      renewal_date TEXT NOT NULL DEFAULT '',
+      passport_photo_url TEXT NOT NULL DEFAULT '',
+      thumb_image_url TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'active',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
@@ -224,6 +231,13 @@ export async function ensureSchema() {
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS vehicle_no TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS license_valid_from TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS license_valid_to TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS renewal_date TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS passport_photo_url TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS thumb_image_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS signature_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS transporter_qr_url TEXT NOT NULL DEFAULT ''`;
@@ -278,11 +292,17 @@ export async function ensureSchema() {
       driver_mobile TEXT NOT NULL DEFAULT '',
       eway_no TEXT NOT NULL DEFAULT '',
       remarks TEXT NOT NULL DEFAULT '',
+      return_status TEXT NOT NULL DEFAULT 'normal',
+      return_remark TEXT NOT NULL DEFAULT '',
+      pod_received BOOLEAN NOT NULL DEFAULT FALSE,
       goods_items JSONB NOT NULL DEFAULT '[]'::jsonb,
       status TEXT NOT NULL DEFAULT 'to_pay',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS return_status TEXT NOT NULL DEFAULT 'normal'`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS return_remark TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received BOOLEAN NOT NULL DEFAULT FALSE`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS challans (
@@ -297,6 +317,12 @@ export async function ensureSchema() {
       owner_name TEXT NOT NULL DEFAULT '',
       eway_no TEXT NOT NULL DEFAULT '',
       remarks TEXT NOT NULL DEFAULT '',
+      engine_reading DOUBLE PRECISION NOT NULL DEFAULT 0,
+      short_reading DOUBLE PRECISION NOT NULL DEFAULT 0,
+      rate_per_km DOUBLE PRECISION NOT NULL DEFAULT 0,
+      reading_total DOUBLE PRECISION NOT NULL DEFAULT 0,
+      hamali DOUBLE PRECISION NOT NULL DEFAULT 0,
+      advance DOUBLE PRECISION NOT NULL DEFAULT 0,
       lr_list JSONB NOT NULL DEFAULT '[]'::jsonb,
       total_freight DOUBLE PRECISION NOT NULL DEFAULT 0,
       total_to_pay DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -305,6 +331,12 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS engine_reading DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS short_reading DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS rate_per_km DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS reading_total DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS hamali DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS advance DOUBLE PRECISION NOT NULL DEFAULT 0`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (

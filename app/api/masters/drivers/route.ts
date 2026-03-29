@@ -29,11 +29,21 @@ export async function POST(request: Request) {
     }
 
     const { rows } = await sql`
-      INSERT INTO drivers (driver_name, mobile, license_no, status)
+      INSERT INTO drivers (
+        driver_name, mobile, license_no, address, vehicle_no, license_valid_from,
+        license_valid_to, renewal_date, passport_photo_url, thumb_image_url, status
+      )
       VALUES (
         ${driverName},
         ${String(body.mobile || '').trim()},
         ${String(body.license_no || '').trim()},
+        ${String(body.address || '').trim()},
+        ${String(body.vehicle_no || '').trim().toUpperCase()},
+        ${String(body.license_valid_from || '').trim()},
+        ${String(body.license_valid_to || '').trim()},
+        ${String(body.renewal_date || '').trim()},
+        ${String(body.passport_photo_url || '').trim()},
+        ${String(body.thumb_image_url || '').trim()},
         'active'
       )
       RETURNING *

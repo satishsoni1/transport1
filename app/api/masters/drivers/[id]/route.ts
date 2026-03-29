@@ -37,6 +37,13 @@ export async function PUT(
         driver_name = ${body.driver_name ?? existing.driver_name},
         mobile = ${body.mobile ?? existing.mobile},
         license_no = ${body.license_no ?? existing.license_no},
+        address = ${body.address ?? existing.address},
+        vehicle_no = ${body.vehicle_no ?? existing.vehicle_no},
+        license_valid_from = ${body.license_valid_from ?? existing.license_valid_from},
+        license_valid_to = ${body.license_valid_to ?? existing.license_valid_to},
+        renewal_date = ${body.renewal_date ?? existing.renewal_date},
+        passport_photo_url = ${body.passport_photo_url ?? existing.passport_photo_url},
+        thumb_image_url = ${body.thumb_image_url ?? existing.thumb_image_url},
         status = ${body.status ?? existing.status}
       WHERE id = ${id}
       RETURNING *

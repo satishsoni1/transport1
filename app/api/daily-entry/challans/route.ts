@@ -44,8 +44,18 @@ export async function POST(request: Request) {
       (sum: number, item: any) => sum + (Number(item.freight) || 0),
       0
     );
-    const totalToPay = lrList.filter((item: any) => item.status === 'to_pay').length;
-    const totalPaid = lrList.filter((item: any) => item.status === 'paid').length;
+    const totalToPay = lrList
+      .filter((item: any) => item.status === 'to_pay')
+      .reduce((sum: number, item: any) => sum + (Number(item.freight) || 0), 0);
+    const totalPaid = lrList
+      .filter((item: any) => item.status === 'paid')
+      .reduce((sum: number, item: any) => sum + (Number(item.freight) || 0), 0);
+    const shortReading = Number(body.short_reading) || 0;
+    const ratePerKm = Number(body.rate_per_km) || 0;
+    const readingTotal =
+      body.reading_total === undefined
+        ? shortReading * ratePerKm
+        : Number(body.reading_total) || 0;
 
     const seq = await sql`SELECT nextval(pg_get_serial_sequence('challans','id')) AS id`;
     const id = Number(seq.rows[0].id);
@@ -54,7 +64,8 @@ export async function POST(request: Request) {
     const { rows } = await sql`
       INSERT INTO challans (
         id, challan_no, challan_date, from_city, to_city, truck_no, driver_name, driver_mobile,
-        owner_name, eway_no, remarks, lr_list, total_freight, total_to_pay, total_paid, status
+        owner_name, eway_no, remarks, engine_reading, short_reading, rate_per_km, reading_total,
+        hamali, advance, lr_list, total_freight, total_to_pay, total_paid, status
       )
       VALUES (
         ${id},
@@ -68,6 +79,12 @@ export async function POST(request: Request) {
         ${body.owner_name || ''},
         ${body.eway_no || ''},
         ${body.remarks || ''},
+        ${Number(body.engine_reading) || 0},
+        ${shortReading},
+        ${ratePerKm},
+        ${readingTotal},
+        ${Number(body.hamali) || 0},
+        ${Number(body.advance) || 0},
         ${JSON.stringify(lrList)}::jsonb,
         ${totalFreight},
         ${totalToPay},

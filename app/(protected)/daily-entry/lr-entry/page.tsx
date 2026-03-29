@@ -52,6 +52,9 @@ interface LREntry {
   driver_mobile: string;
   eway_no: string;
   remarks: string;
+  return_status?: 'normal' | 'returned';
+  return_remark?: string;
+  pod_received?: boolean;
   goods_items: GoodsItem[];
   status: 'to_pay' | 'paid' | 'tbb';
   created_at: string;
@@ -199,6 +202,9 @@ export default function LREntryPage() {
     driver_mobile: '',
     eway_no: '',
     remarks: '',
+    return_status: 'normal' as 'normal' | 'returned',
+    return_remark: '',
+    pod_received: false,
   });
 
   const [goodsItems, setGoodsItems] = useState<GoodsItem[]>([]);
@@ -340,6 +346,9 @@ export default function LREntryPage() {
       driver_mobile: '',
       eway_no: '',
       remarks: '',
+      return_status: 'normal',
+      return_remark: '',
+      pod_received: false,
     });
     setTimeout(() => consignorInputRef.current?.focus(), 30);
   }, []);
@@ -541,6 +550,9 @@ export default function LREntryPage() {
         driver_mobile: entry.driver_mobile || '',
         eway_no: entry.eway_no || '',
         remarks: entry.remarks || '',
+        return_status: entry.return_status || 'normal',
+        return_remark: entry.return_remark || '',
+        pod_received: Boolean(entry.pod_received),
       });
       setDeliveryAtDifferent(
         Boolean(
@@ -661,6 +673,9 @@ export default function LREntryPage() {
         driver_mobile: formData.driver_mobile,
         eway_no: formData.eway_no,
         remarks: formData.remarks,
+        return_status: formData.return_status,
+        return_remark: formData.return_remark,
+        pod_received: formData.pod_received,
         status: formData.status,
         goods_items: goodsItems,
       };
@@ -1218,9 +1233,66 @@ export default function LREntryPage() {
 
           <Card>
             <CardHeader><CardTitle>Additional Information</CardTitle></CardHeader>
-            <CardContent>
-              <Label htmlFor="remarks">Remarks</Label>
-              <Textarea id="remarks" value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} rows={3} />
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      id="return_status"
+                      checked={formData.return_status === 'returned'}
+                      onCheckedChange={(checked) =>
+                        setFormData({
+                          ...formData,
+                          return_status: checked ? 'returned' : 'normal',
+                          return_remark: checked ? formData.return_remark : '',
+                        })
+                      }
+                    />
+                    <Label htmlFor="return_status" className="cursor-pointer">
+                      LR Return
+                    </Label>
+                  </div>
+                  <Textarea
+                    value={formData.return_remark}
+                    onChange={(e) =>
+                      setFormData({ ...formData, return_remark: e.target.value })
+                    }
+                    rows={3}
+                    placeholder="Return remark"
+                    disabled={formData.return_status !== 'returned'}
+                  />
+                </div>
+                <div className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      id="pod_received"
+                      checked={formData.pod_received}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, pod_received: Boolean(checked) })
+                      }
+                    />
+                    <Label htmlFor="pod_received" className="cursor-pointer">
+                      POD Received
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    LR marked with POD will not be available in invoice generation.
+                  </p>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="remarks">Remarks</Label>
+                <Textarea
+                  id="remarks"
+                  value={formData.remarks}
+                  onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                  rows={3}
+                  className="text-red-700"
+                />
+                <p className="mt-1 text-xs text-red-600">
+                  LR remarks will be highlighted in red.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -1242,12 +1314,13 @@ export default function LREntryPage() {
                 <TableHead>Consignee</TableHead>
                 <TableHead>Freight</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Remark</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {lrEntries.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-4">No L.R. entries found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-4">No L.R. entries found</TableCell></TableRow>
               ) : (
                 lrEntries.map((entry) => (
                   <TableRow key={entry.id}>
@@ -1257,6 +1330,17 @@ export default function LREntryPage() {
                     <TableCell>{consignees.find((item) => item.id === entry.consignee_id)?.name || entry.to_city}</TableCell>
                     <TableCell>₹{entry.freight.toFixed(2)}</TableCell>
                     <TableCell>{freightTypeOptions.find((item) => item.value === entry.status)?.label || entry.status}</TableCell>
+                    <TableCell>
+                      {entry.return_status === 'returned' ? (
+                        <div className="text-xs font-semibold text-red-600">
+                          Returned: {entry.return_remark || '-'}
+                        </div>
+                      ) : entry.remarks ? (
+                        <div className="text-xs font-semibold text-red-600">{entry.remarks}</div>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button size="sm" variant="ghost" onClick={() => handlePrint(entry)} title="Print LR receipt">

@@ -43,8 +43,24 @@ export async function PUT(
       (sum: number, item: any) => sum + (Number(item.freight) || 0),
       0
     );
-    const totalToPay = safeList.filter((item: any) => item.status === 'to_pay').length;
-    const totalPaid = safeList.filter((item: any) => item.status === 'paid').length;
+    const totalToPay = safeList
+      .filter((item: any) => item.status === 'to_pay')
+      .reduce((sum: number, item: any) => sum + (Number(item.freight) || 0), 0);
+    const totalPaid = safeList
+      .filter((item: any) => item.status === 'paid')
+      .reduce((sum: number, item: any) => sum + (Number(item.freight) || 0), 0);
+    const shortReading =
+      body.short_reading === undefined
+        ? Number(existing.short_reading) || 0
+        : Number(body.short_reading) || 0;
+    const ratePerKm =
+      body.rate_per_km === undefined
+        ? Number(existing.rate_per_km) || 0
+        : Number(body.rate_per_km) || 0;
+    const readingTotal =
+      body.reading_total === undefined
+        ? shortReading * ratePerKm
+        : Number(body.reading_total) || 0;
 
     const { rows } = await sql`
       UPDATE challans
@@ -57,6 +73,12 @@ export async function PUT(
         owner_name = ${body.owner_name ?? existing.owner_name},
         eway_no = ${body.eway_no ?? existing.eway_no},
         remarks = ${body.remarks ?? existing.remarks},
+        engine_reading = ${body.engine_reading ?? existing.engine_reading},
+        short_reading = ${shortReading},
+        rate_per_km = ${ratePerKm},
+        reading_total = ${readingTotal},
+        hamali = ${body.hamali ?? existing.hamali},
+        advance = ${body.advance ?? existing.advance},
         lr_list = ${JSON.stringify(safeList)}::jsonb,
         total_freight = ${totalFreight},
         total_to_pay = ${totalToPay},
