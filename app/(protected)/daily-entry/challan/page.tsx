@@ -180,6 +180,29 @@ export default function ChallanPage() {
     });
   }, [formData.short_reading, formData.rate_per_km]);
 
+  useEffect(() => {
+    const selectedVehicle = vehicles.find(
+      (item) => item.vehicle_no.toLowerCase() === formData.truck_no.trim().toLowerCase()
+    );
+    const mappedDriver = drivers.find(
+      (item) => item.vehicle_no && item.vehicle_no.toLowerCase() === formData.truck_no.trim().toLowerCase()
+    );
+
+    if (!selectedVehicle && !mappedDriver) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      owner_name:
+        selectedVehicle?.owner_name !== undefined && selectedVehicle.owner_name !== ''
+          ? selectedVehicle.owner_name
+          : prev.owner_name,
+      driver_name: mappedDriver?.driver_name || prev.driver_name,
+      driver_mobile: mappedDriver?.mobile || prev.driver_mobile,
+      driver_license_no: mappedDriver?.license_no || prev.driver_license_no,
+      driver_address: mappedDriver?.address || prev.driver_address,
+    }));
+  }, [drivers, vehicles, formData.truck_no]);
+
   const addLRToChallan = useCallback(() => {
     const lrNo = newLRInput.trim();
     if (!lrNo) {
@@ -292,20 +315,6 @@ export default function ChallanPage() {
     setNewLRInput('');
     setActiveTab('form');
   }, []);
-
-  const handleDelete = useCallback(
-    async (id: number) => {
-      if (!confirm('Are you sure you want to delete this challan?')) return;
-      try {
-        await apiClient.delete(`/api/daily-entry/challans/${id}`);
-        toast.success('Challan deleted successfully');
-        mutate();
-      } catch {
-        toast.error('Failed to delete challan');
-      }
-    },
-    [mutate]
-  );
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -849,13 +858,6 @@ export default function ChallanPage() {
                           onClick={() => handleEdit(challan)}
                         >
                           <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDelete(challan.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </TableCell>

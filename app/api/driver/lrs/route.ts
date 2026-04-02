@@ -10,6 +10,9 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const rawSearch = String(searchParams.get('search') || '').trim();
+    const driverName = String(driver.driver_name || '').trim();
+    const driverMobile = String(driver.mobile || '').trim();
+    const vehicleNo = String(driver.vehicle_no || '').trim();
 
     const searchLike = `%${rawSearch}%`;
     const { rows } = await sql`
@@ -30,10 +33,38 @@ export async function GET(request: Request) {
         status
       FROM lr_entries
       WHERE (
-        LOWER(BTRIM(driver_name)) = LOWER(BTRIM(${driver.driver_name}))
+        LOWER(BTRIM(driver_name)) = LOWER(BTRIM(${driverName}))
         OR (
-          BTRIM(driver_mobile) <> ''
-          AND BTRIM(driver_mobile) = BTRIM(${driver.mobile || ''})
+          ${driverMobile} <> ''
+          AND BTRIM(driver_mobile) <> ''
+          AND BTRIM(driver_mobile) = BTRIM(${driverMobile})
+        )
+        OR (
+          ${vehicleNo} <> ''
+          AND BTRIM(truck_no) <> ''
+          AND LOWER(BTRIM(truck_no)) = LOWER(BTRIM(${vehicleNo}))
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM challans
+          WHERE (
+            LOWER(BTRIM(challans.driver_name)) = LOWER(BTRIM(${driverName}))
+            OR (
+              ${driverMobile} <> ''
+              AND BTRIM(challans.driver_mobile) <> ''
+              AND BTRIM(challans.driver_mobile) = BTRIM(${driverMobile})
+            )
+            OR (
+              ${vehicleNo} <> ''
+              AND BTRIM(challans.truck_no) <> ''
+              AND LOWER(BTRIM(challans.truck_no)) = LOWER(BTRIM(${vehicleNo}))
+            )
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(challans.lr_list) AS lr_item
+            WHERE UPPER(BTRIM(COALESCE(lr_item->>'lr_no', ''))) = UPPER(BTRIM(lr_entries.lr_no))
+          )
         )
       )
       AND (

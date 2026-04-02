@@ -192,20 +192,6 @@ export default function InvoicePage() {
     [consignors]
   );
 
-  const handleDelete = useCallback(
-    async (id: number) => {
-      if (!confirm('Are you sure you want to delete this invoice?')) return;
-      try {
-        await apiClient.delete(`/api/daily-entry/invoices/${id}`);
-        toast.success('Invoice deleted successfully');
-        mutate();
-      } catch {
-        toast.error('Failed to delete invoice');
-      }
-    },
-    [mutate]
-  );
-
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -604,13 +590,6 @@ export default function InvoicePage() {
                         onClick={() => handleEdit(invoice)}
                       >
                         <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(invoice.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/auth-context';
 import { Button } from '@/components/ui/button';
@@ -44,8 +45,8 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl">TRIMURTI TRANSPORT</CardTitle>
-          <CardDescription>Transport Management System</CardDescription>
+          <CardTitle className="text-2xl">Company Login</CardTitle>
+          <CardDescription>Transport Management System office modules</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -89,10 +90,18 @@ export default function LoginPage() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
 
-            <div className="text-xs text-center text-muted-foreground mt-4 p-3 bg-blue-50 rounded">
-              <p className="font-semibold mb-1">Demo Credentials:</p>
+            <div className="text-xs text-center text-muted-foreground mt-4 rounded bg-blue-50 p-3">
+              <p className="font-semibold mb-1">Company Demo Credentials</p>
               <p>Email: admin@trimurti.com</p>
               <p>Password: admin123</p>
+            </div>
+
+            <div className="rounded bg-slate-50 p-3 text-xs text-slate-600">
+              <p className="font-semibold text-slate-800">Driver Login</p>
+              <p>Use driver `username/password` created in Driver Master.</p>
+              <Link href="/driver/login" className="mt-2 inline-block font-semibold text-slate-900 underline underline-offset-4">
+                Open Driver Login
+              </Link>
             </div>
           </form>
         </CardContent>

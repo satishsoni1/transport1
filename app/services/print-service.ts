@@ -182,7 +182,7 @@ function numberToWords(num: number): string {
 export function generateLRPrintHTML(data: LRPrintData): string {
   const company = data.company || {};
   const resolvedFormat = data.format || company.lr_print_format || 'classic';
-  const transporterNameFont = escapeHtml(company.transporter_name_font || 'Arial');
+  const transporterNameFont = escapeHtml(company.transporter_name_font || '"Trebuchet MS"');
   const freightTypeLabel =
     data.freight_type === 'paid' ? 'Paid' : data.freight_type === 'tbb' ? 'TBB' : 'To Pay';
   const totalQty = (data.goods_items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
@@ -229,7 +229,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         margin-bottom: 0;
       }
       .lr-sheet .jurisdiction-note {
-        font-size: 8px;
+        font-size: 10px;
         line-height: 1.1;
         text-align: center;
         font-weight: 700;
@@ -237,20 +237,20 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         margin-bottom: 2px;
       }
       .lr-sheet .transport-name {
-        font-family: ${transporterNameFont}, Georgia, 'Times New Roman', serif;
-        font-size: 34px;
-        font-weight: 500;
-        letter-spacing: 0.2px;
-        line-height: 1;
+        font-family: ${transporterNameFont}, 'Trebuchet MS', Arial, sans-serif;
+        font-size: 32px;
+        font-weight: 800;
+        letter-spacing: 0;
+        line-height: 0.96;
         text-align: center;
       }
       .lr-sheet .header-meta {
-        font-size: 8px;
+        font-size: 10px;
         line-height: 1.15;
         text-align: center;
       }
       .lr-sheet .header-gst {
-        font-size: 7.8px;
+        font-size: 9.8px;
         line-height: 1.15;
         text-align: center;
         font-weight: 700;
@@ -263,8 +263,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         min-height: 64px;
       }
       .lr-sheet .header-logo-box img {
-        max-width: 64px;
-        max-height: 64px;
+        max-width: 48px;
+        max-height: 48px;
         object-fit: contain;
       }
       .lr-sheet .party-section {
@@ -284,31 +284,31 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         border-right: 0;
       }
       .lr-sheet .box-label {
-        font-size: 7.5px;
+        font-size: 9.5px;
         font-weight: 700;
         margin-bottom: 5px;
       }
       .lr-sheet .party-name {
-        font-size: 8px;
+        font-size: 10px;
         font-weight: 700;
         min-height: 18px;
         margin-bottom: 8px;
       }
       .lr-sheet .party-mobile {
-        font-size: 7px;
+        font-size: 9px;
         font-weight: 700;
         min-height: 14px;
         margin-bottom: 18px;
       }
       .lr-sheet .party-mr {
-        font-size: 8.8px;
+        font-size: 12.8px;
         font-weight: 700;
         line-height: 1.2;
       }
       .lr-sheet .lr-box .kv {
         display: grid;
         grid-template-columns: 44px 8px 1fr;
-        font-size: 8px;
+        font-size: 10px;
         font-weight: 700;
         margin-bottom: 6px;
       }
@@ -317,13 +317,13 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         align-items: center;
       }
       .lr-sheet .lr-box .lr-number-value {
-        font-size: 11px;
+        font-size: 13px;
         font-weight: 800;
         letter-spacing: 0.2px;
       }
       .lr-sheet .route-strip {
         display: grid;
-        grid-template-columns: 1fr 1fr 1.3fr;
+        grid-template-columns: 31% 13% 15% 16% 12% 13%;
         border-left: 1px solid #222;
         border-right: 1px solid #222;
         border-bottom: 1px solid #222;
@@ -331,7 +331,16 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .lr-sheet .route-cell {
         padding: 4px 6px;
         border-right: 1px solid #222;
-        font-size: 8px;
+        font-size: 10px;
+      }
+      .lr-sheet .route-cell.route-main {
+        grid-column: span 2;
+      }
+      .lr-sheet .route-cell.route-city-mr {
+        grid-column: span 2;
+      }
+      .lr-sheet .route-cell.route-delivery {
+        grid-column: span 2;
       }
       .lr-sheet .route-strip > :last-child {
         border-right: 0;
@@ -348,12 +357,12 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .route-mr {
         text-align: center;
-        font-size: 8.8px;
+        font-size: 12.8px;
         font-weight: 700;
         line-height: 1.2;
       }
       .lr-sheet .to-highlight {
-        font-size: 10px;
+        font-size: 12px;
         font-weight: 800;
         letter-spacing: 0.2px;
       }
@@ -368,7 +377,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .lr-sheet .goods-table th,
       .lr-sheet .goods-table td {
         border: 1px solid #222;
-        font-size: 7.5px;
+        font-size: 9.5px;
         height: 20px;
         min-height: 20px;
         text-align: center;
@@ -391,15 +400,16 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .lr-sheet .goods-table tbody tr {
         height: 20px;
       }
-      .lr-sheet .goods-table col:nth-child(1) { width: 35%; }
+      .lr-sheet .goods-table col:nth-child(1) { width: 31%; }
       .lr-sheet .goods-table col:nth-child(2) { width: 13%; }
-      .lr-sheet .goods-table col:nth-child(3) { width: 13%; }
-      .lr-sheet .goods-table col:nth-child(4) { width: 14%; }
+      .lr-sheet .goods-table col:nth-child(3) { width: 15%; }
+      .lr-sheet .goods-table col:nth-child(4) { width: 16%; }
       .lr-sheet .goods-table col:nth-child(5) { width: 12%; }
       .lr-sheet .goods-table col:nth-child(6) { width: 13%; }
       .lr-sheet .goods-table .totals-row td,
       .lr-sheet .goods-table .amount-row td,
-      .lr-sheet .goods-table .words-row td {
+      .lr-sheet .goods-table .words-row td,
+      .lr-sheet .goods-table .footer-row td {
         font-weight: 700;
         vertical-align: middle;
       }
@@ -408,10 +418,10 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         vertical-align: top;
       }
       .lr-sheet .goods-table .stamp-wrap {
-        min-height: 66px;
-        height: 66px;
+        min-height: 86px;
+        height: 86px;
         display: grid;
-        grid-template-rows: 22px 1fr;
+        grid-template-rows: 24px 1fr;
       }
       .lr-sheet .goods-table .stamp-label {
         border-bottom: 1px solid #222;
@@ -419,12 +429,12 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         align-items: center;
         justify-content: center;
         text-align: center;
-        font-size: 7px;
+        font-size: 9px;
         font-weight: 700;
         padding: 2px 4px;
       }
       .lr-sheet .goods-table .stamp-body {
-        min-height: 44px;
+        min-height: 60px;
       }
       .lr-sheet .goods-table .label-cell {
         text-align: left;
@@ -443,27 +453,33 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .goods-table .grand-total-cell .amount {
         float: right;
-        font-size: 9px;
+        font-size: 16px;
+        font-weight: 800;
       }
       .lr-sheet .goods-table .words-cell {
         text-align: left;
         padding-left: 5px;
       }
-      .lr-sheet .bottom-strip {
-        display: grid;
-        grid-template-columns: 172px 1fr 78px;
-        border-left: 1px solid #222;
-        border-right: 1px solid #222;
-        border-bottom: 1px solid #222;
-        margin-top: -1px;
-        min-height: 34px;
+      .lr-sheet .goods-table .footer-row td {
+        height: 36px;
+        min-height: 36px;
+      }
+      .lr-sheet .goods-table .qr-cell,
+      .lr-sheet .goods-table .remark-cell,
+      .lr-sheet .goods-table .transport-cell {
+        padding: 3px 4px;
+      }
+      .lr-sheet .goods-table .remark-cell {
+        text-align: left;
+        color: #b91c1c;
+        font-size: 9px;
       }
       .lr-sheet .qr-strip {
-        border-right: 1px solid #222;
         display: flex;
         align-items: center;
         gap: 6px;
-        padding: 2px 4px;
+        justify-content: center;
+        padding: 0;
       }
       .lr-sheet .qr-box {
         display: flex;
@@ -472,32 +488,25 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         min-width: 0;
       }
       .lr-sheet .qr-box img {
-        width: 26px;
-        height: 26px;
-        object-fit: contain;
+        width: 30px;
+        height: 30px;
         border: 1px solid #222;
-        padding: 1px;
         background: #fff;
+        object-fit: contain;
+        padding: 1px;
       }
       .lr-sheet .qr-copy {
-        font-size: 6.5px;
+        font-size: 8.5px;
         line-height: 1.1;
         font-weight: 700;
       }
-      .lr-sheet .bottom-sign {
-        border-right: 1px solid #222;
-        padding: 3px 5px;
-        font-size: 7px;
-        font-weight: 700;
-        color: #b91c1c;
-      }
       .lr-sheet .sign-box {
-        padding: 2px 4px;
         display: flex;
         flex-direction: column;
-        justify-content: flex-end;
+        justify-content: center;
         align-items: center;
         gap: 2px;
+        min-height: 100%;
       }
       .lr-sheet .sign-box img.signature {
         max-width: 58px;
@@ -505,10 +514,14 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         object-fit: contain;
       }
       .lr-sheet .sign-title {
-        font-size: 6.8px;
+        font-size: 8.8px;
         font-weight: 700;
         text-align: center;
         line-height: 1.1;
+      }
+      .lr-sheet .freight-type-value {
+        font-size: 16px;
+        font-weight: 800;
       }
     </style>
   </head>
@@ -519,7 +532,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
           ${company.logo_url ? `<img src="${company.logo_url}" alt="logo" />` : ''}
         </div>
         <div>
-          <div class="jurisdiction-note">Subject to Akola Juridication</div>
+          <div class="jurisdiction-note">Subject to Akola Jurisdiction</div>
           <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
           <div class="header-meta">${escapeHtml(company.address || '')}</div>
           <div class="header-gst">GSTIN : ${escapeHtml(company.gst_no || '-')}</div>
@@ -549,7 +562,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       </div>
 
       <div class="route-strip">
-        <div class="route-cell">
+        <div class="route-cell route-main">
           <div class="route-inline">
             <span class="muted">From :</span>
             <span>${escapeHtml(data.from_city || '-')}</span>
@@ -557,10 +570,10 @@ export function generateLRPrintHTML(data: LRPrintData): string {
             <span class="to-highlight">${escapeHtml(data.to_city || '-')}</span>
           </div>
         </div>
-        <div class="route-cell route-mr">${escapeHtml(cityToMr || '-')}</div>
-        <div class="route-cell">
-          <div style="font-size:7px;font-weight:700;">Delivery At :</div>
-          <div style="font-size:7.4px;font-weight:700;">${escapeHtml(data.delivery_address || data.consignee_address || '-')}</div>
+        <div class="route-cell route-city-mr route-mr">${escapeHtml(cityToMr || '-')}</div>
+        <div class="route-cell route-delivery">
+          <div style="font-size:9px;font-weight:700;">Delivery At :</div>
+          <div style="font-size:9.4px;font-weight:700;">${escapeHtml(data.delivery_address || data.consignee_address || '-')}</div>
         </div>
       </div>
 
@@ -586,7 +599,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 	                <td class="desc-cell">${escapeHtml(item.type ?? '')}</td>
 	                <td>${item.qty ?? ''}</td>
 	                <td>${escapeHtml(item.nature ?? item.description ?? '')}</td>
-	                <td>${item.weight_kg ? `${(Number(item.qty) || 0) * (Number(item.weight_kg) || 0)} Kg.` : ''}</td>
+	                <td>${item.weight_kg ? `${Number(item.weight_kg || 0)} Kg.` : ''}</td>
 	                <td>${item.rate !== undefined ? Number(item.rate || 0).toFixed(2) : ''}</td>
 	                <td>${item.amount !== undefined ? Number(item.amount || 0).toFixed(2) : ''}</td>
 	              </tr>
@@ -594,7 +607,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 	            )
 	            .join('')}
             <tr class="totals-row">
-              <td rowspan="3" class="stamp-cell">
+              <td rowspan="4" class="stamp-cell">
                 <div class="stamp-wrap">
                   <div class="stamp-label">CONSIGNEE SIGNATURE &amp; STAMP</div>
                   <div class="stamp-body"></div>
@@ -610,39 +623,42 @@ export function generateLRPrintHTML(data: LRPrintData): string {
               <td></td>
               <td></td>
               <td>${totalWeightMt.toFixed(2)} M.T.</td>
-              <td class="center-cell">${escapeHtml(freightTypeLabel.replace('To Pay', 'ToPay'))}</td>
+              <td class="center-cell freight-type-value">${escapeHtml(freightTypeLabel.replace('To Pay', 'ToPay'))}</td>
               <td class="grand-total-cell">GRAND TOTAL : <span class="amount">${Number(data.balance || payableAmount).toFixed(2)}</span></td>
             </tr>
             <tr class="words-row">
               <td colspan="5" class="words-cell">AMOUNT IN WORDS : ${escapeHtml(amountWords)} Only</td>
             </tr>
+            <tr class="footer-row">
+              <td colspan="2" class="qr-cell">
+                <div class="qr-strip">
+                  ${transporterQr ? `
+                  <div class="qr-box">
+                    <img src="${transporterQr}" alt="payment qr" />
+                    <div class="qr-copy">
+                      <div>PAYMENT</div>
+                      <div>SCAN QR</div>
+                    </div>
+                  </div>` : ''}
+                  <div class="qr-box">
+                    <img src="${lrQr}" alt="lr qr" />
+                    <div class="qr-copy">
+                      <div>LR QR</div>
+                      <div>${escapeHtml(data.lr_no)}</div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td colspan="2" class="remark-cell">${escapeHtml(data.return_remark || data.remarks || '')}</td>
+              <td class="transport-cell">
+                <div class="sign-box">
+                  ${company.signature_url ? `<img class="signature" src="${company.signature_url}" alt="signature" />` : ''}
+                  <div class="sign-title">${escapeHtml(company.company_name || 'TRANSPORT')}</div>
+                </div>
+              </td>
+            </tr>
 	        </tbody>
 	      </table>
-
-      <div class="bottom-strip">
-        <div class="qr-strip">
-          ${transporterQr ? `
-          <div class="qr-box">
-            <img src="${transporterQr}" alt="payment qr" />
-            <div class="qr-copy">
-              <div>PAYMENT</div>
-              <div>SCAN QR</div>
-            </div>
-          </div>` : ''}
-          <div class="qr-box">
-            <img src="${lrQr}" alt="lr qr" />
-            <div class="qr-copy">
-              <div>LR QR</div>
-              <div>${escapeHtml(data.lr_no)}</div>
-            </div>
-          </div>
-        </div>
-        <div class="bottom-sign">${escapeHtml(data.return_remark || data.remarks || '')}</div>
-        <div class="sign-box">
-          ${company.signature_url ? `<img class="signature" src="${company.signature_url}" alt="signature" />` : ''}
-          <div class="sign-title">${escapeHtml(company.company_name || 'TRANSPORT')}</div>
-        </div>
-      </div>
       </div>
     </div>
   </body>
@@ -769,18 +785,21 @@ export function printHTML(html: string): void {
       `;
 
       outputHtml = html
-        .replace(/@page\s*\{[^}]*\}/, '@page { size: A4 portrait; margin: 6mm; }')
+        .replace(/@page\s*\{[^}]*\}/, '@page { size: A4 portrait; margin: 4mm; }')
         .replace(
           '</style>',
           `
           .lr-a4-copies {
             display: flex;
             flex-direction: column;
-            gap: 6mm;
+            gap: 2mm;
           }
           .lr-a4-copies .sheet.lr-sheet {
-            min-height: calc((297mm - 18mm) / 2);
-            height: calc((297mm - 18mm) / 2);
+            box-sizing: border-box;
+            min-height: calc((297mm - 30mm) / 2);
+            height: calc((297mm - 30mm) / 2);
+            max-height: calc((297mm - 30mm) / 2);
+            overflow: hidden;
             break-inside: avoid;
             page-break-inside: avoid;
           }

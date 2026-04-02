@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit2, Printer } from 'lucide-react';
 import useSWR, { mutate as globalMutate } from 'swr';
@@ -579,20 +579,6 @@ export default function LREntryPage() {
     [consignors, consignees]
   );
 
-  const handleDelete = useCallback(
-    async (id: number) => {
-      if (!confirm('Are you sure you want to delete this L.R. entry?')) return;
-      try {
-        await apiClient.delete(`/api/daily-entry/lr-entries/${id}`);
-        toast.success('L.R. entry deleted successfully');
-        mutateLrEntries();
-      } catch {
-        toast.error('Failed to delete L.R. entry');
-      }
-    },
-    [mutateLrEntries]
-  );
-
   const buildPrintPayload = useCallback(
     (entry: LREntry) => {
       const consignor = consignors.find((item) => item.id === entry.consignor_id);
@@ -745,9 +731,6 @@ export default function LREntryPage() {
           className="space-y-4 [&_label[data-slot=label]]:mb-1.5"
         >
           <Card>
-            <CardHeader>
-              <CardTitle>Parties Information</CardTitle>
-            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -921,7 +904,6 @@ export default function LREntryPage() {
           </datalist>
 
           <Card>
-            <CardHeader className="pb-3"><CardTitle>Booking Information</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <div className="rounded-lg border bg-slate-50 p-2.5">
@@ -1024,7 +1006,6 @@ export default function LREntryPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-3"><CardTitle>Goods Details</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-7 gap-2 text-xs font-semibold text-muted-foreground">
                 <div>Qty *</div>
@@ -1140,7 +1121,6 @@ export default function LREntryPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-3"><CardTitle>Freight Terms</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
                 <div>
@@ -1173,7 +1153,6 @@ export default function LREntryPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-3"><CardTitle>Vehicle Information</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
@@ -1225,7 +1204,6 @@ export default function LREntryPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-3"><CardTitle>Additional Information</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-2 rounded-lg border p-2.5">
@@ -1322,7 +1300,6 @@ export default function LREntryPage() {
                           <Printer className="w-4 h-4" />
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => handleEdit(entry)}><Edit2 className="w-4 h-4" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(entry.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -35,15 +35,50 @@ export async function POST(request: Request) {
     }
 
     const existing = existingRows[0];
-    const matchesDriver =
+    const driverName = String(driver.driver_name || '').trim();
+    const driverMobile = String(driver.mobile || '').trim();
+    const vehicleNo = String(driver.vehicle_no || '').trim();
+    const matchesDirectDriver =
       String(existing.driver_name || '').trim().toLowerCase() ===
-        String(driver.driver_name || '').trim().toLowerCase() ||
+        driverName.toLowerCase() ||
       (
         String(existing.driver_mobile || '').trim() &&
-        String(existing.driver_mobile || '').trim() === String(driver.mobile || '').trim()
+        String(existing.driver_mobile || '').trim() === driverMobile
+      ) ||
+      (
+        String(existing.truck_no || '').trim() &&
+        String(existing.truck_no || '').trim().toLowerCase() === vehicleNo.toLowerCase()
       );
 
-    if (!matchesDriver) {
+    let matchesChallanDriver = false;
+    if (!matchesDirectDriver) {
+      const { rows: challanRows } = await sql`
+        SELECT id
+        FROM challans
+        WHERE (
+          LOWER(BTRIM(driver_name)) = LOWER(BTRIM(${driverName}))
+          OR (
+            ${driverMobile} <> ''
+            AND BTRIM(driver_mobile) <> ''
+            AND BTRIM(driver_mobile) = BTRIM(${driverMobile})
+          )
+          OR (
+            ${vehicleNo} <> ''
+            AND BTRIM(truck_no) <> ''
+            AND LOWER(BTRIM(truck_no)) = LOWER(BTRIM(${vehicleNo}))
+          )
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(challans.lr_list) AS lr_item
+          WHERE UPPER(BTRIM(COALESCE(lr_item->>'lr_no', ''))) = UPPER(BTRIM(${existing.lr_no}))
+        )
+        LIMIT 1
+      `;
+      matchesChallanDriver = challanRows.length > 0;
+    }
+
+    if (!matchesDirectDriver && !matchesChallanDriver) {
       return NextResponse.json(
         { success: false, error: 'This LR is not assigned to the logged-in driver' },
         { status: 403 }
