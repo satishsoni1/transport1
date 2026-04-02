@@ -153,6 +153,9 @@ export async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS drivers (
       id SERIAL PRIMARY KEY,
       driver_name TEXT NOT NULL,
+      username TEXT NOT NULL DEFAULT '',
+      password TEXT NOT NULL DEFAULT '',
+      password_hash TEXT NOT NULL DEFAULT '',
       mobile TEXT NOT NULL DEFAULT '',
       license_no TEXT NOT NULL DEFAULT '',
       address TEXT NOT NULL DEFAULT '',
@@ -231,6 +234,9 @@ export async function ensureSchema() {
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS vehicle_no TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS license_valid_from TEXT NOT NULL DEFAULT ''`;
@@ -303,6 +309,10 @@ export async function ensureSchema() {
   await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS return_status TEXT NOT NULL DEFAULT 'normal'`;
   await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS return_remark TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received BOOLEAN NOT NULL DEFAULT FALSE`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_image_url TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received_by_driver_id INTEGER`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received_by_driver_name TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS challans (

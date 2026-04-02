@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
+import { hashDriverPassword } from '@/lib/driver-auth';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -31,10 +32,40 @@ export async function PUT(
     }
 
     const existing = existingRows[0];
+    const nextUsername = String(body.username ?? existing.username ?? '').trim();
+    const nextPassword = String(body.password ?? existing.password ?? '').trim();
+
+    if (!String(body.driver_name ?? existing.driver_name ?? '').trim() || !nextUsername || !nextPassword) {
+      return NextResponse.json(
+        { success: false, error: 'Driver name, username, and password are required' },
+        { status: 400 }
+      );
+    }
+
+    const { rows: duplicateRows } = await sql`
+      SELECT id
+      FROM drivers
+      WHERE id <> ${id}
+        AND LOWER(username) = LOWER(${nextUsername})
+      LIMIT 1
+    `;
+
+    if (duplicateRows.length > 0) {
+      return NextResponse.json(
+        { success: false, error: 'Driver username already exists' },
+        { status: 400 }
+      );
+    }
+
+    const passwordHash = hashDriverPassword(nextPassword);
+
     const { rows } = await sql`
       UPDATE drivers
       SET
         driver_name = ${body.driver_name ?? existing.driver_name},
+        username = ${nextUsername},
+        password = ${nextPassword},
+        password_hash = ${passwordHash},
         mobile = ${body.mobile ?? existing.mobile},
         license_no = ${body.license_no ?? existing.license_no},
         address = ${body.address ?? existing.address},

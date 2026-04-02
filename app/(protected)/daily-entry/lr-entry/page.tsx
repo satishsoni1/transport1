@@ -720,7 +720,7 @@ export default function LREntryPage() {
   if (!user) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">L.R. Entry</h1>
         {activeTab === 'list' && (
@@ -742,7 +742,7 @@ export default function LREntryPage() {
           ref={lrFormRef}
           onSubmit={handleSubmit}
           onKeyDown={handleFormEnterNavigation}
-          className="space-y-6"
+          className="space-y-4 [&_label[data-slot=label]]:mb-1.5"
         >
           <Card>
             <CardHeader>
@@ -921,25 +921,25 @@ export default function LREntryPage() {
           </datalist>
 
           <Card>
-            <CardHeader><CardTitle>Booking Information</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                <div className="rounded-lg border bg-slate-50 p-3">
+            <CardHeader className="pb-3"><CardTitle>Booking Information</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <div className="rounded-lg border bg-slate-50 p-2.5">
                   <p className="text-xs font-medium text-slate-500">From City</p>
-                  <p className="mt-1 text-lg font-semibold">{formData.from_city || '-'}</p>
+                  <p className="mt-1 text-base font-semibold">{formData.from_city || '-'}</p>
                 </div>
-                <div className="rounded-lg border bg-slate-50 p-3">
+                <div className="rounded-lg border bg-slate-50 p-2.5">
                   <p className="text-xs font-medium text-slate-500">To City</p>
-                  <p className="mt-1 text-lg font-semibold">{formData.to_city || '-'}</p>
+                  <p className="mt-1 text-base font-semibold">{formData.to_city || '-'}</p>
                 </div>
-                <div className="md:col-span-2 space-y-2 rounded-lg border p-3">
+                <div className="space-y-2 rounded-lg border p-2.5 md:col-span-2">
                   <div className="flex items-center gap-3">
                     <Checkbox
                       id="delivery_at_different"
                       checked={deliveryAtDifferent}
                       onCheckedChange={(checked) => setDeliveryAtDifferent(Boolean(checked))}
                     />
-                    <Label htmlFor="delivery_at_different" className="cursor-pointer">
+                    <Label htmlFor="delivery_at_different" className="mb-0 cursor-pointer">
                       Delivery At is different from consignee address
                     </Label>
                   </div>
@@ -953,7 +953,7 @@ export default function LREntryPage() {
                           setFormData({ ...formData, delivery_address: e.target.value })
                         }
                         placeholder="Enter alternate delivery address"
-                        rows={3}
+                        rows={2}
                       />
                     </div>
                   ) : (
@@ -964,7 +964,7 @@ export default function LREntryPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div>
                 <Label htmlFor="invoice_no">Invoice No *</Label>
                 <Input
@@ -984,6 +984,14 @@ export default function LREntryPage() {
                     Invoice number must be unique. Duplicate numbers will be blocked.
                   </p>
                 )}
+              </div>
+              <div>
+                <Label htmlFor="eway_no">E-Way Number</Label>
+                <Input
+                  id="eway_no"
+                  value={formData.eway_no}
+                  onChange={(e) => setFormData({ ...formData, eway_no: e.target.value })}
+                />
               </div>
               <div>
                 <Label>Freight Type</Label>
@@ -1016,8 +1024,8 @@ export default function LREntryPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Goods Details</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
+            <CardHeader className="pb-3"><CardTitle>Goods Details</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
               <div className="grid grid-cols-7 gap-2 text-xs font-semibold text-muted-foreground">
                 <div>Qty *</div>
                 <div>Goods Name *</div>
@@ -1132,9 +1140,9 @@ export default function LREntryPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Freight Terms</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <CardHeader className="pb-3"><CardTitle>Freight Terms</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
                 <div>
                   <Label htmlFor="freight">Freight (Auto)</Label>
                   <Input id="freight" value={formData.freight} readOnly />
@@ -1151,34 +1159,23 @@ export default function LREntryPage() {
                   <Label htmlFor="advance">Advance</Label>
                   <Input id="advance" type="number" step="0.01" value={formData.advance} onChange={(e) => setFormData({ ...formData, advance: e.target.value })} />
                 </div>
-              </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                <div className="rounded-lg border bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Freight Total</p>
-                  <p className="text-lg font-semibold">₹{(parseFloat(formData.freight) || 0).toFixed(2)}</p>
-                </div>
-                <div className="rounded-lg border bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Hamali + LR</p>
-                  <p className="text-lg font-semibold">
-                    ₹{((parseFloat(formData.hamali) || 0) + (parseFloat(formData.lr_charge) || 0)).toFixed(2)}
-                  </p>
-                </div>
-                <div className="rounded-lg border bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Advance</p>
-                  <p className="text-lg font-semibold">₹{(parseFloat(formData.advance) || 0).toFixed(2)}</p>
-                </div>
-                <div className="rounded-lg border bg-slate-900 p-3 text-white">
-                  <p className="text-xs text-slate-300">Balance</p>
-                  <p className="text-lg font-semibold">₹{calculateBalance().toFixed(2)}</p>
+                <div>
+                  <Label htmlFor="balance">Balance</Label>
+                  <Input
+                    id="balance"
+                    value={calculateBalance().toFixed(2)}
+                    readOnly
+                    className="bg-slate-900 font-semibold text-white"
+                  />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Vehicle Information</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <CardHeader className="pb-3"><CardTitle>Vehicle Information</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
                   <Label htmlFor="truck_no">Vehicle Number</Label>
                   <Input
@@ -1218,24 +1215,20 @@ export default function LREntryPage() {
                   </datalist>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <Label htmlFor="driver_mobile">Driver Mobile</Label>
                   <Input id="driver_mobile" value={formData.driver_mobile} onChange={(e) => setFormData({ ...formData, driver_mobile: e.target.value })} />
-                </div>
-                <div>
-                  <Label htmlFor="eway_no">E-Way Number</Label>
-                  <Input id="eway_no" value={formData.eway_no} onChange={(e) => setFormData({ ...formData, eway_no: e.target.value })} />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Additional Information</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2 rounded-lg border p-3">
+            <CardHeader className="pb-3"><CardTitle>Additional Information</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-2 rounded-lg border p-2.5">
                   <div className="flex items-center gap-3">
                     <Checkbox
                       id="return_status"
@@ -1248,7 +1241,7 @@ export default function LREntryPage() {
                         })
                       }
                     />
-                    <Label htmlFor="return_status" className="cursor-pointer">
+                    <Label htmlFor="return_status" className="mb-0 cursor-pointer">
                       LR Return
                     </Label>
                   </div>
@@ -1257,41 +1250,23 @@ export default function LREntryPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, return_remark: e.target.value })
                     }
-                    rows={3}
+                    rows={2}
                     placeholder="Return remark"
                     disabled={formData.return_status !== 'returned'}
                   />
                 </div>
-                <div className="space-y-2 rounded-lg border p-3">
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      id="pod_received"
-                      checked={formData.pod_received}
-                      onCheckedChange={(checked) =>
-                        setFormData({ ...formData, pod_received: Boolean(checked) })
-                      }
-                    />
-                    <Label htmlFor="pod_received" className="cursor-pointer">
-                      POD Received
-                    </Label>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    LR marked with POD will not be available in invoice generation.
+                <div>
+                  <Label htmlFor="remarks">Remarks</Label>
+                  <Input
+                    id="remarks"
+                    value={formData.remarks}
+                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                    className="text-red-700"
+                  />
+                  <p className="mt-1 text-xs text-red-600">
+                    LR remarks will be highlighted in red.
                   </p>
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="remarks">Remarks</Label>
-                <Textarea
-                  id="remarks"
-                  value={formData.remarks}
-                  onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                  rows={3}
-                  className="text-red-700"
-                />
-                <p className="mt-1 text-xs text-red-600">
-                  LR remarks will be highlighted in red.
-                </p>
               </div>
             </CardContent>
           </Card>

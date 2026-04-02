@@ -29,6 +29,8 @@ import useSWR from 'swr';
 interface Driver {
   id: number;
   driver_name: string;
+  username: string;
+  password?: string;
   mobile: string;
   license_no: string;
   address: string;
@@ -48,6 +50,8 @@ export default function DriversPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     driver_name: '',
+    username: '',
+    password: '',
     mobile: '',
     license_no: '',
     address: '',
@@ -69,6 +73,8 @@ export default function DriversPage() {
     setEditingId(null);
     setFormData({
       driver_name: '',
+      username: '',
+      password: '',
       mobile: '',
       license_no: '',
       address: '',
@@ -90,8 +96,8 @@ export default function DriversPage() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!formData.driver_name.trim()) {
-        toast.error('Driver name is required');
+      if (!formData.driver_name.trim() || !formData.username.trim() || !formData.password.trim()) {
+        toast.error('Driver name, username and password are required');
         return;
       }
 
@@ -116,6 +122,8 @@ export default function DriversPage() {
     setEditingId(driver.id);
     setFormData({
       driver_name: driver.driver_name,
+      username: driver.username || '',
+      password: driver.password || '',
       mobile: driver.mobile || '',
       license_no: driver.license_no || '',
       address: driver.address || '',
@@ -178,6 +186,27 @@ export default function DriversPage() {
                   value={formData.driver_name}
                   onChange={(e) =>
                     setFormData({ ...formData, driver_name: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="username">Login Username *</Label>
+                <Input
+                  id="username"
+                  value={formData.username}
+                  onChange={(e) =>
+                    setFormData({ ...formData, username: e.target.value.trimStart() })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Login Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
                   }
                 />
               </div>
@@ -312,11 +341,12 @@ export default function DriversPage() {
         </Dialog>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Username</TableHead>
               <TableHead>Mobile</TableHead>
               <TableHead>License</TableHead>
               <TableHead>Vehicle</TableHead>
@@ -328,7 +358,7 @@ export default function DriversPage() {
           <TableBody>
             {drivers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-4">
+                <TableCell colSpan={8} className="text-center py-4">
                   No drivers found
                 </TableCell>
               </TableRow>
@@ -336,6 +366,7 @@ export default function DriversPage() {
               drivers.map((driver) => (
                 <TableRow key={driver.id}>
                   <TableCell className="font-medium">{driver.driver_name}</TableCell>
+                  <TableCell>{driver.username || '-'}</TableCell>
                   <TableCell>{driver.mobile}</TableCell>
                   <TableCell>{driver.license_no}</TableCell>
                   <TableCell>{driver.vehicle_no || '-'}</TableCell>

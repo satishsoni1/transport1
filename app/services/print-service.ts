@@ -195,7 +195,6 @@ export function generateLRPrintHTML(data: LRPrintData): string {
   const amountWords = numberToWords(payableAmount);
   const lrQr = getLRQr(data.lr_no);
   const transporterQr = company.transporter_qr_url || '';
-  const showFreight = data.freight_type === 'to_pay';
 
   const cityToMr = data.to_city_mr || data.consignee_city_mr || '';
   const fixedRows = 5;
@@ -228,6 +227,14 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         border: 1px solid #222;
         padding: 4px 6px;
         margin-bottom: 0;
+      }
+      .lr-sheet .jurisdiction-note {
+        font-size: 8px;
+        line-height: 1.1;
+        text-align: center;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 2px;
       }
       .lr-sheet .transport-name {
         font-family: ${transporterNameFont}, Georgia, 'Times New Roman', serif;
@@ -294,8 +301,9 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         margin-bottom: 18px;
       }
       .lr-sheet .party-mr {
-        font-size: 7.5px;
+        font-size: 8.8px;
         font-weight: 700;
+        line-height: 1.2;
       }
       .lr-sheet .lr-box .kv {
         display: grid;
@@ -340,8 +348,9 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .route-mr {
         text-align: center;
-        font-size: 7.8px;
+        font-size: 8.8px;
         font-weight: 700;
+        line-height: 1.2;
       }
       .lr-sheet .to-highlight {
         font-size: 10px;
@@ -442,21 +451,27 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .bottom-strip {
         display: grid;
-        grid-template-columns: 110px 1fr 78px;
+        grid-template-columns: 172px 1fr 78px;
         border-left: 1px solid #222;
         border-right: 1px solid #222;
         border-bottom: 1px solid #222;
         margin-top: -1px;
         min-height: 34px;
       }
-      .lr-sheet .payment-box {
+      .lr-sheet .qr-strip {
         border-right: 1px solid #222;
         display: flex;
         align-items: center;
         gap: 6px;
         padding: 2px 4px;
       }
-      .lr-sheet .payment-box img {
+      .lr-sheet .qr-box {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+      }
+      .lr-sheet .qr-box img {
         width: 26px;
         height: 26px;
         object-fit: contain;
@@ -464,7 +479,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         padding: 1px;
         background: #fff;
       }
-      .lr-sheet .payment-copy {
+      .lr-sheet .qr-copy {
         font-size: 6.5px;
         line-height: 1.1;
         font-weight: 700;
@@ -504,11 +519,11 @@ export function generateLRPrintHTML(data: LRPrintData): string {
           ${company.logo_url ? `<img src="${company.logo_url}" alt="logo" />` : ''}
         </div>
         <div>
+          <div class="jurisdiction-note">Subject to Akola Juridication</div>
           <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
           <div class="header-meta">${escapeHtml(company.address || '')}</div>
           <div class="header-gst">GSTIN : ${escapeHtml(company.gst_no || '-')}</div>
           <div class="header-meta">${escapeHtml(company.company_phone || '')} ${company.company_email ? `| ${escapeHtml(company.company_email)}` : ''}</div>
-          <div class="header-meta">Subject to AKOLA Jurisdiction</div>
         </div>
       </div>
 
@@ -605,11 +620,21 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 	      </table>
 
       <div class="bottom-strip">
-        <div class="payment-box">
-          <img src="${transporterQr || lrQr}" alt="payment qr" />
-          <div class="payment-copy">
-            <div>PAYMENT</div>
-            <div>SCAN QR</div>
+        <div class="qr-strip">
+          ${transporterQr ? `
+          <div class="qr-box">
+            <img src="${transporterQr}" alt="payment qr" />
+            <div class="qr-copy">
+              <div>PAYMENT</div>
+              <div>SCAN QR</div>
+            </div>
+          </div>` : ''}
+          <div class="qr-box">
+            <img src="${lrQr}" alt="lr qr" />
+            <div class="qr-copy">
+              <div>LR QR</div>
+              <div>${escapeHtml(data.lr_no)}</div>
+            </div>
           </div>
         </div>
         <div class="bottom-sign">${escapeHtml(data.return_remark || data.remarks || '')}</div>
