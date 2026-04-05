@@ -10,6 +10,27 @@ function toResponseRow(row: any) {
   };
 }
 
+async function findConflictingInvoiceLr(
+  lrNos: string[],
+  excludeId?: number
+) {
+  const { rows } = await sql`SELECT id, invoice_no, items FROM invoices`;
+
+  for (const row of rows) {
+    if (excludeId !== undefined && Number(row.id) === excludeId) continue;
+    const items = parseJsonField<any[]>(row.items, []);
+    const match = items.find((item) => lrNos.includes(String(item?.lr_no || '').trim()));
+    if (match) {
+      return {
+        invoice_no: String(row.invoice_no || ''),
+        lr_no: String(match.lr_no || ''),
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function GET() {
   try {
     await ensureSchema();
@@ -34,6 +55,20 @@ export async function POST(request: Request) {
     if (!body.party_name || !body.consignor_id || !body.invoice_date) {
       return NextResponse.json(
         { success: false, error: 'Party name, consignor, and invoice date are required' },
+        { status: 400 }
+      );
+    }
+
+    const lrNos = items
+      .map((item: any) => String(item?.lr_no || '').trim())
+      .filter(Boolean);
+    const conflictingLr = await findConflictingInvoiceLr(lrNos);
+    if (conflictingLr) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `L.R. ${conflictingLr.lr_no} is already used in invoice ${conflictingLr.invoice_no}`,
+        },
         { status: 400 }
       );
     }

@@ -212,8 +212,21 @@ export function generateLRPrintHTML(data: LRPrintData): string {
   const company = data.company || {};
   const resolvedFormat = data.format || company.lr_print_format || 'classic';
   const transporterNameFont = escapeHtml(company.transporter_name_font || '"Trebuchet MS"');
+  const isPaid = data.freight_type === 'paid';
+  const isTbb = data.freight_type === 'tbb';
+  const isToPay = !isPaid && !isTbb;
   const freightTypeLabel =
-    data.freight_type === 'paid' ? 'Paid' : data.freight_type === 'tbb' ? 'TBB' : 'To Pay';
+    isPaid ? 'Paid' : isTbb ? 'TBB' : 'To Pay';
+  const paymentColumnLabel = isPaid
+    ? 'FREIGHT PAID'
+    : isTbb
+      ? 'FREIGHT TBB'
+      : 'FREIGHT TO PAY';
+  const paymentSummaryLabel = isPaid
+    ? 'PAID AMOUNT'
+    : isTbb
+      ? 'TBB AMOUNT'
+      : 'GRAND TOTAL';
   const totalQty = (data.goods_items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
   const totalWeightKg = (data.goods_items || []).reduce(
     (sum, item) => sum + (Number(item.qty) || 0) * (Number(item.weight_kg) || 0),
@@ -221,6 +234,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
   );
   const totalWeightMt = totalWeightKg / 100;
   const payableAmount = Number(data.freight || 0) + Number(data.hamali || 0) + Number(data.lr_charge || 0);
+  const displayAmount = Number(data.balance || payableAmount);
   const amountWords = numberToWords(payableAmount);
   const lrQr = getLRQr(data.lr_no);
   const transporterQr = company.transporter_qr_url || '';
@@ -552,17 +566,21 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .lr-sheet .freight-type-value {
         font-size: 21px;
         font-weight: 800;
+        background: #fef3c7;
+        letter-spacing: 0.3px;
       }
       .lr-sheet .grand-total-label {
         text-align: center;
         font-size: 11px;
         font-weight: 800;
+        background: #fef3c7;
       }
       .lr-sheet .grand-total-value {
         font-size: 16px;
         font-weight: 800;
         text-align: right;
         padding-right: 5px;
+        background: #fde68a;
       }
     </style>
   </head>
@@ -629,7 +647,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
             <th>TYPE</th>
             <th>WEIGHT/KG</th>
             <th>Rate</th>
-            <th>FREIGHT TO PAY</th>
+            <th>${paymentColumnLabel}</th>
           </tr>
         </thead>
 	        <tbody>
@@ -642,7 +660,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 	                <td>${escapeHtml(item.type ?? '')}</td>
 	                <td>${item.weight_kg ? `${Number(item.weight_kg || 0)} Kg.` : ''}</td>
 	                <td>${item.rate !== undefined ? Number(item.rate || 0).toFixed(2) : ''}</td>
-	                <td>${item.amount !== undefined ? Number(item.amount || 0).toFixed(2) : ''}</td>
+	                <td>${isToPay && item.amount !== undefined ? Number(item.amount || 0).toFixed(2) : ''}</td>
 	              </tr>
 	            `
 	            )
@@ -664,8 +682,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
               <td></td>
               <td class="center-cell freight-type-value">${escapeHtml(freightTypeLabel.replace('To Pay', 'ToPay'))}</td>
               <td>${totalWeightMt.toFixed(2)} M.T.</td>
-              <td class="grand-total-label">GRAND TOTAL</td>
-              <td class="grand-total-value">${Number(data.balance || payableAmount).toFixed(2)}</td>
+              <td class="grand-total-label">${paymentSummaryLabel}</td>
+              <td class="grand-total-value">${displayAmount.toFixed(2)}</td>
             </tr>
             <tr class="words-row">
               <td colspan="5" class="words-cell">AMOUNT IN WORDS : ${escapeHtml(amountWords)} Only</td>
@@ -703,8 +721,12 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
   const company = data.company || {};
   const resolvedFormat = data.format || company.invoice_print_format || 'classic';
   const amountInWords = numberToWords(Number(data.net_amount || 0));
-  const invoiceRows = (data.items || []).length ? data.items : [{}];
+  const invoiceRows = data.items || [];
   const additionalCharges = data.additional_charges || [];
+  const allRows = [
+    ...invoiceRows.map((item) => ({ kind: 'item' as const, item })),
+    ...additionalCharges.map((charge) => ({ kind: 'charge' as const, charge })),
+  ];
   return `
   <!DOCTYPE html>
   <html>
@@ -740,22 +762,20 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
         object-fit: contain;
       }
       .invoice-sheet .top-note {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 12px;
-        margin-bottom: 2px;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 3px;
       }
       .invoice-sheet .transport-name {
         font-size: 26px;
         font-weight: 800;
         line-height: 1;
+        text-align: center;
       }
       .invoice-sheet .jurisdiction {
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        white-space: nowrap;
+        display: none;
       }
       .invoice-sheet .company-lines {
         text-align: center;
@@ -835,6 +855,11 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
         padding-left: 6px;
         font-weight: 700;
       }
+      .invoice-sheet .items-table td.amount-col,
+      .invoice-sheet .items-table th.amount-col {
+        text-align: right;
+        padding-right: 6px;
+      }
       .invoice-sheet .items-table tr.charge-row td {
         font-weight: 700;
       }
@@ -906,10 +931,8 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
           ${company.logo_url ? `<img src="${company.logo_url}" alt="logo" />` : ''}
         </div>
         <div>
-          <div class="top-note">
-            <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
-            <div class="jurisdiction">Subject to Akola Jurisdiction Only .</div>
-          </div>
+          <div class="top-note">Subject to Akola Jurisdiction Only .</div>
+          <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
         </div>
       </div>
       <div class="company-lines">
@@ -939,41 +962,43 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
             <th style="width:14%;">L.R. NO.</th>
             <th style="width:12%;">DATE</th>
             <th style="width:14%;">CITY</th>
+            <th>CONSIGNEE</th>
             <th style="width:13%;">INV. NO.</th>
             <th style="width:9%;">QTY</th>
-            <th style="width:13%;">AMOUNT</th>
-            <th>CONSIGNEE</th>
+            <th class="amount-col" style="width:13%;">AMOUNT</th>
           </tr>
         </thead>
         <tbody>
-          ${invoiceRows
+          ${allRows
             .map(
-              (item, idx) => `
+              (row, idx) =>
+                row.kind === 'item'
+                  ? `
               <tr>
                 <td>${idx + 1}</td>
-                <td>${escapeHtml(item.lr_no || item.lrNo || '')}</td>
-                <td>${escapeHtml(item.lr_date || item.date || '')}</td>
-                <td>${escapeHtml(item.city || item.to_city || '')}</td>
-                <td>${escapeHtml(item.inv_no || item.invoice_no || item.invoiceNo || '')}</td>
-                <td>${escapeHtml(item.qty ?? '')}</td>
-                <td>${Number(item.amount || 0).toFixed(2)}</td>
-                <td class="party-col">${escapeHtml(item.consignee || item.description || '')}</td>
+                <td>${escapeHtml(row.item.lr_no || row.item.lrNo || '')}</td>
+                <td>${escapeHtml(
+                  row.item.lr_date || row.item.date
+                    ? new Date(row.item.lr_date || row.item.date || '').toLocaleDateString('en-IN')
+                    : ''
+                )}</td>
+                <td>${escapeHtml(row.item.city || row.item.to_city || '')}</td>
+                <td class="party-col">${escapeHtml(row.item.consignee || row.item.description || '')}</td>
+                <td>${escapeHtml(row.item.inv_no || row.item.invoice_no || row.item.invoiceNo || '')}</td>
+                <td>${escapeHtml(row.item.qty ?? '')}</td>
+                <td class="amount-col">${Number(row.item.amount || 0).toFixed(2)}</td>
               </tr>
             `
-            )
-            .join('')}
-          ${additionalCharges
-            .map(
-              (charge, idx) => `
+                  : `
               <tr class="charge-row">
-                <td>${invoiceRows.length + idx + 1}</td>
+                <td>${idx + 1}</td>
                 <td></td>
                 <td></td>
                 <td></td>
+                <td class="party-col">${escapeHtml(row.charge.charge_name || 'Additional Charge')}</td>
+                <td>${escapeHtml(row.charge.remark || '')}</td>
                 <td></td>
-                <td>${escapeHtml(charge.remark || '')}</td>
-                <td>${Number(charge.amount || 0).toFixed(2)}</td>
-                <td class="party-col">${escapeHtml(charge.charge_name || 'Additional Charge')}</td>
+                <td class="amount-col">${Number(row.charge.amount || 0).toFixed(2)}</td>
               </tr>
             `
             )
@@ -1011,14 +1036,23 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
     minute: '2-digit',
     hour12: true,
   });
+  const lrRows = data.lr_list || [];
   const totalPackages = (data.lr_list || []).reduce(
     (sum, item) => sum + (Number(item.packages) || 0),
     0
   );
-  const totalFreight = Number(data.total_freight || 0);
+  const calculatedToPay = lrRows
+    .filter((item) => item.status === 'to_pay')
+    .reduce((sum, item) => sum + (Number(item.freight) || 0), 0);
+  const calculatedPaid = lrRows
+    .filter((item) => item.status === 'paid')
+    .reduce((sum, item) => sum + (Number(item.freight) || 0), 0);
+  const totalToPay = Number(data.total_to_pay ?? calculatedToPay);
+  const totalPaid = Number(data.total_paid ?? calculatedPaid);
+  const totalFreight = totalToPay + totalPaid;
   const hamali = Number(data.hamali || 0);
   const advance = Number(data.advance || 0);
-  const balance = totalFreight - hamali - advance;
+  const balance = totalToPay + advance - hamali;
   const challanRows = (data.lr_list || []).length ? data.lr_list : [{}];
 
   return `
@@ -1140,6 +1174,15 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
         padding-left: 6px;
         font-weight: 700;
       }
+      .challan-sheet .table-summary-row td {
+        font-weight: 800;
+        background: #f8fafc;
+      }
+      .challan-sheet .table-summary-label {
+        text-align: right;
+        padding-right: 8px;
+        letter-spacing: 0.2px;
+      }
       .challan-sheet .bottom-grid {
         display: grid;
         grid-template-columns: 1.2fr 0.8fr;
@@ -1257,18 +1300,24 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
                 <td>${escapeHtml(item.lr_no || '')}</td>
                 <td>${escapeHtml(item.invoice_no || '')}</td>
                 <td>${escapeHtml(item.packages ?? '')}</td>
-                <td>${Number(item.freight || 0).toFixed(2)}</td>
+                <td>${item.status === 'to_pay' ? Number(item.freight || 0).toFixed(2) : ''}</td>
                 <td class="consgr-name">${escapeHtml(item.consignor || '')}</td>
               </tr>
             `
             )
             .join('')}
+          <tr class="table-summary-row">
+            <td colspan="5" class="table-summary-label">TOTAL</td>
+            <td>${totalPackages}</td>
+            <td>${totalToPay.toFixed(2)}</td>
+            <td class="consgr-name">Paid: ${totalPaid.toFixed(2)}</td>
+          </tr>
         </tbody>
       </table>
 
       <div class="bottom-grid">
         <div class="summary">
-          <div class="summary-line"><span class="label">To Pay</span><span>:</span><span class="value">${totalFreight.toFixed(2)}</span></div>
+          <div class="summary-line"><span class="label">To Pay</span><span>:</span><span class="value">${totalToPay.toFixed(2)}</span></div>
           <div class="summary-line"><span class="label">Frt. Share (C.G)</span><span>:</span><span class="value">0.00</span></div>
           <div class="summary-line"><span class="label">Hamali</span><span>:</span><span class="value">${hamali.toFixed(2)}</span></div>
           <div class="summary-line"><span class="label">Door Delivery Chg.</span><span>:</span><span class="value">0.00</span></div>
@@ -1277,7 +1326,7 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
           <div class="summary-line"><span class="label">Advance</span><span>:</span><span class="value">${advance.toFixed(2)}</span></div>
           <div class="summary-line highlight"><span class="label">BALANCE (Dr)</span><span>:</span><span class="value">${balance.toFixed(2)}</span></div>
           <div class="summary-line"><span class="label">Please Dr our A/c with Rs.</span><span>:</span><span class="value">${balance.toFixed(2)}</span></div>
-          <div class="summary-line"><span class="label">Receive TOTAL ${totalPackages} Pkgs.</span><span>:</span><span class="value"></span></div>
+          <div class="summary-line"><span class="label">Receive TOTAL PKGS.</span><span>:</span><span class="value">${totalPackages}</span></div>
           <div class="remarks"><strong>Remarks :</strong> ${escapeHtml(data.remarks || '')}</div>
         </div>
         <div class="other-details">

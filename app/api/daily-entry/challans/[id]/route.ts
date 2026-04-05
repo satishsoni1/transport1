@@ -11,6 +11,27 @@ function toResponseRow(row: any) {
   return { ...row, lr_list: parseJsonField(row.lr_list, []) };
 }
 
+async function findConflictingChallanLr(
+  lrNos: string[],
+  excludeId?: number
+) {
+  const { rows } = await sql`SELECT id, challan_no, lr_list FROM challans`;
+
+  for (const row of rows) {
+    if (excludeId !== undefined && Number(row.id) === excludeId) continue;
+    const lrList = parseJsonField<any[]>(row.lr_list, []);
+    const match = lrList.find((item) => lrNos.includes(String(item?.lr_no || '').trim()));
+    if (match) {
+      return {
+        challan_no: String(row.challan_no || ''),
+        lr_no: String(match.lr_no || ''),
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function PUT(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -39,6 +60,19 @@ export async function PUT(
     const lrList =
       body.lr_list === undefined ? parseJsonField(existing.lr_list, []) : body.lr_list;
     const safeList = Array.isArray(lrList) ? lrList : [];
+    const lrNos = safeList
+      .map((item: any) => String(item?.lr_no || '').trim())
+      .filter(Boolean);
+    const conflictingLr = await findConflictingChallanLr(lrNos, id);
+    if (conflictingLr) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `L.R. ${conflictingLr.lr_no} is already used in challan ${conflictingLr.challan_no}`,
+        },
+        { status: 400 }
+      );
+    }
     const totalFreight = safeList.reduce(
       (sum: number, item: any) => sum + (Number(item.freight) || 0),
       0

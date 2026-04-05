@@ -103,6 +103,14 @@ export default function LoginPage() {
                 Open Driver Login
               </Link>
             </div>
+
+            <div className="rounded bg-emerald-50 p-3 text-xs text-emerald-900">
+              <p className="font-semibold text-emerald-950">Consignor Login</p>
+              <p>Use consignor `username/password` created in Consignor Master.</p>
+              <Link href="/consignor/login" className="mt-2 inline-block font-semibold text-emerald-950 underline underline-offset-4">
+                Open Consignor Login
+              </Link>
+            </div>
           </form>
         </CardContent>
       </Card>

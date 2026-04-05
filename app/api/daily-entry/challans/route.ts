@@ -6,6 +6,27 @@ function toResponseRow(row: any) {
   return { ...row, lr_list: parseJsonField(row.lr_list, []) };
 }
 
+async function findConflictingChallanLr(
+  lrNos: string[],
+  excludeId?: number
+) {
+  const { rows } = await sql`SELECT id, challan_no, lr_list FROM challans`;
+
+  for (const row of rows) {
+    if (excludeId !== undefined && Number(row.id) === excludeId) continue;
+    const lrList = parseJsonField<any[]>(row.lr_list, []);
+    const match = lrList.find((item) => lrNos.includes(String(item?.lr_no || '').trim()));
+    if (match) {
+      return {
+        challan_no: String(row.challan_no || ''),
+        lr_no: String(match.lr_no || ''),
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function GET() {
   try {
     await ensureSchema();
@@ -36,6 +57,20 @@ export async function POST(request: Request) {
     if (lrList.length === 0) {
       return NextResponse.json(
         { success: false, error: 'At least one LR is required' },
+        { status: 400 }
+      );
+    }
+
+    const lrNos = lrList
+      .map((item: any) => String(item?.lr_no || '').trim())
+      .filter(Boolean);
+    const conflictingLr = await findConflictingChallanLr(lrNos);
+    if (conflictingLr) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `L.R. ${conflictingLr.lr_no} is already used in challan ${conflictingLr.challan_no}`,
+        },
         { status: 400 }
       );
     }

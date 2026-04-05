@@ -15,6 +15,27 @@ function toResponseRow(row: any) {
   };
 }
 
+async function findConflictingInvoiceLr(
+  lrNos: string[],
+  excludeId?: number
+) {
+  const { rows } = await sql`SELECT id, invoice_no, items FROM invoices`;
+
+  for (const row of rows) {
+    if (excludeId !== undefined && Number(row.id) === excludeId) continue;
+    const items = parseJsonField<any[]>(row.items, []);
+    const match = items.find((item) => lrNos.includes(String(item?.lr_no || '').trim()));
+    if (match) {
+      return {
+        invoice_no: String(row.invoice_no || ''),
+        lr_no: String(match.lr_no || ''),
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function PUT(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -45,6 +66,20 @@ export async function PUT(
       body.additional_charges === undefined
         ? parseJsonField(existing.additional_charges, [])
         : body.additional_charges;
+    const safeItems = Array.isArray(items) ? items : [];
+    const lrNos = safeItems
+      .map((item: any) => String(item?.lr_no || '').trim())
+      .filter(Boolean);
+    const conflictingLr = await findConflictingInvoiceLr(lrNos, id);
+    if (conflictingLr) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `L.R. ${conflictingLr.lr_no} is already used in invoice ${conflictingLr.invoice_no}`,
+        },
+        { status: 400 }
+      );
+    }
 
     const { rows } = await sql`
       UPDATE invoices
@@ -54,7 +89,7 @@ export async function PUT(
         consignor_id = ${body.consignor_id === undefined ? existing.consignor_id : Number(body.consignor_id)},
         gst_percentage = ${body.gst_percentage === undefined ? existing.gst_percentage : Number(body.gst_percentage) || 0},
         remarks = ${body.remarks ?? existing.remarks},
-        items = ${JSON.stringify(Array.isArray(items) ? items : [])}::jsonb,
+        items = ${JSON.stringify(safeItems)}::jsonb,
         additional_charges = ${JSON.stringify(Array.isArray(additionalCharges) ? additionalCharges : [])}::jsonb,
         total_amount = ${body.total_amount === undefined ? existing.total_amount : Number(body.total_amount) || 0},
         gst_amount = ${body.gst_amount === undefined ? existing.gst_amount : Number(body.gst_amount) || 0},

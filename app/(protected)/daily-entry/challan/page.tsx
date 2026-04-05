@@ -261,9 +261,16 @@ export default function ChallanPage() {
       0
     );
 
-    const previousChallan = challans.find((challan) =>
-      (challan.lr_list || []).some((item) => item.lr_no === lrNo)
+    const previousChallan = challans.find(
+      (challan) =>
+        challan.id !== editingId &&
+        (challan.lr_list || []).some((item) => item.lr_no === lrNo)
     );
+
+    if (previousChallan) {
+      toast.error(`This L.R. is already used in challan ${previousChallan.challan_no}`);
+      return;
+    }
 
     const newLR: ChallanLR = {
       id: lrEntry.id,
@@ -285,7 +292,7 @@ export default function ChallanPage() {
     setSelectedLRs([...selectedLRs, newLR]);
     setNewLRInput('');
     toast.success('L.R. added to challan');
-  }, [newLRInput, selectedLRs, lrEntries, consignees, consignors]);
+  }, [newLRInput, selectedLRs, lrEntries, consignees, consignors, challans, editingId]);
 
   const removeLRFromChallan = useCallback(
     (index: number) => {

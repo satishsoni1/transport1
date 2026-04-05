@@ -89,6 +89,7 @@ export default function InvoicePage() {
   const [lrDateFilter, setLrDateFilter] = useState({
     from_date: '',
     to_date: '',
+    freight_type: 'to_pay',
   });
 
   const [formData, setFormData] = useState({
@@ -164,11 +165,18 @@ export default function InvoicePage() {
         (lrDate &&
           lrDate <= new Date(`${lrDateFilter.to_date}T23:59:59`));
 
+      const usedInAnotherInvoice = invoices.some(
+        (invoice) =>
+          invoice.id !== editingId &&
+          (invoice.items || []).some((item) => item.lr_no === entry.lr_no)
+      );
+
       return (
       String(entry.consignor_id) === formData.consignor_id &&
-      entry.status !== 'paid' &&
+      (!lrDateFilter.freight_type || entry.status === lrDateFilter.freight_type) &&
       !entry.pod_received &&
       entry.return_status !== 'returned' &&
+      !usedInAnotherInvoice &&
       !invoiceItems.some((item) => item.lr_no === entry.lr_no) &&
       matchesFrom &&
       matchesTo
@@ -191,6 +199,16 @@ export default function InvoicePage() {
     }
     if (invoiceItems.some((item) => item.lr_no === currentItem.lr_no)) {
       toast.error('This L.R. is already added');
+      return;
+    }
+
+    const duplicateInvoice = invoices.find(
+      (invoice) =>
+        invoice.id !== editingId &&
+        (invoice.items || []).some((item) => item.lr_no === currentItem.lr_no)
+    );
+    if (duplicateInvoice) {
+      toast.error(`This L.R. is already used in invoice ${duplicateInvoice.invoice_no}`);
       return;
     }
 
@@ -431,7 +449,7 @@ export default function InvoicePage() {
                       });
                       setInvoiceItems([]);
                       setAdditionalCharges([]);
-                      setLrDateFilter({ from_date: '', to_date: '' });
+                      setLrDateFilter({ from_date: '', to_date: '', freight_type: 'to_pay' });
                       setCurrentItem({
                         description: '',
                         lr_no: '',
@@ -527,6 +545,20 @@ export default function InvoicePage() {
                       setLrDateFilter((prev) => ({ ...prev, to_date: e.target.value }))
                     }
                   />
+                </div>
+                <div>
+                  <Label htmlFor="lr_freight_type">Freight Type</Label>
+                  <select
+                    id="lr_freight_type"
+                    value={lrDateFilter.freight_type}
+                    onChange={(e) =>
+                      setLrDateFilter((prev) => ({ ...prev, freight_type: e.target.value }))
+                    }
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="to_pay">To Pay</option>
+                    <option value="paid">Paid</option>
+                  </select>
                 </div>
                 <div className="md:col-span-2">
                   <Label>Available LRs</Label>
