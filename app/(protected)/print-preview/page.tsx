@@ -12,6 +12,7 @@ import { Printer, Download, FileText } from 'lucide-react';
 import {
   generateLRPrintHTML,
   generateInvoicePrintHTML,
+  generateChallanPrintHTML,
   printHTML,
   downloadPDF,
   exportToCSV,
@@ -64,6 +65,18 @@ interface Challan {
   to_city: string;
   truck_no: string;
   driver_name: string;
+  driver_mobile?: string;
+  owner_name?: string;
+  eway_no?: string;
+  remarks?: string;
+  engine_reading?: number;
+  short_reading?: number;
+  rate_per_km?: number;
+  reading_total?: number;
+  hamali?: number;
+  advance?: number;
+  total_to_pay?: number;
+  total_paid?: number;
   lr_list: any[];
   total_freight: number;
 }
@@ -113,36 +126,6 @@ interface AdminSettings {
   transporter_qr_url?: string;
   lr_print_format?: 'classic' | 'compact' | 'detailed';
   invoice_print_format?: 'classic' | 'compact' | 'detailed';
-}
-
-function generateChallanHTML(challan: Challan, settings?: AdminSettings): string {
-  return `
-    <html><head><title>Challan ${challan.challan_no}</title></head>
-    <body style="font-family:Arial;padding:16px">
-      <div style="display:flex;gap:8px;align-items:flex-start;border-bottom:1px solid #333;padding-bottom:8px;margin-bottom:8px;">
-        ${settings?.logo_url ? `<img src="${settings.logo_url}" style="width:48px;height:48px;object-fit:contain;" />` : ''}
-        <div>
-          <h2 style="margin:0">${settings?.company_name || 'TRIMURTI TRANSPORT'} - CHALLAN</h2>
-          <p style="margin:2px 0">${settings?.address || ''}</p>
-          <p style="margin:2px 0">${settings?.company_phone || ''}</p>
-        </div>
-      </div>
-      <p><b>No:</b> ${challan.challan_no} | <b>Date:</b> ${new Date(challan.challan_date).toLocaleDateString()}</p>
-      <p><b>Route:</b> ${challan.from_city} to ${challan.to_city}</p>
-      <p><b>Truck:</b> ${challan.truck_no} | <b>Driver:</b> ${challan.driver_name}</p>
-      <h3>L.R. List</h3>
-      <table border="1" cellspacing="0" cellpadding="6" width="100%">
-        <tr><th>L.R.</th><th>Consignee</th><th>City</th><th>Packages</th><th>Freight</th></tr>
-        ${(challan.lr_list || [])
-          .map(
-            (lr: any) =>
-              `<tr><td>${lr.lr_no || ''}</td><td>${lr.consignee || ''}</td><td>${lr.city || ''}</td><td>${lr.packages || 0}</td><td>${Number(lr.freight || 0).toFixed(2)}</td></tr>`
-          )
-          .join('')}
-      </table>
-      <p style="margin-top:12px"><b>Total Freight:</b> ₹${Number(challan.total_freight || 0).toFixed(2)}</p>
-    </body></html>
-  `;
 }
 
 function generateBillHTML(bill: MonthlyBill, settings?: AdminSettings): string {
@@ -268,7 +251,10 @@ export default function PrintPreviewPage() {
       } else if (documentType === 'challan') {
         const challan = challans.find((item) => item.challan_no === documentNo.trim());
         if (!challan) throw new Error('Challan not found');
-        html = generateChallanHTML(challan, settings);
+        html = generateChallanPrintHTML({
+          ...challan,
+          company: settings,
+        });
         exportRows = (challan.lr_list || []).map((lr: any) => ({
           challan_no: challan.challan_no,
           lr_no: lr.lr_no,

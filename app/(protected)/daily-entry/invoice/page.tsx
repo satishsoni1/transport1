@@ -16,8 +16,14 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, Printer } from 'lucide-react';
 import useSWR from 'swr';
+import { transliterateToMarathi } from '@/app/services/marathi';
+import {
+  generateInvoicePrintHTML,
+  printHTML,
+  type CompanyPrintData,
+} from '@/app/services/print-service';
 
 interface InvoiceItem {
   description: string;
@@ -59,6 +65,8 @@ interface Invoice {
   created_at: string;
 }
 
+interface AdminSettings extends CompanyPrintData {}
+
 export default function InvoicePage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
@@ -92,6 +100,10 @@ export default function InvoicePage() {
   );
   const { data: lrEntries = [] } = useSWR<LREntryApi[]>(
     '/api/daily-entry/lr-entries',
+    apiClient.get
+  );
+  const { data: settings } = useSWR<AdminSettings>(
+    '/api/admin/settings',
     apiClient.get
   );
 
@@ -244,6 +256,24 @@ export default function InvoicePage() {
       }
     },
     [editingId, formData, invoiceItems, calculateTotals, mutate]
+  );
+
+  const handlePrint = useCallback(
+    (invoice: Invoice) => {
+      try {
+        const consignor = consignors.find((item) => item.id === invoice.consignor_id);
+        const html = generateInvoicePrintHTML({
+          ...invoice,
+          party_name_mr: consignor?.name ? transliterateToMarathi(consignor.name) : transliterateToMarathi(invoice.party_name || ''),
+          format: settings?.invoice_print_format || 'classic',
+          company: settings,
+        });
+        printHTML(html);
+      } catch (error) {
+        toast.error('Failed to print invoice');
+      }
+    },
+    [consignors, settings]
   );
 
   const totals = calculateTotals();
@@ -584,6 +614,13 @@ export default function InvoicePage() {
                       </span>
                     </TableCell>
                     <TableCell className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handlePrint(invoice)}
+                      >
+                        <Printer className="w-4 h-4" />
+                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"

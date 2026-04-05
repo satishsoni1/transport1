@@ -17,8 +17,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, Printer } from 'lucide-react';
 import useSWR from 'swr';
+import {
+  generateChallanPrintHTML,
+  printHTML,
+  type CompanyPrintData,
+} from '@/app/services/print-service';
 
 interface ChallanLR {
   id: number;
@@ -109,6 +114,8 @@ interface Challan {
   created_at: string;
 }
 
+interface AdminSettings extends CompanyPrintData {}
+
 export default function ChallanPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
@@ -158,6 +165,10 @@ export default function ChallanPage() {
   );
   const { data: vehicles = [] } = useSWR<Vehicle[]>(
     '/api/masters/vehicles',
+    apiClient.get
+  );
+  const { data: settings } = useSWR<AdminSettings>(
+    '/api/admin/settings',
     apiClient.get
   );
 
@@ -368,6 +379,21 @@ export default function ChallanPage() {
       }
     },
     [editingId, formData, selectedLRs, mutate]
+  );
+
+  const handlePrint = useCallback(
+    (challan: Challan) => {
+      try {
+        const html = generateChallanPrintHTML({
+          ...challan,
+          company: settings,
+        });
+        printHTML(html);
+      } catch (error) {
+        toast.error('Failed to print challan');
+      }
+    },
+    [settings]
   );
 
   const totals = calculateTotals();
@@ -852,6 +878,13 @@ export default function ChallanPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handlePrint(challan)}
+                        >
+                          <Printer className="w-4 h-4" />
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
