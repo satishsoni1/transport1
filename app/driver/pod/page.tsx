@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Printer } from 'lucide-react';
-import { generateLRPrintHTML, printHTML } from '@/app/services/print-service';
+import { generateLRPrintHTML, printHTML, printImageDocument } from '@/app/services/print-service';
 import { transliterateToMarathi } from '@/app/services/marathi';
 import { clearDriverSession, driverFetch, getDriverToken, getDriverUser, type DriverSessionUser } from '@/app/services/driver-session';
 
@@ -441,6 +441,16 @@ export default function DriverPodPage() {
               <Button type="button" variant="outline" className="h-11 w-full rounded-xl text-base font-semibold" disabled={!selectedLR} onClick={() => void handlePrint()}>
                 <Printer className="mr-2 h-4 w-4" />
                 Print Selected LR
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full rounded-xl text-base font-semibold"
+                disabled={!selectedLR?.pod_image_url}
+                onClick={() => printImageDocument(`POD ${selectedLR?.lr_no || ''}`, selectedLR?.pod_image_url || '')}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print POD
               </Button>
             </form>
           </CardContent>

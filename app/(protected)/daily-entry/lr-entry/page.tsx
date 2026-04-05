@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
-import { generateLRPrintHTML, printHTML } from '@/app/services/print-service';
+import { generateLRPrintHTML, printHTML, printImageDocument } from '@/app/services/print-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,9 +17,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, Printer } from 'lucide-react';
+import { Plus, Trash2, Edit2, Printer, FileImage } from 'lucide-react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 
@@ -55,6 +55,7 @@ interface LREntry {
   return_status?: 'normal' | 'returned';
   return_remark?: string;
   pod_received?: boolean;
+  pod_image_url?: string;
   goods_items: GoodsItem[];
   status: 'to_pay' | 'paid' | 'tbb';
   created_at: string;
@@ -155,6 +156,8 @@ export default function LREntryPage() {
   const { user } = useAuth();
   const lrFormRef = useRef<HTMLFormElement | null>(null);
   const consignorInputRef = useRef<HTMLInputElement | null>(null);
+  const consigneeInputRef = useRef<HTMLInputElement | null>(null);
+  const invoiceInputRef = useRef<HTMLInputElement | null>(null);
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
   const typeInputRef = useRef<HTMLInputElement | null>(null);
   const natureInputRef = useRef<HTMLInputElement | null>(null);
@@ -204,8 +207,40 @@ export default function LREntryPage() {
     amount: 0,
   });
 
+  const [listSearch, setListSearch] = useState('');
+  const [listDateFrom, setListDateFrom] = useState('');
+  const [listDateTo, setListDateTo] = useState('');
+  const [listConsignorId, setListConsignorId] = useState('');
+  const [listConsigneeId, setListConsigneeId] = useState('');
+  const [listStatus, setListStatus] = useState('');
+  const [listPod, setListPod] = useState('');
+
+  const lrEntriesListKey = useMemo(() => {
+    const params = new URLSearchParams();
+    const s = listSearch.trim();
+    if (s) params.set('search', s);
+    if (listDateFrom) params.set('date_from', listDateFrom);
+    if (listDateTo) params.set('date_to', listDateTo);
+    if (listConsignorId) params.set('consignor_id', listConsignorId);
+    if (listConsigneeId) params.set('consignee_id', listConsigneeId);
+    if (listStatus) params.set('status', listStatus);
+    if (listPod) params.set('pod', listPod);
+    const q = params.toString();
+    return q ? `/api/daily-entry/lr-entries?${q}` : '/api/daily-entry/lr-entries';
+  }, [listSearch, listDateFrom, listDateTo, listConsignorId, listConsigneeId, listStatus, listPod]);
+
+  const clearListFilters = useCallback(() => {
+    setListSearch('');
+    setListDateFrom('');
+    setListDateTo('');
+    setListConsignorId('');
+    setListConsigneeId('');
+    setListStatus('');
+    setListPod('');
+  }, []);
+
   const { data: lrEntries = [], mutate: mutateLrEntries } = useSWR<LREntry[]>(
-    '/api/daily-entry/lr-entries',
+    lrEntriesListKey,
     apiClient.get
   );
   const { data: consignors = [] } = useSWR<Consignor[]>(
@@ -478,6 +513,7 @@ export default function LREntryPage() {
       setShowNewConsignor(false);
       setNewConsignor(emptyNewConsignor);
       toast.success('Consignor created and selected');
+      setTimeout(() => consigneeInputRef.current?.focus(), 0);
     } catch {
       toast.error('Failed to create consignor');
     }
@@ -499,6 +535,7 @@ export default function LREntryPage() {
       setShowNewConsignee(false);
       setNewConsignee(emptyNewConsignee);
       toast.success('Consignee created and selected');
+      setTimeout(() => invoiceInputRef.current?.focus(), 0);
     } catch {
       toast.error('Failed to create consignee');
     }
@@ -739,6 +776,9 @@ export default function LREntryPage() {
                         consignor_id: selected ? String(selected.id) : '',
                         from_city: selected?.city || prev.from_city,
                       }));
+                      if (selected) {
+                        setTimeout(() => consigneeInputRef.current?.focus(), 0);
+                      }
                     }}
                     placeholder="Type consignor name"
                   />
@@ -810,6 +850,7 @@ export default function LREntryPage() {
                   </div>
                   <Input
                     id="consignee"
+                    ref={consigneeInputRef}
                     list="consignee-options"
                     value={consigneeSearch}
                     onChange={(e) => {
@@ -823,6 +864,9 @@ export default function LREntryPage() {
                         consignee_id: selected ? String(selected.id) : '',
                         to_city: selected?.city || prev.to_city,
                       }));
+                      if (selected) {
+                        setTimeout(() => invoiceInputRef.current?.focus(), 0);
+                      }
                     }}
                     placeholder="Type consignee name"
                   />
@@ -934,6 +978,7 @@ export default function LREntryPage() {
                 <Label htmlFor="invoice_no">Invoice No *</Label>
                 <Input
                   id="invoice_no"
+                  ref={invoiceInputRef}
                   value={formData.invoice_no}
                   onChange={(e) => {
                     setInvoiceError('');
@@ -1190,62 +1235,185 @@ export default function LREntryPage() {
           </div>
         </form>
       ) : (
-        <div className="rounded-lg border bg-white">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>L.R. No</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Consignor</TableHead>
-                <TableHead>Consignee</TableHead>
-                <TableHead>Freight</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>POD</TableHead>
-                <TableHead>Remark</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lrEntries.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-4">No L.R. entries found</TableCell></TableRow>
-              ) : (
-                lrEntries.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell className="font-medium">{entry.lr_no}</TableCell>
-                    <TableCell>{new Date(entry.lr_date).toLocaleDateString()}</TableCell>
-                    <TableCell>{consignors.find((item) => item.id === entry.consignor_id)?.name || entry.from_city}</TableCell>
-                    <TableCell>{consignees.find((item) => item.id === entry.consignee_id)?.name || entry.to_city}</TableCell>
-                    <TableCell>₹{entry.freight.toFixed(2)}</TableCell>
-                    <TableCell>{freightTypeOptions.find((item) => item.value === entry.status)?.label || entry.status}</TableCell>
-                    <TableCell>
-                      <span className={`text-xs font-semibold ${entry.pod_received ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {entry.pod_received ? 'Received' : 'Pending'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {entry.return_status === 'returned' ? (
-                        <div className="text-xs font-semibold text-red-600">
-                          Returned: {entry.return_remark || '-'}
+        <div className="space-y-4">
+          <Card className="py-4 shadow-sm">
+            <CardHeader className="space-y-1 pb-2">
+              <CardTitle className="text-lg">List filters</CardTitle>
+              <CardDescription>
+                Filter by date range, consignor, consignee, freight status, POD, or free-text search (LR no, invoice, party names).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="lr-list-search">Search</Label>
+                  <Input
+                    id="lr-list-search"
+                    value={listSearch}
+                    onChange={(e) => setListSearch(e.target.value)}
+                    placeholder="LR no, invoice, party…"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lr-list-from">From date</Label>
+                  <Input
+                    id="lr-list-from"
+                    type="date"
+                    value={listDateFrom}
+                    onChange={(e) => setListDateFrom(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lr-list-to">To date</Label>
+                  <Input
+                    id="lr-list-to"
+                    type="date"
+                    value={listDateTo}
+                    onChange={(e) => setListDateTo(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lr-list-pod">POD</Label>
+                  <select
+                    id="lr-list-pod"
+                    value={listPod}
+                    onChange={(e) => setListPod(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    <option value="">All POD</option>
+                    <option value="pending">POD pending</option>
+                    <option value="received">POD received</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="lr-list-consignor">Consignor</Label>
+                  <select
+                    id="lr-list-consignor"
+                    value={listConsignorId}
+                    onChange={(e) => setListConsignorId(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    <option value="">All consignors</option>
+                    {consignors.map((item) => (
+                      <option key={item.id} value={String(item.id)}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lr-list-consignee">Consignee</Label>
+                  <select
+                    id="lr-list-consignee"
+                    value={listConsigneeId}
+                    onChange={(e) => setListConsigneeId(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    <option value="">All consignees</option>
+                    {consignees.map((item) => (
+                      <option key={item.id} value={String(item.id)}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lr-list-status">LR status</Label>
+                  <select
+                    id="lr-list-status"
+                    value={listStatus}
+                    onChange={(e) => setListStatus(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    <option value="">All status</option>
+                    <option value="to_pay">To pay</option>
+                    <option value="paid">Paid</option>
+                    <option value="tbb">TBB</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <Button type="button" variant="outline" className="w-full" onClick={clearListFilters}>
+                    Clear filters
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="rounded-lg border bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>L.R. No</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Consignor</TableHead>
+                  <TableHead>Consignee</TableHead>
+                  <TableHead>Freight</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>POD</TableHead>
+                  <TableHead>Remark</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lrEntries.length === 0 ? (
+                  <TableRow><TableCell colSpan={9} className="text-center py-4">No L.R. entries found</TableCell></TableRow>
+                ) : (
+                  lrEntries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell className="font-medium">{entry.lr_no}</TableCell>
+                      <TableCell>{new Date(entry.lr_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{consignors.find((item) => item.id === entry.consignor_id)?.name || entry.from_city}</TableCell>
+                      <TableCell>{consignees.find((item) => item.id === entry.consignee_id)?.name || entry.to_city}</TableCell>
+                      <TableCell>₹{entry.freight.toFixed(2)}</TableCell>
+                      <TableCell>{freightTypeOptions.find((item) => item.value === entry.status)?.label || entry.status}</TableCell>
+                      <TableCell>
+                        <span className={`text-xs font-semibold ${entry.pod_received ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {entry.pod_received ? 'Received' : 'Pending'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {entry.return_status === 'returned' ? (
+                          <div className="text-xs font-semibold text-red-600">
+                            Returned: {entry.return_remark || '-'}
+                          </div>
+                        ) : entry.remarks ? (
+                          <div className="text-xs font-semibold text-red-600">{entry.remarks}</div>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => handlePrint(entry)} title="Print LR receipt">
+                            <Printer className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!entry.pod_received || !entry.pod_image_url}
+                            onClick={() =>
+                              printImageDocument(`POD ${entry.lr_no}`, entry.pod_image_url || '')
+                            }
+                            title={
+                              entry.pod_received && entry.pod_image_url
+                                ? 'Print POD image'
+                                : 'POD image not available'
+                            }
+                          >
+                            <FileImage className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(entry)}><Edit2 className="w-4 h-4" /></Button>
                         </div>
-                      ) : entry.remarks ? (
-                        <div className="text-xs font-semibold text-red-600">{entry.remarks}</div>
-                      ) : (
-                        '-'
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="ghost" onClick={() => handlePrint(entry)} title="Print LR receipt">
-                          <Printer className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleEdit(entry)}><Edit2 className="w-4 h-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
     </div>

@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/app/context/auth-context';
 import {
@@ -36,21 +35,6 @@ const navItems: NavItem[] = [
     icon: <LayoutDashboard size={20} />,
   },
   {
-    label: 'Master Data',
-    icon: <Database size={20} />,
-    submenu: [
-      { label: 'Consignors', href: '/masters/consignors', icon: <Users size={18} /> },
-      { label: 'Consignees', href: '/masters/consignees', icon: <Users size={18} /> },
-      { label: 'Drivers', href: '/masters/drivers', icon: <Users size={18} /> },
-      { label: 'Vehicles', href: '/masters/vehicles', icon: <Truck size={18} /> },
-      { label: 'Cities', href: '/masters/cities', icon: <Package size={18} /> },
-      { label: 'Banks', href: '/masters/banks', icon: <DollarSign size={18} /> },
-      { label: 'Goods Types', href: '/masters/goods-types', icon: <Package size={18} /> },
-      { label: 'Goods Natures', href: '/masters/goods-natures', icon: <Package size={18} /> },
-      { label: 'Freight Rates', href: '/masters/freight-rates', icon: <DollarSign size={18} /> },
-    ],
-  },
-  {
     label: 'Daily Entry',
     icon: <FileText size={20} />,
     submenu: [
@@ -74,6 +58,21 @@ const navItems: NavItem[] = [
     requiredRoles: ['Admin', 'Operator', 'Accountant'],
   },
   {
+    label: 'Master Data',
+    icon: <Database size={20} />,
+    submenu: [
+      { label: 'Consignors', href: '/masters/consignors', icon: <Users size={18} /> },
+      { label: 'Consignees', href: '/masters/consignees', icon: <Users size={18} /> },
+      { label: 'Drivers', href: '/masters/drivers', icon: <Users size={18} /> },
+      { label: 'Vehicles', href: '/masters/vehicles', icon: <Truck size={18} /> },
+      { label: 'Cities', href: '/masters/cities', icon: <Package size={18} /> },
+      { label: 'Banks', href: '/masters/banks', icon: <DollarSign size={18} /> },
+      { label: 'Goods Types', href: '/masters/goods-types', icon: <Package size={18} /> },
+      { label: 'Goods Natures', href: '/masters/goods-natures', icon: <Package size={18} /> },
+      { label: 'Freight Rates', href: '/masters/freight-rates', icon: <DollarSign size={18} /> },
+    ],
+  },
+  {
     label: 'Administration',
     icon: <Settings size={20} />,
     requiredRoles: ['Admin'],
@@ -89,7 +88,10 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
-  const [expandedItems, setExpandedItems] = useState<string[]>(['Master Data']);
+  const [expandedItems, setExpandedItems] = useState<string[]>(['Daily Entry']);
+  const [hovered, setHovered] = useState(false);
+
+  const collapsed = !hovered;
 
   const handleLogout = () => {
     logout();
@@ -97,10 +99,8 @@ export function Sidebar() {
   };
 
   const toggleExpand = (label: string) => {
-    setExpandedItems(prev =>
-      prev.includes(label)
-        ? prev.filter(item => item !== label)
-        : [...prev, label]
+    setExpandedItems((prev) =>
+      prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]
     );
   };
 
@@ -115,23 +115,29 @@ export function Sidebar() {
   };
 
   return (
-    <div className="w-64 bg-slate-900 text-slate-50 h-full overflow-y-auto flex flex-col">
-      {/* Logo */}
-      <div className="p-6 border-b border-slate-700">
+    <div
+      className={cn(
+        'h-full overflow-y-auto border-r border-slate-700 bg-slate-900 text-slate-50 transition-all duration-200',
+        collapsed ? 'w-20' : 'w-64'
+      )}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div className="border-b border-slate-700 p-6">
         <Link href="/dashboard" className="block">
-          <h1 className="text-xl font-bold">TRIMURTI</h1>
-          <p className="text-xs text-slate-400">Transport System</p>
+          <h1 className={cn('font-bold', collapsed ? 'text-center text-sm' : 'text-xl')}>TRIMURTI</h1>
+          {!collapsed ? <p className="text-xs text-slate-400">Transport System</p> : null}
         </Link>
       </div>
 
-      {/* User Info */}
-      <div className="p-4 border-b border-slate-700 bg-slate-800">
-        <p className="text-sm font-medium">{user?.firstName} {user?.lastName}</p>
-        <p className="text-xs text-slate-400">{user?.role}</p>
+      <div className="border-b border-slate-700 bg-slate-800 p-4">
+        <p className={cn('font-medium', collapsed ? 'text-center text-xs' : 'text-sm')}>
+          {collapsed ? user?.firstName?.[0] : `${user?.firstName} ${user?.lastName}`}
+        </p>
+        {!collapsed ? <p className="text-xs text-slate-400">{user?.role}</p> : null}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="space-y-2 p-4">
         {navItems.map((item) => {
           if (!hasAccess(item)) return null;
 
@@ -141,16 +147,17 @@ export function Sidebar() {
 
           if (!hasSubmenu) {
             return (
-              <Link key={item.label} href={item.href || '#'}>
+              <Link key={item.label} href={item.href || '#'} title={collapsed ? item.label : undefined}>
                 <Button
                   variant={isActive ? 'default' : 'ghost'}
                   className={cn(
-                    'w-full justify-start gap-3',
+                    'w-full gap-3',
+                    collapsed ? 'justify-center px-2' : 'justify-start',
                     isActive && 'bg-blue-600 hover:bg-blue-700'
                   )}
                 >
                   {item.icon}
-                  {item.label}
+                  {!collapsed ? item.label : null}
                 </Button>
               </Link>
             );
@@ -160,22 +167,22 @@ export function Sidebar() {
             <div key={item.label}>
               <button
                 onClick={() => toggleExpand(item.label)}
+                title={collapsed ? item.label : undefined}
                 className={cn(
-                  'w-full flex items-center justify-between gap-3 px-4 py-2 rounded-md text-sm font-medium transition-colors',
-                  'hover:bg-slate-700'
+                  'flex w-full items-center rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-slate-700',
+                  collapsed ? 'justify-center' : 'justify-between gap-3'
                 )}
               >
                 <div className="flex items-center gap-3">
                   {item.icon}
-                  {item.label}
+                  {!collapsed ? item.label : null}
                 </div>
-                <ChevronDown
-                  size={16}
-                  className={cn('transition-transform', isExpanded && 'rotate-180')}
-                />
+                {!collapsed ? (
+                  <ChevronDown size={16} className={cn('transition-transform', isExpanded && 'rotate-180')} />
+                ) : null}
               </button>
 
-              {isExpanded && item.submenu && (
+              {!collapsed && isExpanded && item.submenu ? (
                 <div className="ml-4 mt-1 space-y-1 border-l border-slate-700 pl-4">
                   {item.submenu.map((subitem) => (
                     <Link key={subitem.label} href={subitem.href || '#'}>
@@ -193,22 +200,21 @@ export function Sidebar() {
                     </Link>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
           );
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-slate-700 space-y-2">
-        <Link href="/settings/users">
-          <Button variant="ghost" className="w-full justify-start gap-2">
+      <div className="space-y-2 border-t border-slate-700 p-4">
+        <Link href="/settings/users" title={collapsed ? 'Settings' : undefined}>
+          <Button variant="ghost" className={cn('w-full gap-2', collapsed ? 'justify-center px-2' : 'justify-start')}>
             <Settings size={18} />
-            Settings
+            {!collapsed ? 'Settings' : null}
           </Button>
         </Link>
-        <Button variant="destructive" className="w-full" onClick={handleLogout}>
-          Logout
+        <Button variant="destructive" className={cn('w-full', collapsed ? 'px-2' : '')} onClick={handleLogout}>
+          {collapsed ? '↩' : 'Logout'}
         </Button>
       </div>
     </div>

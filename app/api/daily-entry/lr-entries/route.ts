@@ -9,10 +9,88 @@ function toResponseRow(row: any) {
   };
 }
 
-export async function GET() {
+const LR_STATUSES = new Set(['to_pay', 'paid', 'tbb']);
+const POD_FILTERS = new Set(['received', 'pending']);
+
+export async function GET(request: Request) {
   try {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM lr_entries ORDER BY id DESC`;
+    const { searchParams } = new URL(request.url);
+    const search = String(searchParams.get('search') || '').trim();
+    const dateFrom = String(searchParams.get('date_from') || '').trim();
+    const dateTo = String(searchParams.get('date_to') || '').trim();
+    const consignorIdRaw = String(searchParams.get('consignor_id') || '').trim();
+    const consigneeIdRaw = String(searchParams.get('consignee_id') || '').trim();
+    const status = String(searchParams.get('status') || '').trim();
+    const pod = String(searchParams.get('pod') || '').trim();
+
+    const consignorIdNum = consignorIdRaw ? Number(consignorIdRaw) : NaN;
+    const consigneeIdNum = consigneeIdRaw ? Number(consigneeIdRaw) : NaN;
+    const hasConsignorFilter = Number.isFinite(consignorIdNum) && consignorIdNum > 0;
+    const hasConsigneeFilter = Number.isFinite(consigneeIdNum) && consigneeIdNum > 0;
+    const hasStatusFilter = status !== '' && LR_STATUSES.has(status);
+    const hasPodFilter = pod !== '' && POD_FILTERS.has(pod);
+
+    const hasFilters =
+      search !== '' ||
+      dateFrom !== '' ||
+      dateTo !== '' ||
+      hasConsignorFilter ||
+      hasConsigneeFilter ||
+      hasStatusFilter ||
+      hasPodFilter;
+
+    if (!hasFilters) {
+      const { rows } = await sql`SELECT * FROM lr_entries ORDER BY id DESC`;
+      return NextResponse.json(rows.map(toResponseRow), { status: 200 });
+    }
+
+    const likeSearch = `%${search}%`;
+
+    const { rows } = await sql`
+      SELECT lr_entries.*
+      FROM lr_entries
+      LEFT JOIN consignors ON consignors.id = lr_entries.consignor_id
+      LEFT JOIN consignees ON consignees.id = lr_entries.consignee_id
+      WHERE
+        (
+          ${search} = ''
+          OR lr_entries.lr_no ILIKE ${likeSearch}
+          OR lr_entries.invoice_no ILIKE ${likeSearch}
+          OR consignors.name ILIKE ${likeSearch}
+          OR consignees.name ILIKE ${likeSearch}
+        )
+        AND (
+          ${dateFrom} = ''
+          OR lr_entries.lr_date::date >= NULLIF(${dateFrom}, '')::date
+        )
+        AND (
+          ${dateTo} = ''
+          OR lr_entries.lr_date::date <= NULLIF(${dateTo}, '')::date
+        )
+        AND (
+          ${consignorIdRaw} = ''
+          OR ${hasConsignorFilter ? 0 : 1} = 1
+          OR lr_entries.consignor_id = ${consignorIdNum}
+        )
+        AND (
+          ${consigneeIdRaw} = ''
+          OR ${hasConsigneeFilter ? 0 : 1} = 1
+          OR lr_entries.consignee_id = ${consigneeIdNum}
+        )
+        AND (
+          ${hasStatusFilter ? 0 : 1} = 1
+          OR lr_entries.status = ${status}
+        )
+        AND (
+          ${hasPodFilter ? 0 : 1} = 1
+          OR (${pod} = 'received' AND lr_entries.pod_received = TRUE)
+          OR (${pod} = 'pending' AND lr_entries.pod_received = FALSE)
+        )
+      ORDER BY lr_entries.lr_date DESC, lr_entries.id DESC
+      LIMIT 200
+    `;
+
     return NextResponse.json(rows.map(toResponseRow), { status: 200 });
   } catch (error) {
     console.error('Error fetching LR entries', error);
