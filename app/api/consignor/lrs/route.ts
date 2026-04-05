@@ -1,6 +1,34 @@
 import { NextResponse } from 'next/server';
-import { ensureSchema, sql } from '@/lib/db';
+import { ensureSchema, parseJsonField, sql } from '@/lib/db';
 import { requireConsignor } from '@/lib/consignor-auth';
+
+function buildLrNoToChallanMeta(rows: { lr_list: unknown; challan_no: string; challan_date: string; truck_no: string; driver_name: string; driver_mobile: string }[]) {
+  const map = new Map<
+    string,
+    {
+      challan_no: string;
+      challan_date: string;
+      vehicle_no: string;
+      driver_name: string;
+      driver_mobile: string;
+    }
+  >();
+  for (const row of rows) {
+    const list = parseJsonField<Array<{ lr_no?: string }>>(row.lr_list, []);
+    for (const item of list) {
+      const lrNo = String(item?.lr_no || '').trim();
+      if (!lrNo) continue;
+      map.set(lrNo, {
+        challan_no: row.challan_no || '-',
+        challan_date: row.challan_date || '',
+        vehicle_no: row.truck_no || '-',
+        driver_name: row.driver_name || '-',
+        driver_mobile: row.driver_mobile || '-',
+      });
+    }
+  }
+  return map;
+}
 
 export async function GET(request: Request) {
   try {
@@ -72,7 +100,25 @@ export async function GET(request: Request) {
       LIMIT 200
     `;
 
-    return NextResponse.json(rows, { status: 200 });
+    const { rows: challanRows } = await sql`
+      SELECT challan_no, challan_date, truck_no, driver_name, driver_mobile, lr_list
+      FROM challans
+    `;
+    const lrToChallan = buildLrNoToChallanMeta(challanRows);
+
+    const enriched = rows.map((row: Record<string, unknown> & { lr_no: string }) => {
+      const ch = lrToChallan.get(String(row.lr_no || '').trim());
+      return {
+        ...row,
+        challan_no: ch?.challan_no ?? '-',
+        challan_date: ch?.challan_date ?? null,
+        vehicle_no: ch?.vehicle_no ?? '-',
+        challan_driver_name: ch?.driver_name ?? '-',
+        challan_driver_mobile: ch?.driver_mobile ?? '-',
+      };
+    });
+
+    return NextResponse.json(enriched, { status: 200 });
   } catch (error) {
     console.error('Error fetching consignor LRs', error);
     return NextResponse.json(

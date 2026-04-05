@@ -38,6 +38,19 @@ interface LREntry {
   status: 'to_pay' | 'paid' | 'tbb';
 }
 
+interface ChallanListItem {
+  lr_no?: string;
+}
+
+interface ChallanForReport {
+  challan_no: string;
+  challan_date: string;
+  truck_no: string;
+  driver_name: string;
+  driver_mobile: string;
+  lr_list: ChallanListItem[];
+}
+
 interface Invoice {
   invoice_no?: string;
   invoice_date: string;
@@ -96,9 +109,41 @@ export default function ReportsPage() {
   const [appliedRange, setAppliedRange] = useState(dateRange);
 
   const { data: lrEntries = [] } = useSWR<LREntry[]>('/api/daily-entry/lr-entries', apiClient.get);
+  const { data: challans = [] } = useSWR<ChallanForReport[]>(
+    '/api/daily-entry/challans',
+    apiClient.get
+  );
   const { data: invoices = [] } = useSWR<Invoice[]>('/api/daily-entry/invoices', apiClient.get);
   const { data: consignors = [] } = useSWR<Consignor[]>('/api/masters/consignors', apiClient.get);
   const { data: consignees = [] } = useSWR<Consignee[]>('/api/masters/consignees', apiClient.get);
+
+  const lrNoToChallanMeta = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        challan_no: string;
+        challan_date: string;
+        vehicle_no: string;
+        driver_name: string;
+        driver_mobile: string;
+      }
+    >();
+    for (const ch of challans) {
+      const list = Array.isArray(ch.lr_list) ? ch.lr_list : [];
+      for (const item of list) {
+        const lrNo = String(item?.lr_no || '').trim();
+        if (!lrNo) continue;
+        map.set(lrNo, {
+          challan_no: ch.challan_no || '-',
+          challan_date: ch.challan_date || '',
+          vehicle_no: ch.truck_no || '-',
+          driver_name: ch.driver_name || '-',
+          driver_mobile: ch.driver_mobile || '-',
+        });
+      }
+    }
+    return map;
+  }, [challans]);
 
   const filteredLR = useMemo(
     () => lrEntries.filter((item) => inRange(item.lr_date, appliedRange.from, appliedRange.to)),
@@ -193,17 +238,29 @@ export default function ReportsPage() {
     const consigneeMap = new Map(consignees.map((item) => [item.id, item.name]));
 
     if (reportType === 'lr') {
-      return filteredLR.map((row, index) => ({
-        sr: index + 1,
-        lr_no: row.lr_no || '-',
-        date: new Date(row.lr_date).toLocaleDateString('en-IN'),
-        consignor: consignorMap.get(row.consignor_id || 0) || '-',
-        consignee: consigneeMap.get(row.consignee_id || 0) || '-',
-        invoice_no: row.invoice_no || '-',
-        route: `${row.from_city || '-'} -> ${row.to_city || '-'}`,
-        freight_type: row.status === 'to_pay' ? 'To Pay' : row.status === 'paid' ? 'Paid' : 'TBB',
-        amount: Number(row.freight || 0).toFixed(2),
-      }));
+      return filteredLR.map((row, index) => {
+        const lrKey = String(row.lr_no || '').trim();
+        const ch = lrKey ? lrNoToChallanMeta.get(lrKey) : undefined;
+        const challanDateStr = ch?.challan_date
+          ? new Date(ch.challan_date).toLocaleDateString('en-IN')
+          : '-';
+        return {
+          sr: index + 1,
+          lr_no: row.lr_no || '-',
+          date: new Date(row.lr_date).toLocaleDateString('en-IN'),
+          challan_no: ch?.challan_no ?? '-',
+          challan_date: challanDateStr,
+          vehicle_no: ch?.vehicle_no ?? '-',
+          driver_name: ch?.driver_name ?? '-',
+          driver_mobile: ch?.driver_mobile ?? '-',
+          consignor: consignorMap.get(row.consignor_id || 0) || '-',
+          consignee: consigneeMap.get(row.consignee_id || 0) || '-',
+          invoice_no: row.invoice_no || '-',
+          route: `${row.from_city || '-'} -> ${row.to_city || '-'}`,
+          freight_type: row.status === 'to_pay' ? 'To Pay' : row.status === 'paid' ? 'Paid' : 'TBB',
+          amount: Number(row.freight || 0).toFixed(2),
+        };
+      });
     }
 
     if (reportType === 'city') {
@@ -228,7 +285,16 @@ export default function ReportsPage() {
       payment_type: row.name,
       amount: Number(row.value || 0).toFixed(2),
     }));
-  }, [reportType, filteredLR, cityData, consignorData, paymentData, consignors, consignees]);
+  }, [
+    reportType,
+    filteredLR,
+    cityData,
+    consignorData,
+    paymentData,
+    consignors,
+    consignees,
+    lrNoToChallanMeta,
+  ]);
 
   const reportTitle = useMemo(() => {
     if (reportType === 'lr') return 'L.R. Register';
@@ -562,7 +628,10 @@ export default function ReportsPage() {
               <tbody>
                 {reportRows.length === 0 ? (
                   <tr>
-                    <td className="px-3 py-6 text-center text-muted-foreground" colSpan={8}>
+                    <td
+                      className="px-3 py-6 text-center text-muted-foreground"
+                      colSpan={Math.max(reportRows[0] ? Object.keys(reportRows[0]).length : 1, 1)}
+                    >
                       No report rows found for the selected period.
                     </td>
                   </tr>

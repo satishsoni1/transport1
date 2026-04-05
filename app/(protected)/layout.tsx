@@ -2,9 +2,11 @@
 
 import { useAuth } from '@/app/context/auth-context';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
+
+const SIDEBAR_HIDDEN_KEY = 'trimurti_sidebar_hidden';
 
 export default function ProtectedLayout({
   children,
@@ -13,6 +15,22 @@ export default function ProtectedLayout({
 }) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const [sidebarHidden, setSidebarHidden] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setSidebarHidden(localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1');
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarHidden((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(SIDEBAR_HIDDEN_KEY, next ? '1' : '0');
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -37,9 +55,9 @@ export default function ProtectedLayout({
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+      {!sidebarHidden ? <Sidebar /> : null}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <Header sidebarHidden={sidebarHidden} onToggleSidebar={toggleSidebar} />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             {children}

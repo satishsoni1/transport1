@@ -3,7 +3,12 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
-import { generateLRPrintHTML, printHTML, printImageDocument } from '@/app/services/print-service';
+import {
+  generateLRPrintHTML,
+  printHTML,
+  printImageDocument,
+  printPodImagesBatch,
+} from '@/app/services/print-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -214,6 +219,46 @@ export default function LREntryPage() {
   const [listConsigneeId, setListConsigneeId] = useState('');
   const [listStatus, setListStatus] = useState('');
   const [listPod, setListPod] = useState('');
+  const [podPrintSelection, setPodPrintSelection] = useState<Set<number>>(new Set());
+
+  const { data: challansForList = [] } = useSWR<
+    Array<{
+      challan_no: string;
+      challan_date: string;
+      truck_no: string;
+      driver_name: string;
+      driver_mobile: string;
+      lr_list: Array<{ lr_no?: string }>;
+    }>
+  >('/api/daily-entry/challans', apiClient.get);
+
+  const lrNoToChallanMeta = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        challan_no: string;
+        challan_date: string;
+        vehicle_no: string;
+        driver_name: string;
+        driver_mobile: string;
+      }
+    >();
+    for (const ch of challansForList) {
+      const list = Array.isArray(ch.lr_list) ? ch.lr_list : [];
+      for (const item of list) {
+        const lrNo = String(item?.lr_no || '').trim();
+        if (!lrNo) continue;
+        map.set(lrNo, {
+          challan_no: ch.challan_no || '-',
+          challan_date: ch.challan_date || '',
+          vehicle_no: ch.truck_no || '-',
+          driver_name: ch.driver_name || '-',
+          driver_mobile: ch.driver_mobile || '-',
+        });
+      }
+    }
+    return map;
+  }, [challansForList]);
 
   const lrEntriesListKey = useMemo(() => {
     const params = new URLSearchParams();
@@ -243,6 +288,45 @@ export default function LREntryPage() {
     lrEntriesListKey,
     apiClient.get
   );
+
+  const listPrintablePodRows = useMemo(
+    () => lrEntries.filter((e) => e.pod_image_url?.trim()),
+    [lrEntries]
+  );
+
+  useEffect(() => {
+    setPodPrintSelection(new Set());
+  }, [lrEntriesListKey]);
+
+  const toggleListPodSelect = useCallback((id: number, checked: boolean) => {
+    setPodPrintSelection((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const selectAllListPods = useCallback(
+    (checked: boolean) => {
+      if (checked) setPodPrintSelection(new Set(listPrintablePodRows.map((e) => e.id)));
+      else setPodPrintSelection(new Set());
+    },
+    [listPrintablePodRows]
+  );
+
+  const printSelectedListPods = useCallback(() => {
+    const items = lrEntries
+      .filter((e) => podPrintSelection.has(e.id) && e.pod_image_url?.trim())
+      .map((e) => ({ title: `POD ${e.lr_no}`, imageUrl: e.pod_image_url! }));
+    if (items.length === 0) {
+      toast.error('Select at least one LR with a POD image');
+      return;
+    }
+    if (items.length === 1) printImageDocument(items[0].title, items[0].imageUrl);
+    else printPodImagesBatch(items);
+  }, [lrEntries, podPrintSelection]);
+
   const { data: consignors = [] } = useSWR<Consignor[]>(
     '/api/masters/consignors',
     apiClient.get
@@ -1342,14 +1426,47 @@ export default function LREntryPage() {
             </CardContent>
           </Card>
 
-          <div className="rounded-lg border bg-white">
+          {listPrintablePodRows.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="lr-list-pod-select-all"
+                  checked={
+                    listPrintablePodRows.length > 0 &&
+                    listPrintablePodRows.every((row) => podPrintSelection.has(row.id))
+                  }
+                  onCheckedChange={(v) => selectAllListPods(v === true)}
+                />
+                <Label htmlFor="lr-list-pod-select-all" className="text-sm font-medium cursor-pointer">
+                  Select PODs ({listPrintablePodRows.length} with image)
+                </Label>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={podPrintSelection.size === 0}
+                onClick={printSelectedListPods}
+              >
+                Print selected PODs ({podPrintSelection.size})
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="overflow-x-auto rounded-lg border bg-white">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10 pr-0">POD</TableHead>
                   <TableHead>L.R. No</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Consignor</TableHead>
                   <TableHead>Consignee</TableHead>
+                  <TableHead>Ch. no</TableHead>
+                  <TableHead>Ch. date</TableHead>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead>Driver</TableHead>
+                  <TableHead>Driver mob</TableHead>
                   <TableHead>Freight</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>POD</TableHead>
@@ -1359,57 +1476,97 @@ export default function LREntryPage() {
               </TableHeader>
               <TableBody>
                 {lrEntries.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-4">No L.R. entries found</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={15} className="text-center py-4">
+                      No L.R. entries found
+                    </TableCell>
+                  </TableRow>
                 ) : (
-                  lrEntries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell className="font-medium">{entry.lr_no}</TableCell>
-                      <TableCell>{new Date(entry.lr_date).toLocaleDateString()}</TableCell>
-                      <TableCell>{consignors.find((item) => item.id === entry.consignor_id)?.name || entry.from_city}</TableCell>
-                      <TableCell>{consignees.find((item) => item.id === entry.consignee_id)?.name || entry.to_city}</TableCell>
-                      <TableCell>₹{entry.freight.toFixed(2)}</TableCell>
-                      <TableCell>{freightTypeOptions.find((item) => item.value === entry.status)?.label || entry.status}</TableCell>
-                      <TableCell>
-                        <span className={`text-xs font-semibold ${entry.pod_received ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          {entry.pod_received ? 'Received' : 'Pending'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {entry.return_status === 'returned' ? (
-                          <div className="text-xs font-semibold text-red-600">
-                            Returned: {entry.return_remark || '-'}
-                          </div>
-                        ) : entry.remarks ? (
-                          <div className="text-xs font-semibold text-red-600">{entry.remarks}</div>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => handlePrint(entry)} title="Print LR receipt">
-                            <Printer className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={!entry.pod_received || !entry.pod_image_url}
-                            onClick={() =>
-                              printImageDocument(`POD ${entry.lr_no}`, entry.pod_image_url || '')
-                            }
-                            title={
-                              entry.pod_received && entry.pod_image_url
-                                ? 'Print POD image'
-                                : 'POD image not available'
-                            }
+                  lrEntries.map((entry) => {
+                    const ch = lrNoToChallanMeta.get(String(entry.lr_no || '').trim());
+                    const chDate =
+                      ch?.challan_date &&
+                      !Number.isNaN(new Date(ch.challan_date).getTime())
+                        ? new Date(ch.challan_date).toLocaleDateString('en-IN')
+                        : '-';
+                    return (
+                      <TableRow key={entry.id}>
+                        <TableCell className="pr-0">
+                          {entry.pod_image_url ? (
+                            <Checkbox
+                              checked={podPrintSelection.has(entry.id)}
+                              onCheckedChange={(v) => toggleListPodSelect(entry.id, v === true)}
+                              aria-label={`Select POD ${entry.lr_no}`}
+                            />
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{entry.lr_no}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {new Date(entry.lr_date).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          {consignors.find((item) => item.id === entry.consignor_id)?.name || entry.from_city}
+                        </TableCell>
+                        <TableCell>
+                          {consignees.find((item) => item.id === entry.consignee_id)?.name || entry.to_city}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">{ch?.challan_no ?? '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{chDate}</TableCell>
+                        <TableCell className="whitespace-nowrap">{ch?.vehicle_no ?? '-'}</TableCell>
+                        <TableCell>{ch?.driver_name ?? '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{ch?.driver_mobile ?? '-'}</TableCell>
+                        <TableCell>₹{entry.freight.toFixed(2)}</TableCell>
+                        <TableCell>
+                          {freightTypeOptions.find((item) => item.value === entry.status)?.label || entry.status}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`text-xs font-semibold ${entry.pod_received ? 'text-emerald-600' : 'text-amber-600'}`}
                           >
-                            <FileImage className="w-4 h-4" />
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleEdit(entry)}><Edit2 className="w-4 h-4" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                            {entry.pod_received ? 'Received' : 'Pending'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {entry.return_status === 'returned' ? (
+                            <div className="text-xs font-semibold text-red-600">
+                              Returned: {entry.return_remark || '-'}
+                            </div>
+                          ) : entry.remarks ? (
+                            <div className="text-xs font-semibold text-red-600">{entry.remarks}</div>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => handlePrint(entry)} title="Print LR receipt">
+                              <Printer className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={!entry.pod_received || !entry.pod_image_url}
+                              onClick={() =>
+                                printImageDocument(`POD ${entry.lr_no}`, entry.pod_image_url || '')
+                              }
+                              title={
+                                entry.pod_received && entry.pod_image_url
+                                  ? 'Print POD image'
+                                  : 'POD image not available'
+                              }
+                            >
+                              <FileImage className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleEdit(entry)}>
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

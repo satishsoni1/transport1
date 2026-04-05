@@ -24,6 +24,7 @@ import {
   printHTML,
   type CompanyPrintData,
 } from '@/app/services/print-service';
+import { transliterateToMarathi } from '@/app/services/marathi';
 
 interface ChallanLR {
   id: number;
@@ -61,6 +62,9 @@ interface LREntryApi {
 interface Consignee {
   id: number;
   name: string;
+  name_mr?: string;
+  city?: string;
+  city_mr?: string;
 }
 
 interface Consignor {
@@ -124,6 +128,34 @@ interface Challan {
 }
 
 interface AdminSettings extends CompanyPrintData {}
+
+/** City and consignee labels for challan rows — Marathi from masters or transliteration (same rules as LR entry). */
+function cityConsigneeMarathiForLR(
+  lrNo: string,
+  storedCity: string,
+  storedConsignee: string,
+  lrEntries: LREntryApi[],
+  consignees: Consignee[]
+): { city: string; consignee: string } {
+  const lrEntry = lrEntries.find((e) => e.lr_no === lrNo);
+  if (!lrEntry) {
+    return {
+      city: transliterateToMarathi(storedCity || '') || '-',
+      consignee: transliterateToMarathi(storedConsignee || '') || '-',
+    };
+  }
+  const consignee = consignees.find((c) => c.id === lrEntry.consignee_id);
+  const city =
+    consignee?.city_mr ||
+    transliterateToMarathi(lrEntry.to_city || consignee?.city || storedCity || '');
+  const consigneeMr =
+    consignee?.name_mr ||
+    transliterateToMarathi(consignee?.name || storedConsignee || '');
+  return {
+    city: city || '-',
+    consignee: consigneeMr || '-',
+  };
+}
 
 export default function ChallanPage() {
   const { user } = useAuth();
@@ -253,6 +285,13 @@ export default function ChallanPage() {
     const consigneeName =
       consignees.find((item) => item.id === lrEntry.consignee_id)?.name ||
       `Consignee #${lrEntry.consignee_id}`;
+    const { city: cityMr, consignee: consigneeMr } = cityConsigneeMarathiForLR(
+      lrEntry.lr_no,
+      lrEntry.to_city || '-',
+      consigneeName,
+      lrEntries,
+      consignees
+    );
     const consignorName =
       consignors.find((item) => item.id === lrEntry.consignor_id)?.name ||
       `Consignor #${lrEntry.consignor_id}`;
@@ -276,8 +315,8 @@ export default function ChallanPage() {
       id: lrEntry.id,
       lr_no: lrEntry.lr_no,
       lr_date: lrEntry.lr_date,
-      city: lrEntry.to_city || '-',
-      consignee: consigneeName,
+      city: cityMr,
+      consignee: consigneeMr,
       consignor: consignorName,
       invoice_no: lrEntry.invoice_no || '',
       packages,
@@ -338,29 +377,39 @@ export default function ChallanPage() {
       remarks: challan.remarks || '',
     });
     setSelectedLRs(
-      (challan.lr_list || []).map((item) => ({
-        id: Number(item.id) || 0,
-        lr_no: item.lr_no || '',
-        lr_date: item.lr_date || '',
-        city: item.city || '',
-        consignee: item.consignee || '',
-        consignor: item.consignor || '',
-        invoice_no: item.invoice_no || '',
-        packages: Number(item.packages) || 0,
-        freight: Number(item.freight) || 0,
-        remarks: item.remarks || '',
-        return_status: item.return_status || 'normal',
-        return_remark: item.return_remark || '',
-        previous_challan_no: item.previous_challan_no || '',
-        status:
-          item.status === 'paid' || item.status === 'tbb' || item.status === 'to_pay'
-            ? item.status
-            : 'to_pay',
-      }))
+      (challan.lr_list || []).map((item) => {
+        const lrNo = item.lr_no || '';
+        const { city, consignee } = cityConsigneeMarathiForLR(
+          lrNo,
+          String(item.city || ''),
+          String(item.consignee || ''),
+          lrEntries,
+          consignees
+        );
+        return {
+          id: Number(item.id) || 0,
+          lr_no: lrNo,
+          lr_date: item.lr_date || '',
+          city,
+          consignee,
+          consignor: item.consignor || '',
+          invoice_no: item.invoice_no || '',
+          packages: Number(item.packages) || 0,
+          freight: Number(item.freight) || 0,
+          remarks: item.remarks || '',
+          return_status: item.return_status || 'normal',
+          return_remark: item.return_remark || '',
+          previous_challan_no: item.previous_challan_no || '',
+          status:
+            item.status === 'paid' || item.status === 'tbb' || item.status === 'to_pay'
+              ? item.status
+              : 'to_pay',
+        };
+      })
     );
     setNewLRInput('');
     setActiveTab('form');
-  }, []);
+  }, [lrEntries, consignees]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -419,8 +468,20 @@ export default function ChallanPage() {
   const handlePrint = useCallback(
     (challan: Challan) => {
       try {
+        const lrListMr = (challan.lr_list || []).map((item: ChallanLR) => {
+          const lrNo = item.lr_no || '';
+          const { city, consignee } = cityConsigneeMarathiForLR(
+            lrNo,
+            String(item.city || ''),
+            String(item.consignee || ''),
+            lrEntries,
+            consignees
+          );
+          return { ...item, city, consignee };
+        });
         const html = generateChallanPrintHTML({
           ...challan,
+          lr_list: lrListMr,
           company: settings,
         });
         printHTML(html);
@@ -428,7 +489,7 @@ export default function ChallanPage() {
         toast.error('Failed to print challan');
       }
     },
-    [settings]
+    [settings, lrEntries, consignees]
   );
 
   const totals = calculateTotals();
@@ -767,50 +828,59 @@ export default function ChallanPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {selectedLRs.map((lr, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="font-medium">{lr.lr_no}</TableCell>
-                          <TableCell>
-                            {new Date(lr.lr_date).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>{lr.city}</TableCell>
-                          <TableCell>{lr.consignee}</TableCell>
-                          <TableCell>{lr.packages}</TableCell>
-                          <TableCell>₹{lr.freight.toFixed(2)}</TableCell>
-                          <TableCell>
-                            <span
-                              className={`px-2 py-1 rounded text-sm font-medium ${
-                                lr.status === 'paid'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}
-                            >
-                              {lr.status}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {lr.return_status === 'returned' ? (
-                              <div className="space-y-1 text-xs font-semibold text-red-600">
-                                <p>Return: {lr.return_remark || '-'}</p>
-                                {lr.previous_challan_no ? <p>Prev Challan: {lr.previous_challan_no}</p> : null}
-                              </div>
-                            ) : lr.remarks ? (
-                              <span className="text-xs font-semibold text-red-600">{lr.remarks}</span>
-                            ) : (
-                              '-'
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => removeLRFromChallan(idx)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {selectedLRs.map((lr, idx) => {
+                        const { city, consignee } = cityConsigneeMarathiForLR(
+                          lr.lr_no,
+                          lr.city,
+                          lr.consignee,
+                          lrEntries,
+                          consignees
+                        );
+                        return (
+                          <TableRow key={idx}>
+                            <TableCell className="font-medium">{lr.lr_no}</TableCell>
+                            <TableCell>
+                              {new Date(lr.lr_date).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>{city}</TableCell>
+                            <TableCell>{consignee}</TableCell>
+                            <TableCell>{lr.packages}</TableCell>
+                            <TableCell>₹{lr.freight.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <span
+                                className={`px-2 py-1 rounded text-sm font-medium ${
+                                  lr.status === 'paid'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}
+                              >
+                                {lr.status}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {lr.return_status === 'returned' ? (
+                                <div className="space-y-1 text-xs font-semibold text-red-600">
+                                  <p>Return: {lr.return_remark || '-'}</p>
+                                  {lr.previous_challan_no ? <p>Prev Challan: {lr.previous_challan_no}</p> : null}
+                                </div>
+                              ) : lr.remarks ? (
+                                <span className="text-xs font-semibold text-red-600">{lr.remarks}</span>
+                              ) : (
+                                '-'
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => removeLRFromChallan(idx)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
 

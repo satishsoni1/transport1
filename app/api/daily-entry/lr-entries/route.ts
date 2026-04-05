@@ -28,6 +28,9 @@ export async function GET(request: Request) {
     const consigneeIdNum = consigneeIdRaw ? Number(consigneeIdRaw) : NaN;
     const hasConsignorFilter = Number.isFinite(consignorIdNum) && consignorIdNum > 0;
     const hasConsigneeFilter = Number.isFinite(consigneeIdNum) && consigneeIdNum > 0;
+    /** Never bind NaN to PG (breaks integer compare); use 0 when the filter is off. */
+    const consignorIdForQuery = hasConsignorFilter ? consignorIdNum : 0;
+    const consigneeIdForQuery = hasConsigneeFilter ? consigneeIdNum : 0;
     const hasStatusFilter = status !== '' && LR_STATUSES.has(status);
     const hasPodFilter = pod !== '' && POD_FILTERS.has(pod);
 
@@ -69,14 +72,12 @@ export async function GET(request: Request) {
           OR lr_entries.lr_date::date <= NULLIF(${dateTo}, '')::date
         )
         AND (
-          ${consignorIdRaw} = ''
-          OR ${hasConsignorFilter ? 0 : 1} = 1
-          OR lr_entries.consignor_id = ${consignorIdNum}
+          ${hasConsignorFilter ? 0 : 1} = 1
+          OR lr_entries.consignor_id = ${consignorIdForQuery}
         )
         AND (
-          ${consigneeIdRaw} = ''
-          OR ${hasConsigneeFilter ? 0 : 1} = 1
-          OR lr_entries.consignee_id = ${consigneeIdNum}
+          ${hasConsigneeFilter ? 0 : 1} = 1
+          OR lr_entries.consignee_id = ${consigneeIdForQuery}
         )
         AND (
           ${hasStatusFilter ? 0 : 1} = 1

@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Search, LogOut, User } from 'lucide-react';
+import { Menu, PanelLeftClose, Search, LogOut, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SearchParty {
@@ -109,7 +109,13 @@ function Field({
   );
 }
 
-export function Header() {
+interface HeaderProps {
+  /** When set, show control to show/hide the main sidebar (protected layout). */
+  sidebarHidden?: boolean;
+  onToggleSidebar?: () => void;
+}
+
+export function Header({ sidebarHidden, onToggleSidebar }: HeaderProps = {}) {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [searchValue, setSearchValue] = useState('');
@@ -154,6 +160,19 @@ export function Header() {
     <>
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
         <div className="flex flex-1 items-center gap-3">
+          {onToggleSidebar ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="shrink-0"
+              title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+              aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+              onClick={onToggleSidebar}
+            >
+              {sidebarHidden ? <Menu size={18} /> : <PanelLeftClose size={18} />}
+            </Button>
+          ) : null}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-3 text-slate-400" size={18} />
             <Input

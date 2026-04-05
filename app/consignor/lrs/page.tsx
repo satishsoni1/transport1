@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ConsignorShell } from '@/app/consignor/_components/consignor-shell';
-import { printImageDocument } from '@/app/services/print-service';
+import { printImageDocument, printPodImagesBatch } from '@/app/services/print-service';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   clearConsignorSession,
   consignorFetch,
@@ -34,6 +36,11 @@ interface ConsignorLR {
   pod_received_by_driver_name?: string;
   status?: string;
   consignee_name?: string;
+  challan_no?: string;
+  challan_date?: string | null;
+  vehicle_no?: string;
+  challan_driver_name?: string;
+  challan_driver_mobile?: string;
 }
 
 export default function ConsignorLrsPage() {
@@ -47,6 +54,8 @@ export default function ConsignorLrsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [lrs, setLrs] = useState<ConsignorLR[]>([]);
+  const [selectedPodIds, setSelectedPodIds] = useState<Set<number>>(new Set());
+  const [sessionVerified, setSessionVerified] = useState(false);
 
   const loadLrs = useCallback(async () => {
     const params = new URLSearchParams();
@@ -61,6 +70,7 @@ export default function ConsignorLrsPage() {
       `/api/consignor/lrs${params.toString() ? `?${params.toString()}` : ''}`
     );
     setLrs(data);
+    setSelectedPodIds(new Set());
   }, [search, city, status, pod, dateFrom, dateTo]);
 
   useEffect(() => {
@@ -72,28 +82,73 @@ export default function ConsignorLrsPage() {
     const saved = getConsignorUser();
     if (saved) setConsignor(saved);
 
+    let cancelled = false;
     const init = async () => {
       try {
         const verify = await consignorFetch<{ consignor: ConsignorSessionUser }>(
           '/api/consignor-auth/verify'
         );
+        if (cancelled) return;
         setConsignor(verify.consignor);
-        await loadLrs();
+        setSessionVerified(true);
       } catch {
+        setSessionVerified(false);
         clearConsignorSession();
         router.replace('/consignor/login');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     void init();
-  }, [loadLrs, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (loading || !sessionVerified) return;
+    void loadLrs();
+  }, [loading, sessionVerified, loadLrs]);
 
   const pendingCount = useMemo(
     () => lrs.filter((item) => !item.pod_received).length,
     [lrs]
   );
+
+  const printableLrs = useMemo(() => lrs.filter((item) => item.pod_image_url?.trim()), [lrs]);
+
+  const togglePodSelect = useCallback((id: number, checked: boolean) => {
+    setSelectedPodIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const selectAllPrintable = useCallback(
+    (checked: boolean) => {
+      if (checked) setSelectedPodIds(new Set(printableLrs.map((item) => item.id)));
+      else setSelectedPodIds(new Set());
+    },
+    [printableLrs]
+  );
+
+  const printSelectedPods = useCallback(() => {
+    const items = lrs
+      .filter((item) => selectedPodIds.has(item.id) && item.pod_image_url?.trim())
+      .map((item) => ({ title: `POD ${item.lr_no}`, imageUrl: item.pod_image_url! }));
+    if (items.length === 0) {
+      toast.error('Select at least one LR with a POD image');
+      return;
+    }
+    if (items.length === 1) {
+      printImageDocument(items[0].title, items[0].imageUrl);
+    } else {
+      printPodImagesBatch(items);
+    }
+  }, [lrs, selectedPodIds]);
 
   const formatDateTime = (value?: string) => {
     if (!value) return '-';
@@ -106,6 +161,13 @@ export default function ConsignorLrsPage() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const formatChallanDate = (value?: string | null) => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '-';
+    return parsed.toLocaleDateString('en-IN');
   };
 
   if (loading) {
@@ -187,6 +249,32 @@ export default function ConsignorLrsPage() {
           </CardContent>
         </Card>
 
+        {printableLrs.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="pod-select-all"
+                checked={
+                  printableLrs.length > 0 &&
+                  printableLrs.every((item) => selectedPodIds.has(item.id))
+                }
+                onCheckedChange={(v) => selectAllPrintable(v === true)}
+              />
+              <label htmlFor="pod-select-all" className="text-sm font-medium text-slate-800">
+                Select all POD images ({printableLrs.length})
+              </label>
+            </div>
+            <Button
+              type="button"
+              className="rounded-xl"
+              disabled={selectedPodIds.size === 0}
+              onClick={printSelectedPods}
+            >
+              Print selected PODs ({selectedPodIds.size})
+            </Button>
+          </div>
+        ) : null}
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {lrs.length === 0 ? (
             <Card className="md:col-span-2 xl:col-span-3">
@@ -199,11 +287,21 @@ export default function ConsignorLrsPage() {
               <Card key={lr.id} className="gap-2 py-4 shadow-md">
                 <CardHeader className="pb-0">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="flex items-start gap-3">
+                      {lr.pod_image_url ? (
+                        <Checkbox
+                          checked={selectedPodIds.has(lr.id)}
+                          onCheckedChange={(v) => togglePodSelect(lr.id, v === true)}
+                          className="mt-1"
+                          aria-label={`Select POD for ${lr.lr_no}`}
+                        />
+                      ) : null}
+                      <div>
                       <CardTitle className="text-lg font-black">{lr.lr_no}</CardTitle>
                       <CardDescription>
                         {lr.lr_date ? new Date(lr.lr_date).toLocaleDateString('en-IN') : '-'}
                       </CardDescription>
+                      </div>
                     </div>
                     <span
                       className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -219,6 +317,16 @@ export default function ConsignorLrsPage() {
                 <CardContent className="space-y-2 text-sm">
                   <div><b>Invoice:</b> {lr.invoice_no || '-'}</div>
                   <div><b>Route:</b> {lr.from_city || '-'} to {lr.to_city || '-'}</div>
+                  <div className="grid gap-1 rounded-lg border border-slate-100 bg-slate-50/80 p-2 text-xs text-slate-700">
+                    <div className="font-semibold text-slate-900">Challan / vehicle</div>
+                    <div className="grid gap-1 sm:grid-cols-2">
+                      <div><b>Ch. no:</b> {lr.challan_no || '-'}</div>
+                      <div><b>Ch. date:</b> {formatChallanDate(lr.challan_date)}</div>
+                      <div><b>Vehicle:</b> {lr.vehicle_no || '-'}</div>
+                      <div><b>Driver:</b> {lr.challan_driver_name || '-'}</div>
+                      <div className="sm:col-span-2"><b>Driver mob:</b> {lr.challan_driver_mobile || '-'}</div>
+                    </div>
+                  </div>
                   <div><b>Consignee:</b> {lr.consignee_name || '-'}</div>
                   <div><b>Delivery:</b> {lr.delivery_address || '-'}</div>
                   <div className="grid grid-cols-2 gap-2">
