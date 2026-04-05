@@ -358,6 +358,7 @@ export async function ensureSchema() {
       gst_percentage DOUBLE PRECISION NOT NULL DEFAULT 0,
       remarks TEXT NOT NULL DEFAULT '',
       items JSONB NOT NULL DEFAULT '[]'::jsonb,
+      additional_charges JSONB NOT NULL DEFAULT '[]'::jsonb,
       total_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
       gst_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
       net_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -365,6 +366,7 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS additional_charges JSONB NOT NULL DEFAULT '[]'::jsonb`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS receipts (

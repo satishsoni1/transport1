@@ -28,8 +28,18 @@ import {
 interface InvoiceItem {
   description: string;
   lr_no: string;
+  lr_date?: string;
+  city?: string;
+  invoice_no?: string;
+  consignee?: string;
   qty: number;
   rate: number;
+  amount: number;
+}
+
+interface AdditionalCharge {
+  charge_name: string;
+  remark: string;
   amount: number;
 }
 
@@ -41,7 +51,10 @@ interface Consignor {
 interface LREntryApi {
   id: number;
   lr_no: string;
+  lr_date: string;
   consignor_id: number;
+  to_city?: string;
+  invoice_no?: string;
   freight: number;
   status: 'to_pay' | 'paid' | 'tbb';
   pod_received?: boolean;
@@ -58,6 +71,7 @@ interface Invoice {
   gst_percentage: number;
   remarks: string;
   items: InvoiceItem[];
+  additional_charges?: AdditionalCharge[];
   total_amount: number;
   gst_amount: number;
   net_amount: number;
@@ -72,6 +86,10 @@ export default function InvoicePage() {
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [consignorSearch, setConsignorSearch] = useState('');
+  const [lrDateFilter, setLrDateFilter] = useState({
+    from_date: '',
+    to_date: '',
+  });
 
   const [formData, setFormData] = useState({
     consignor_id: '',
@@ -82,11 +100,21 @@ export default function InvoicePage() {
   });
 
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
+  const [additionalCharges, setAdditionalCharges] = useState<AdditionalCharge[]>([]);
   const [currentItem, setCurrentItem] = useState<InvoiceItem>({
     description: '',
     lr_no: '',
+    lr_date: '',
+    city: '',
+    invoice_no: '',
+    consignee: '',
     qty: 0,
     rate: 0,
+    amount: 0,
+  });
+  const [currentCharge, setCurrentCharge] = useState<AdditionalCharge>({
+    charge_name: '',
+    remark: '',
     amount: 0,
   });
 
@@ -108,23 +136,44 @@ export default function InvoicePage() {
   );
 
   const calculateTotals = useCallback(() => {
-    const subtotal = invoiceItems.reduce((sum, item) => sum + item.amount, 0);
+    const itemsTotal = invoiceItems.reduce((sum, item) => sum + item.amount, 0);
+    const chargesTotal = additionalCharges.reduce(
+      (sum, item) => sum + (Number(item.amount) || 0),
+      0
+    );
+    const subtotal = itemsTotal + chargesTotal;
     const gstPercent = parseFloat(formData.gst_percentage) || 0;
     const gstAmount = (subtotal * gstPercent) / 100;
     return {
+      itemsTotal,
+      chargesTotal,
       subtotal,
       gstAmount,
       netAmount: subtotal + gstAmount,
     };
-  }, [invoiceItems, formData.gst_percentage]);
+  }, [invoiceItems, additionalCharges, formData.gst_percentage]);
 
   const availableLREntries = lrEntries.filter(
-    (entry) =>
+    (entry) => {
+      const lrDate = entry.lr_date ? new Date(entry.lr_date) : null;
+      const fromDate = lrDateFilter.from_date ? new Date(lrDateFilter.from_date) : null;
+      const toDate = lrDateFilter.to_date ? new Date(lrDateFilter.to_date) : null;
+      const matchesFrom = !fromDate || (lrDate && lrDate >= fromDate);
+      const matchesTo =
+        !toDate ||
+        (lrDate &&
+          lrDate <= new Date(`${lrDateFilter.to_date}T23:59:59`));
+
+      return (
       String(entry.consignor_id) === formData.consignor_id &&
       entry.status !== 'paid' &&
       !entry.pod_received &&
       entry.return_status !== 'returned' &&
-      !invoiceItems.some((item) => item.lr_no === entry.lr_no)
+      !invoiceItems.some((item) => item.lr_no === entry.lr_no) &&
+      matchesFrom &&
+      matchesTo
+      );
+    }
   );
 
   const addInvoiceItem = useCallback(() => {
@@ -155,12 +204,42 @@ export default function InvoicePage() {
     setCurrentItem({
       description: '',
       lr_no: '',
+      lr_date: '',
+      city: '',
+      invoice_no: '',
+      consignee: '',
       qty: 0,
       rate: 0,
       amount: 0,
     });
     toast.success('Item added');
   }, [currentItem, invoiceItems]);
+
+  const addAdditionalCharge = useCallback(() => {
+    if (!currentCharge.charge_name.trim()) {
+      toast.error('Charge name is required');
+      return;
+    }
+    if ((Number(currentCharge.amount) || 0) <= 0) {
+      toast.error('Charge amount must be greater than zero');
+      return;
+    }
+
+    setAdditionalCharges((prev) => [
+      ...prev,
+      {
+        charge_name: currentCharge.charge_name.trim(),
+        remark: currentCharge.remark.trim(),
+        amount: Number(currentCharge.amount) || 0,
+      },
+    ]);
+    setCurrentCharge({ charge_name: '', remark: '', amount: 0 });
+    toast.success('Additional charge added');
+  }, [currentCharge]);
+
+  const removeAdditionalCharge = useCallback((index: number) => {
+    setAdditionalCharges((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const removeInvoiceItem = useCallback(
     (index: number) => {
@@ -187,18 +266,34 @@ export default function InvoicePage() {
         (invoice.items || []).map((item) => ({
           description: item.description || '',
           lr_no: item.lr_no || '',
+          lr_date: item.lr_date || '',
+          city: item.city || '',
+          invoice_no: item.invoice_no || '',
+          consignee: item.consignee || '',
           qty: Number(item.qty) || 0,
           rate: Number(item.rate) || 0,
+          amount: Number(item.amount) || 0,
+        }))
+      );
+      setAdditionalCharges(
+        (invoice.additional_charges || []).map((item) => ({
+          charge_name: item.charge_name || '',
+          remark: item.remark || '',
           amount: Number(item.amount) || 0,
         }))
       );
       setCurrentItem({
         description: '',
         lr_no: '',
+        lr_date: '',
+        city: '',
+        invoice_no: '',
+        consignee: '',
         qty: 0,
         rate: 0,
         amount: 0,
       });
+      setCurrentCharge({ charge_name: '', remark: '', amount: 0 });
       setActiveTab('form');
     },
     [consignors]
@@ -227,6 +322,7 @@ export default function InvoicePage() {
           gst_percentage: parseFloat(formData.gst_percentage),
           remarks: formData.remarks,
           items: invoiceItems,
+          additional_charges: additionalCharges,
           total_amount: totals.subtotal,
           gst_amount: totals.gstAmount,
           net_amount: totals.netAmount,
@@ -244,18 +340,24 @@ export default function InvoicePage() {
         setActiveTab('list');
         setEditingId(null);
         setInvoiceItems([]);
+        setAdditionalCharges([]);
         setCurrentItem({
           description: '',
           lr_no: '',
+          lr_date: '',
+          city: '',
+          invoice_no: '',
+          consignee: '',
           qty: 0,
           rate: 0,
           amount: 0,
         });
+        setCurrentCharge({ charge_name: '', remark: '', amount: 0 });
       } catch (error) {
         toast.error('Failed to save invoice');
       }
     },
-    [editingId, formData, invoiceItems, calculateTotals, mutate]
+    [editingId, formData, invoiceItems, additionalCharges, calculateTotals, mutate]
   );
 
   const handlePrint = useCallback(
@@ -290,7 +392,9 @@ export default function InvoicePage() {
               setActiveTab('form');
               setEditingId(null);
               setInvoiceItems([]);
+              setAdditionalCharges([]);
               setConsignorSearch('');
+              setLrDateFilter({ from_date: '', to_date: '' });
             }}
             className="gap-2"
           >
@@ -326,9 +430,15 @@ export default function InvoicePage() {
                         party_name: selected ? selected.name : formData.party_name,
                       });
                       setInvoiceItems([]);
+                      setAdditionalCharges([]);
+                      setLrDateFilter({ from_date: '', to_date: '' });
                       setCurrentItem({
                         description: '',
                         lr_no: '',
+                        lr_date: '',
+                        city: '',
+                        invoice_no: '',
+                        consignee: '',
                         qty: 0,
                         rate: 0,
                         amount: 0,
@@ -395,6 +505,38 @@ export default function InvoicePage() {
               <CardTitle>Invoice Items</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <div>
+                  <Label htmlFor="lr_from_date">LR From Date</Label>
+                  <Input
+                    id="lr_from_date"
+                    type="date"
+                    value={lrDateFilter.from_date}
+                    onChange={(e) =>
+                      setLrDateFilter((prev) => ({ ...prev, from_date: e.target.value }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="lr_to_date">LR To Date</Label>
+                  <Input
+                    id="lr_to_date"
+                    type="date"
+                    value={lrDateFilter.to_date}
+                    onChange={(e) =>
+                      setLrDateFilter((prev) => ({ ...prev, to_date: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Available LRs</Label>
+                  <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    {formData.consignor_id
+                      ? `${availableLREntries.length} LR found for selected consignor`
+                      : 'Select consignor first to search LR'}
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-6 gap-2 mb-4">
                 <Input
                   placeholder="L.R. No"
@@ -419,6 +561,10 @@ export default function InvoicePage() {
 
                     setCurrentItem({
                       lr_no: entry.lr_no,
+                      lr_date: entry.lr_date || '',
+                      city: entry.to_city || '',
+                      invoice_no: entry.invoice_no || '',
+                      consignee: firstDescription,
                       description: firstDescription,
                       qty,
                       rate,
@@ -506,12 +652,24 @@ export default function InvoicePage() {
 
                   <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-md">
                     <div>
+                      <p className="text-sm text-gray-600">Items Total</p>
+                      <p className="text-lg font-semibold">
+                        ₹{totals.itemsTotal.toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Additional Charges</p>
+                      <p className="text-lg font-semibold">
+                        ₹{totals.chargesTotal.toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
                       <p className="text-sm text-gray-600">Subtotal</p>
                       <p className="text-lg font-semibold">
                         ₹{totals.subtotal.toFixed(2)}
                       </p>
                     </div>
-                    <div>
+                    <div className="md:col-span-1">
                       <p className="text-sm text-gray-600">
                         GST ({formData.gst_percentage}%)
                       </p>
@@ -527,6 +685,79 @@ export default function InvoicePage() {
                     </div>
                   </div>
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Additional Charges</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-4 gap-2">
+                <Input
+                  placeholder="Charge Name"
+                  value={currentCharge.charge_name}
+                  onChange={(e) =>
+                    setCurrentCharge((prev) => ({ ...prev, charge_name: e.target.value }))
+                  }
+                />
+                <Input
+                  placeholder="Remark"
+                  value={currentCharge.remark}
+                  onChange={(e) =>
+                    setCurrentCharge((prev) => ({ ...prev, remark: e.target.value }))
+                  }
+                />
+                <Input
+                  placeholder="Amount"
+                  type="number"
+                  value={currentCharge.amount}
+                  onChange={(e) =>
+                    setCurrentCharge((prev) => ({
+                      ...prev,
+                      amount: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                />
+                <Button type="button" onClick={addAdditionalCharge}>
+                  Add Charge
+                </Button>
+              </div>
+
+              {additionalCharges.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Charge</TableHead>
+                      <TableHead>Remark</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {additionalCharges.map((charge, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>{charge.charge_name}</TableCell>
+                        <TableCell>{charge.remark || '-'}</TableCell>
+                        <TableCell>₹{charge.amount.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeAdditionalCharge(idx)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  No additional charges added yet.
+                </div>
               )}
             </CardContent>
           </Card>
@@ -561,6 +792,7 @@ export default function InvoicePage() {
                 setActiveTab('list');
                 setEditingId(null);
                 setInvoiceItems([]);
+                setAdditionalCharges([]);
               }}
             >
               Cancel

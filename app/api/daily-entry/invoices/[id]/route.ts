@@ -8,7 +8,11 @@ function parseId(rawId: string) {
 }
 
 function toResponseRow(row: any) {
-  return { ...row, items: parseJsonField(row.items, []) };
+  return {
+    ...row,
+    items: parseJsonField(row.items, []),
+    additional_charges: parseJsonField(row.additional_charges, []),
+  };
 }
 
 export async function PUT(
@@ -37,6 +41,10 @@ export async function PUT(
 
     const existing = existingRows[0];
     const items = body.items === undefined ? parseJsonField(existing.items, []) : body.items;
+    const additionalCharges =
+      body.additional_charges === undefined
+        ? parseJsonField(existing.additional_charges, [])
+        : body.additional_charges;
 
     const { rows } = await sql`
       UPDATE invoices
@@ -47,6 +55,7 @@ export async function PUT(
         gst_percentage = ${body.gst_percentage === undefined ? existing.gst_percentage : Number(body.gst_percentage) || 0},
         remarks = ${body.remarks ?? existing.remarks},
         items = ${JSON.stringify(Array.isArray(items) ? items : [])}::jsonb,
+        additional_charges = ${JSON.stringify(Array.isArray(additionalCharges) ? additionalCharges : [])}::jsonb,
         total_amount = ${body.total_amount === undefined ? existing.total_amount : Number(body.total_amount) || 0},
         gst_amount = ${body.gst_amount === undefined ? existing.gst_amount : Number(body.gst_amount) || 0},
         net_amount = ${body.net_amount === undefined ? existing.net_amount : Number(body.net_amount) || 0},

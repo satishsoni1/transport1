@@ -3,7 +3,11 @@ import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
 
 function toResponseRow(row: any) {
-  return { ...row, items: parseJsonField(row.items, []) };
+  return {
+    ...row,
+    items: parseJsonField(row.items, []),
+    additional_charges: parseJsonField(row.additional_charges, []),
+  };
 }
 
 export async function GET() {
@@ -25,6 +29,7 @@ export async function POST(request: Request) {
     await ensureSchema();
     const body = await request.json();
     const items = Array.isArray(body.items) ? body.items : [];
+    const additionalCharges = Array.isArray(body.additional_charges) ? body.additional_charges : [];
 
     if (!body.party_name || !body.consignor_id || !body.invoice_date) {
       return NextResponse.json(
@@ -46,7 +51,7 @@ export async function POST(request: Request) {
     const { rows } = await sql`
       INSERT INTO invoices (
         id, invoice_no, invoice_date, party_name, consignor_id, gst_percentage, remarks,
-        items, total_amount, gst_amount, net_amount, status
+        items, additional_charges, total_amount, gst_amount, net_amount, status
       )
       VALUES (
         ${id},
@@ -57,6 +62,7 @@ export async function POST(request: Request) {
         ${Number(body.gst_percentage) || 0},
         ${body.remarks || ''},
         ${JSON.stringify(items)}::jsonb,
+        ${JSON.stringify(additionalCharges)}::jsonb,
         ${Number(body.total_amount) || 0},
         ${Number(body.gst_amount) || 0},
         ${Number(body.net_amount) || 0},

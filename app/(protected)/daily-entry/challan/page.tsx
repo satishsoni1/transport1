@@ -31,6 +31,8 @@ interface ChallanLR {
   lr_date: string;
   city: string;
   consignee: string;
+  consignor?: string;
+  invoice_no?: string;
   packages: number;
   freight: number;
   status: 'to_pay' | 'paid' | 'tbb';
@@ -44,8 +46,10 @@ interface LREntryApi {
   id: number;
   lr_no: string;
   lr_date: string;
+  consignor_id: number;
   consignee_id: number;
   to_city: string;
+  invoice_no?: string;
   freight: number;
   status: 'to_pay' | 'paid' | 'tbb';
   remarks?: string;
@@ -55,6 +59,11 @@ interface LREntryApi {
 }
 
 interface Consignee {
+  id: number;
+  name: string;
+}
+
+interface Consignor {
   id: number;
   name: string;
 }
@@ -132,6 +141,7 @@ export default function ChallanPage() {
     owner_name: '',
     eway_no: '',
     engine_reading: '0',
+    end_reading: '0',
     short_reading: '0',
     rate_per_km: '0',
     reading_total: '0',
@@ -153,6 +163,10 @@ export default function ChallanPage() {
   );
   const { data: consignees = [] } = useSWR<Consignee[]>(
     '/api/masters/consignees',
+    apiClient.get
+  );
+  const { data: consignors = [] } = useSWR<Consignor[]>(
+    '/api/masters/consignors',
     apiClient.get
   );
   const { data: cities = [] } = useSWR<City[]>(
@@ -182,14 +196,17 @@ export default function ChallanPage() {
   );
 
   useEffect(() => {
-    const total =
-      (parseFloat(formData.short_reading) || 0) * (parseFloat(formData.rate_per_km) || 0);
+    const startReading = parseFloat(formData.engine_reading) || 0;
+    const endReading = parseFloat(formData.end_reading) || 0;
+    const shortReading = Math.max(0, endReading - startReading);
+    const total = shortReading * (parseFloat(formData.rate_per_km) || 0);
     setFormData((prev) => {
-      const next = total.toFixed(2);
-      if (prev.reading_total === next) return prev;
-      return { ...prev, reading_total: next };
+      const nextShort = shortReading.toFixed(2);
+      const nextTotal = total.toFixed(2);
+      if (prev.short_reading === nextShort && prev.reading_total === nextTotal) return prev;
+      return { ...prev, short_reading: nextShort, reading_total: nextTotal };
     });
-  }, [formData.short_reading, formData.rate_per_km]);
+  }, [formData.engine_reading, formData.end_reading, formData.rate_per_km]);
 
   useEffect(() => {
     const selectedVehicle = vehicles.find(
@@ -203,6 +220,7 @@ export default function ChallanPage() {
 
     setFormData((prev) => ({
       ...prev,
+      truck_no: mappedDriver?.vehicle_no || prev.truck_no,
       owner_name:
         selectedVehicle?.owner_name !== undefined && selectedVehicle.owner_name !== ''
           ? selectedVehicle.owner_name
@@ -235,6 +253,9 @@ export default function ChallanPage() {
     const consigneeName =
       consignees.find((item) => item.id === lrEntry.consignee_id)?.name ||
       `Consignee #${lrEntry.consignee_id}`;
+    const consignorName =
+      consignors.find((item) => item.id === lrEntry.consignor_id)?.name ||
+      `Consignor #${lrEntry.consignor_id}`;
     const packages = (lrEntry.goods_items || []).reduce(
       (sum, item) => sum + (Number(item.qty) || 0),
       0
@@ -250,6 +271,8 @@ export default function ChallanPage() {
       lr_date: lrEntry.lr_date,
       city: lrEntry.to_city || '-',
       consignee: consigneeName,
+      consignor: consignorName,
+      invoice_no: lrEntry.invoice_no || '',
       packages,
       freight: Number(lrEntry.freight) || 0,
       status: lrEntry.status,
@@ -262,7 +285,7 @@ export default function ChallanPage() {
     setSelectedLRs([...selectedLRs, newLR]);
     setNewLRInput('');
     toast.success('L.R. added to challan');
-  }, [newLRInput, selectedLRs, lrEntries, consignees]);
+  }, [newLRInput, selectedLRs, lrEntries, consignees, consignors]);
 
   const removeLRFromChallan = useCallback(
     (index: number) => {
@@ -297,6 +320,9 @@ export default function ChallanPage() {
       owner_name: challan.owner_name || '',
       eway_no: challan.eway_no || '',
       engine_reading: String((challan as any).engine_reading ?? 0),
+      end_reading: String(
+        (Number((challan as any).engine_reading) || 0) + (Number((challan as any).short_reading) || 0)
+      ),
       short_reading: String((challan as any).short_reading ?? 0),
       rate_per_km: String((challan as any).rate_per_km ?? 0),
       reading_total: String((challan as any).reading_total ?? 0),
@@ -311,6 +337,8 @@ export default function ChallanPage() {
         lr_date: item.lr_date || '',
         city: item.city || '',
         consignee: item.consignee || '',
+        consignor: item.consignor || '',
+        invoice_no: item.invoice_no || '',
         packages: Number(item.packages) || 0,
         freight: Number(item.freight) || 0,
         remarks: item.remarks || '',
@@ -528,6 +556,12 @@ export default function ChallanPage() {
                         driver_license_no: selected?.license_no || formData.driver_license_no,
                         driver_address: selected?.address || formData.driver_address,
                         truck_no: selected?.vehicle_no || formData.truck_no,
+                        owner_name:
+                          vehicles.find(
+                            (item) =>
+                              item.vehicle_no.toLowerCase() ===
+                              String(selected?.vehicle_no || '').trim().toLowerCase()
+                          )?.owner_name || formData.owner_name,
                       });
                     }}
                     placeholder="Driver name"
@@ -637,19 +671,23 @@ export default function ChallanPage() {
               </div>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
                 <div>
-                  <Label htmlFor="engine_reading">Engine Reading</Label>
+                  <Label htmlFor="engine_reading">Start Reading</Label>
                   <Input id="engine_reading" type="number" value={formData.engine_reading} onChange={(e) => setFormData({ ...formData, engine_reading: e.target.value })} />
                 </div>
                 <div>
+                  <Label htmlFor="end_reading">End Reading</Label>
+                  <Input id="end_reading" type="number" value={formData.end_reading} onChange={(e) => setFormData({ ...formData, end_reading: e.target.value })} />
+                </div>
+                <div>
                   <Label htmlFor="short_reading">Short Reading</Label>
-                  <Input id="short_reading" type="number" value={formData.short_reading} onChange={(e) => setFormData({ ...formData, short_reading: e.target.value })} />
+                  <Input id="short_reading" type="number" value={formData.short_reading} readOnly />
                 </div>
                 <div>
                   <Label htmlFor="rate_per_km">Rate/KM</Label>
                   <Input id="rate_per_km" type="number" value={formData.rate_per_km} onChange={(e) => setFormData({ ...formData, rate_per_km: e.target.value })} />
                 </div>
                 <div>
-                  <Label htmlFor="reading_total">Total</Label>
+                  <Label htmlFor="reading_total">Amount</Label>
                   <Input id="reading_total" value={formData.reading_total} readOnly />
                 </div>
                 <div>

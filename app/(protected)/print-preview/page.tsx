@@ -51,6 +51,7 @@ interface Invoice {
   party_name: string;
   consignor_id?: number;
   items: any[];
+  additional_charges?: any[];
   total_amount: number;
   gst_amount: number;
   net_amount: number;

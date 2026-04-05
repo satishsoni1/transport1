@@ -90,19 +90,6 @@ interface City {
   city_name: string;
 }
 
-interface Driver {
-  id: number;
-  driver_name: string;
-  mobile: string;
-}
-
-interface Vehicle {
-  id: number;
-  vehicle_no: string;
-  owner_name: string;
-  vehicle_type: string;
-}
-
 interface GoodsTypeMaster {
   id: number;
   type_name: string;
@@ -230,14 +217,6 @@ export default function LREntryPage() {
     apiClient.get
   );
   const { data: cities = [] } = useSWR<City[]>('/api/masters/cities', apiClient.get);
-  const { data: drivers = [] } = useSWR<Driver[]>(
-    '/api/masters/drivers',
-    apiClient.get
-  );
-  const { data: vehicles = [] } = useSWR<Vehicle[]>(
-    '/api/masters/vehicles',
-    apiClient.get
-  );
   const { data: settings } = useSWR<AdminSettings>('/api/admin/settings', apiClient.get);
   const { data: goodsTypes = [] } = useSWR<GoodsTypeMaster[]>(
     '/api/masters/goods-types',
@@ -545,9 +524,9 @@ export default function LREntryPage() {
         advance: String(entry.advance ?? 0),
         invoice_no: entry.invoice_no || '',
         status: entry.status || 'to_pay',
-        truck_no: entry.truck_no || '',
-        driver_name: entry.driver_name || '',
-        driver_mobile: entry.driver_mobile || '',
+      truck_no: '',
+      driver_name: '',
+      driver_mobile: '',
         eway_no: entry.eway_no || '',
         remarks: entry.remarks || '',
         return_status: entry.return_status || 'normal',
@@ -654,9 +633,9 @@ export default function LREntryPage() {
         lr_charge: parseFloat(formData.lr_charge) || 0,
         advance: parseFloat(formData.advance) || 0,
         invoice_no: invoiceNo,
-        truck_no: formData.truck_no,
-        driver_name: formData.driver_name,
-        driver_mobile: formData.driver_mobile,
+        truck_no: '',
+        driver_name: '',
+        driver_mobile: '',
         eway_no: formData.eway_no,
         remarks: formData.remarks,
         return_status: formData.return_status,
@@ -668,9 +647,13 @@ export default function LREntryPage() {
 
       try {
         if (editingId) {
-          await apiClient.put(`/api/daily-entry/lr-entries/${editingId}`, payload);
+          const updated = await apiClient.put<LREntry>(
+            `/api/daily-entry/lr-entries/${editingId}`,
+            payload
+          );
           toast.success('L.R. updated successfully');
           mutateLrEntries();
+          handlePrint(updated);
           setActiveTab('list');
           return;
         }
@@ -1010,7 +993,7 @@ export default function LREntryPage() {
               <div className="grid grid-cols-7 gap-2 text-xs font-semibold text-muted-foreground">
                 <div>Qty *</div>
                 <div>Goods Name *</div>
-                <div>Invoice Type *</div>
+                <div>Goods Type *</div>
                 <div>Weight (Kg) *</div>
                 <div>Rate *</div>
                 <div>Amount</div>
@@ -1035,7 +1018,7 @@ export default function LREntryPage() {
                 />
                 <Input
                   ref={natureInputRef}
-                  placeholder="Invoice type"
+                  placeholder="Goods type"
                   list="lr-goods-nature-options"
                   value={currentItem.nature}
                   onKeyDown={(e) => handleGoodsFieldEnter(e, 'nature')}
@@ -1080,7 +1063,7 @@ export default function LREntryPage() {
                       <TableHead className="w-16">Row</TableHead>
                       <TableHead>Qty</TableHead>
                       <TableHead>Goods Details</TableHead>
-                      <TableHead>Invoice Type</TableHead>
+                      <TableHead>Goods Type</TableHead>
                       <TableHead>Weight</TableHead>
                       <TableHead>Rate</TableHead>
                       <TableHead>Amount</TableHead>
@@ -1088,34 +1071,35 @@ export default function LREntryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Array.from({ length: MAX_GOODS_ROWS }).map((_, idx) => {
-                      const item = goodsItems[idx];
-                      return (
+                    {goodsItems.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
+                          No goods rows added yet
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      goodsItems.map((item, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="font-medium">{idx + 1}</TableCell>
-                          <TableCell>{item?.qty ?? ''}</TableCell>
-                          <TableCell>{item?.type ?? ''}</TableCell>
-                          <TableCell>{item?.nature ?? ''}</TableCell>
-                          <TableCell>{item?.weight_kg ?? ''}</TableCell>
-                          <TableCell>{item ? `₹${item.rate.toFixed(2)}` : ''}</TableCell>
-                          <TableCell>{item ? `₹${item.amount.toFixed(2)}` : ''}</TableCell>
+                          <TableCell>{item.qty}</TableCell>
+                          <TableCell>{item.type}</TableCell>
+                          <TableCell>{item.nature}</TableCell>
+                          <TableCell>{item.weight_kg}</TableCell>
+                          <TableCell>{`₹${item.rate.toFixed(2)}`}</TableCell>
+                          <TableCell>{`₹${item.amount.toFixed(2)}`}</TableCell>
                           <TableCell>
-                            {item ? (
-                              <Button size="sm" variant="ghost" onClick={() => removeGoodsItem(idx)}>
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Empty</span>
-                            )}
+                            <Button size="sm" variant="ghost" onClick={() => removeGoodsItem(idx)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
               <p className="text-xs text-muted-foreground">
-                Fixed 5 rows only. If more goods rows are needed, create a new LR.
+                Rows will appear only after adding them. Maximum 5 goods rows are allowed in one LR.
               </p>
             </CardContent>
           </Card>
@@ -1147,57 +1131,6 @@ export default function LREntryPage() {
                     readOnly
                     className="bg-slate-900 font-semibold text-white"
                   />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="truck_no">Vehicle Number</Label>
-                  <Input
-                    id="truck_no"
-                    list="lr-vehicle-options"
-                    value={formData.truck_no}
-                    onChange={(e) => {
-                      const value = e.target.value.toUpperCase();
-                      const selected = vehicles.find((item) => item.vehicle_no.toLowerCase() === value.trim().toLowerCase());
-                      setFormData({ ...formData, truck_no: selected?.vehicle_no || value });
-                    }}
-                    placeholder="Select vehicle number"
-                  />
-                  <datalist id="lr-vehicle-options">
-                    {vehicles.map((vehicle) => (
-                      <option key={vehicle.id} value={vehicle.vehicle_no} label={`${vehicle.owner_name || '-'}${vehicle.vehicle_type ? ` | ${vehicle.vehicle_type}` : ''}`} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <Label htmlFor="driver_name">Driver Name</Label>
-                  <Input
-                    id="driver_name"
-                    list="lr-driver-options"
-                    value={formData.driver_name}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      const selected = drivers.find((item) => item.driver_name.toLowerCase() === value.trim().toLowerCase());
-                      setFormData({ ...formData, driver_name: value, driver_mobile: selected?.mobile || formData.driver_mobile });
-                    }}
-                    placeholder="Select driver name"
-                  />
-                  <datalist id="lr-driver-options">
-                    {drivers.map((driver) => (
-                      <option key={driver.id} value={driver.driver_name} label={driver.mobile} />
-                    ))}
-                  </datalist>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-3">
-                <div>
-                  <Label htmlFor="driver_mobile">Driver Mobile</Label>
-                  <Input id="driver_mobile" value={formData.driver_mobile} onChange={(e) => setFormData({ ...formData, driver_mobile: e.target.value })} />
                 </div>
               </div>
             </CardContent>

@@ -63,6 +63,11 @@ export interface InvoicePrintData {
   party_name: string;
   party_name_mr?: string;
   items: any[];
+  additional_charges?: Array<{
+    charge_name?: string;
+    remark?: string;
+    amount?: number;
+  }>;
   total_amount: number;
   gst_amount: number;
   net_amount: number;
@@ -221,11 +226,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
   const transporterQr = company.transporter_qr_url || '';
 
   const cityToMr = data.to_city_mr || data.consignee_city_mr || '';
-  const fixedRows = 5;
   const rows = [...(data.goods_items || [])];
-  while (rows.length < fixedRows) {
-    rows.push({});
-  }
 
   return `
   <!DOCTYPE html>
@@ -337,13 +338,27 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         margin-bottom: 6px;
       }
       .lr-sheet .lr-box .kv.lr-number-row {
-        grid-template-columns: 44px 8px 1fr;
+        grid-template-columns: 44px 8px 1fr 36px;
         align-items: center;
+        column-gap: 4px;
       }
       .lr-sheet .lr-box .lr-number-value {
         font-size: 13px;
         font-weight: 800;
         letter-spacing: 0.2px;
+      }
+      .lr-sheet .lr-box .lr-mini-qr {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .lr-sheet .lr-box .lr-mini-qr img {
+        width: 32px;
+        height: 32px;
+        border: 1px solid #222;
+        object-fit: contain;
+        padding: 1px;
+        background: #fff;
       }
       .lr-sheet .route-strip {
         display: grid;
@@ -471,15 +486,6 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         text-align: right;
         padding-right: 5px;
       }
-      .lr-sheet .goods-table .grand-total-cell {
-        text-align: left;
-        padding-left: 5px;
-      }
-      .lr-sheet .goods-table .grand-total-cell .amount {
-        float: right;
-        font-size: 16px;
-        font-weight: 800;
-      }
       .lr-sheet .goods-table .words-cell {
         text-align: left;
         padding-left: 5px;
@@ -544,8 +550,19 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         line-height: 1.1;
       }
       .lr-sheet .freight-type-value {
-        font-size: 18px;
+        font-size: 21px;
         font-weight: 800;
+      }
+      .lr-sheet .grand-total-label {
+        text-align: center;
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .lr-sheet .grand-total-value {
+        font-size: 16px;
+        font-weight: 800;
+        text-align: right;
+        padding-right: 5px;
       }
     </style>
   </head>
@@ -579,7 +596,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
           <div class="party-mr">${escapeHtml(data.consignee_name_mr || '-')}</div>
         </div>
         <div class="lr-box">
-          <div class="kv lr-number-row"><span>LR.No.</span><span>:</span><span class="lr-number-value">${escapeHtml(data.lr_no)}</span></div>
+          <div class="kv lr-number-row"><span>LR.No.</span><span>:</span><span class="lr-number-value">${escapeHtml(data.lr_no)}</span><span class="lr-mini-qr"><img src="${lrQr}" alt="lr qr" /></span></div>
           <div class="kv"><span>Date</span><span>:</span><span>${escapeHtml(new Date(data.lr_date).toLocaleDateString('en-IN'))}</span></div>
           <div class="kv"><span>Inv. No.</span><span>:</span><span>${escapeHtml(data.invoice_no || '-')}</span></div>
         </div>
@@ -645,10 +662,10 @@ export function generateLRPrintHTML(data: LRPrintData): string {
             </tr>
             <tr class="amount-row">
               <td></td>
-              <td></td>
-              <td>${totalWeightMt.toFixed(2)} M.T.</td>
               <td class="center-cell freight-type-value">${escapeHtml(freightTypeLabel.replace('To Pay', 'ToPay'))}</td>
-              <td class="grand-total-cell">GRAND TOTAL : <span class="amount">${Number(data.balance || payableAmount).toFixed(2)}</span></td>
+              <td>${totalWeightMt.toFixed(2)} M.T.</td>
+              <td class="grand-total-label">GRAND TOTAL</td>
+              <td class="grand-total-value">${Number(data.balance || payableAmount).toFixed(2)}</td>
             </tr>
             <tr class="words-row">
               <td colspan="5" class="words-cell">AMOUNT IN WORDS : ${escapeHtml(amountWords)} Only</td>
@@ -664,13 +681,6 @@ export function generateLRPrintHTML(data: LRPrintData): string {
                       <div>SCAN QR</div>
                     </div>
                   </div>` : ''}
-                  <div class="qr-box">
-                    <img src="${lrQr}" alt="lr qr" />
-                    <div class="qr-copy">
-                      <div>LR QR</div>
-                      <div>${escapeHtml(data.lr_no)}</div>
-                    </div>
-                  </div>
                 </div>
               </td>
               <td colspan="2" class="remark-cell">${escapeHtml(data.return_remark || data.remarks || '')}</td>
@@ -694,6 +704,7 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
   const resolvedFormat = data.format || company.invoice_print_format || 'classic';
   const amountInWords = numberToWords(Number(data.net_amount || 0));
   const invoiceRows = (data.items || []).length ? data.items : [{}];
+  const additionalCharges = data.additional_charges || [];
   return `
   <!DOCTYPE html>
   <html>
@@ -708,6 +719,25 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
         min-height: calc(297mm - 16mm);
         border: 1.4px solid #222;
         padding: 4mm;
+      }
+      .invoice-sheet .brand-head {
+        display: grid;
+        grid-template-columns: 76px 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+      .invoice-sheet .logo-box {
+        border: 1px solid #222;
+        min-height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px;
+      }
+      .invoice-sheet .logo-box img {
+        max-width: 64px;
+        max-height: 54px;
+        object-fit: contain;
       }
       .invoice-sheet .top-note {
         display: flex;
@@ -805,6 +835,9 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
         padding-left: 6px;
         font-weight: 700;
       }
+      .invoice-sheet .items-table tr.charge-row td {
+        font-weight: 700;
+      }
       .invoice-sheet .invoice-footer {
         border: 1px solid #222;
         border-top: 0;
@@ -868,9 +901,16 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
   </head>
   <body>
     <div class="sheet invoice-sheet">
-      <div class="top-note">
-        <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
-        <div class="jurisdiction">Subject to Akola Jurisdiction Only .</div>
+      <div class="brand-head">
+        <div class="logo-box">
+          ${company.logo_url ? `<img src="${company.logo_url}" alt="logo" />` : ''}
+        </div>
+        <div>
+          <div class="top-note">
+            <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
+            <div class="jurisdiction">Subject to Akola Jurisdiction Only .</div>
+          </div>
+        </div>
       </div>
       <div class="company-lines">
         <div class="line">${escapeHtml(company.address || '')}</div>
@@ -918,6 +958,22 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
                 <td>${escapeHtml(item.qty ?? '')}</td>
                 <td>${Number(item.amount || 0).toFixed(2)}</td>
                 <td class="party-col">${escapeHtml(item.consignee || item.description || '')}</td>
+              </tr>
+            `
+            )
+            .join('')}
+          ${additionalCharges
+            .map(
+              (charge, idx) => `
+              <tr class="charge-row">
+                <td>${invoiceRows.length + idx + 1}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>${escapeHtml(charge.remark || '')}</td>
+                <td>${Number(charge.amount || 0).toFixed(2)}</td>
+                <td class="party-col">${escapeHtml(charge.charge_name || 'Additional Charge')}</td>
               </tr>
             `
             )
@@ -980,6 +1036,26 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
         border: 1.4px solid #222;
         padding: 4mm;
       }
+      .challan-sheet .brand-head {
+        display: grid;
+        grid-template-columns: 84px 1fr;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      .challan-sheet .logo-box {
+        border: 1px solid #222;
+        min-height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px;
+      }
+      .challan-sheet .logo-box img {
+        max-width: 72px;
+        max-height: 60px;
+        object-fit: contain;
+      }
       .challan-sheet .top-note {
         text-align: center;
         font-size: 12px;
@@ -1011,6 +1087,14 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
         border-bottom: 1px solid #222;
         padding: 6px 0;
         margin: 6px 0 0;
+      }
+      .challan-sheet .challan-info {
+        display: flex;
+        justify-content: flex-end;
+        gap: 18px;
+        margin: 4px 0 6px;
+        font-size: 11px;
+        font-weight: 700;
       }
       .challan-sheet .meta-grid {
         display: grid;
@@ -1046,6 +1130,12 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
         font-weight: 800;
       }
       .challan-sheet td.party {
+        text-align: left;
+        padding-left: 6px;
+        font-weight: 700;
+      }
+      .challan-sheet td.cons-name,
+      .challan-sheet td.consgr-name {
         text-align: left;
         padding-left: 6px;
         font-weight: 700;
@@ -1107,12 +1197,24 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
   </head>
   <body>
     <div class="sheet challan-sheet">
-      <div class="top-note">Subject to AKOLA Jurisdiction Only .</div>
-      <div class="title">GOODS DESPATCH MEMO</div>
-      <div class="transport">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
-      <div class="company-line">${escapeHtml(company.address || '')}</div>
-      <div class="company-line">GST No. : ${escapeHtml(company.gst_no || '-')}</div>
-      <div class="company-line">Contact No.:${escapeHtml(company.company_phone || '')}${company.company_email ? ` Email :${escapeHtml(company.company_email)}` : ''}</div>
+      <div class="brand-head">
+        <div class="logo-box">
+          ${company.logo_url ? `<img src="${company.logo_url}" alt="logo" />` : ''}
+        </div>
+        <div>
+          <div class="top-note">Subject to AKOLA Jurisdiction Only .</div>
+          <div class="title">GOODS DESPATCH MEMO</div>
+          <div class="transport">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
+          <div class="company-line">${escapeHtml(company.address || '')}</div>
+          <div class="company-line">GST No. : ${escapeHtml(company.gst_no || '-')}</div>
+          <div class="company-line">Contact No.:${escapeHtml(company.company_phone || '')}${company.company_email ? ` Email :${escapeHtml(company.company_email)}` : ''}</div>
+        </div>
+      </div>
+      <div class="challan-info">
+        <div>CH.No. : ${escapeHtml(data.challan_no || '-')}</div>
+        <div>Date : ${escapeHtml(new Date(data.challan_date).toLocaleDateString('en-IN'))}</div>
+        <div>Time : ${escapeHtml(nowTime)}</div>
+      </div>
 
       <div class="meta-head">
         <div class="meta-grid">
@@ -1134,12 +1236,14 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
       <table>
         <thead>
           <tr>
-            <th style="width:8%;">Sr.</th>
-            <th style="width:18%;">कंपनी बिल्टी नं.</th>
-            <th>पार्टीचे नाव</th>
-            <th style="width:14%;">भाडे</th>
-            <th style="width:16%;">गाव</th>
-            <th style="width:12%;">बॉक्स</th>
+            <th style="width:6%;">Sr.</th>
+            <th style="width:13%;">City</th>
+            <th style="width:18%;">Consignee Name</th>
+            <th style="width:14%;">Bilti / LR No.</th>
+            <th style="width:12%;">Invoice No.</th>
+            <th style="width:8%;">Qty</th>
+            <th style="width:11%;">Freight</th>
+            <th>Consigner</th>
           </tr>
         </thead>
         <tbody>
@@ -1148,11 +1252,13 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
               (item, idx) => `
               <tr>
                 <td>${idx + 1}</td>
-                <td>${escapeHtml(item.lr_no || '')}</td>
-                <td class="party">${escapeHtml(item.consignee || item.party_name || '')}</td>
-                <td>${Number(item.freight || 0).toFixed(2)}</td>
                 <td>${escapeHtml(item.city || item.to_city || '')}</td>
+                <td class="cons-name">${escapeHtml(item.consignee || item.party_name || '')}</td>
+                <td>${escapeHtml(item.lr_no || '')}</td>
+                <td>${escapeHtml(item.invoice_no || '')}</td>
                 <td>${escapeHtml(item.packages ?? '')}</td>
+                <td>${Number(item.freight || 0).toFixed(2)}</td>
+                <td class="consgr-name">${escapeHtml(item.consignor || '')}</td>
               </tr>
             `
             )
