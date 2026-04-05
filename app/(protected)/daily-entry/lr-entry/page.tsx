@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, Printer, FileImage } from 'lucide-react';
+import { Plus, Trash2, Edit2, Printer, FileImage,ChevronLeft, ChevronRight } from 'lucide-react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 
@@ -827,8 +827,26 @@ export default function LREntryPage() {
       }
     }
   }, []);
+// Function to handle smooth button scrolling
+const scrollTable = useCallback((direction: 'left' | 'right') => {
+  if (!tableScrollRef.current) return;
 
-  // Sync width of dummy container with actual table using ResizeObserver
+  const container = tableScrollRef.current;
+  
+  // Scroll by 400px, or half the visible width of the table (whichever is larger)
+  const scrollAmount = Math.max(container.clientWidth / 2, 400); 
+  const currentScroll = container.scrollLeft;
+
+  const targetLeft = direction === 'left' 
+    ? currentScroll - scrollAmount 
+    : currentScroll + scrollAmount;
+
+  // Use scrollTo instead of scrollBy for better browser support
+  container.scrollTo({
+    left: targetLeft,
+    behavior: 'smooth',
+  });
+}, []);
   // Sync width of dummy container with actual table using ResizeObserver
   useEffect(() => {
     if (activeTab !== 'list') return;
@@ -1497,23 +1515,41 @@ export default function LREntryPage() {
               </Button>
             </div>
           ) : null}
-
+{/* Scroll Buttons */}
+<div className="flex justify-end gap-2 mb-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              onClick={() => scrollTable('left')}
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" /> Left
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              onClick={() => scrollTable('right')}
+            >
+              Right <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
           {/* 1. Dummy Top Scrollbar */}
           <div
             ref={topScrollRef}
             className="overflow-x-auto rounded-t-lg border-x border-t bg-white [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-thumb]:rounded-full"
-            style={{ scrollbarWidth: 'auto', scrollbarColor: '#94a3b8 #f1f5f9' }}
+            style={{ scrollbarWidth: 'auto', scrollbarColor: '#94a3b8rgb(68, 71, 73)' }}
             onScroll={handleTopScroll}
           >
             {/* Added pt-[1px] to ensure the browser recognizes height and renders the scrollbar */}
             <div style={{ width: `${tableWidth}px` }} className="h-[1px] pt-[1px]" />
           </div>
           
-
           {/* 2. Actual Table Wrapper */}
           <div 
             ref={tableScrollRef}
-            className="overflow-x-auto rounded-b-lg border bg-white [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-thumb]:rounded-full"
+            // The magic fix: [&>div]:overflow-visible prevents Shadcn from trapping the scroll
+            className="overflow-x-auto rounded-b-lg border bg-white [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-thumb]:rounded-full [&>div]:overflow-visible"
             style={{ scrollbarWidth: 'auto', scrollbarColor: '#94a3b8 #f1f5f9' }}
             onScroll={handleTableScroll}
           >
@@ -1552,6 +1588,9 @@ export default function LREntryPage() {
                       !Number.isNaN(new Date(ch.challan_date).getTime())
                         ? new Date(ch.challan_date).toLocaleDateString('en-IN')
                         : '-';
+                        // 1. Get the full names
+                    const consignorName = consignors.find((item) => item.id === entry.consignor_id)?.name || entry.from_city || '';
+                    const consigneeName = consignees.find((item) => item.id === entry.consignee_id)?.name || entry.to_city || '';
                     return (
                       <TableRow key={entry.id}>
                         <TableCell className="pr-0">
@@ -1569,11 +1608,13 @@ export default function LREntryPage() {
                         <TableCell className="whitespace-nowrap">
                           {new Date(entry.lr_date).toLocaleDateString()}
                         </TableCell>
-                        <TableCell>
-                          {consignors.find((item) => item.id === entry.consignor_id)?.name || entry.from_city}
+                        
+                        <TableCell title={consignorName}>
+                          {consignorName.length > 15 ? `${consignorName.slice(0, 15)}...` : consignorName}
                         </TableCell>
-                        <TableCell>
-                          {consignees.find((item) => item.id === entry.consignee_id)?.name || entry.to_city}
+                        
+                        <TableCell title={consigneeName}>
+                          {consigneeName.length > 15 ? `${consigneeName.slice(0, 15)}...` : consigneeName}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{ch?.challan_no ?? '-'}</TableCell>
                         <TableCell className="whitespace-nowrap">{chDate}</TableCell>
