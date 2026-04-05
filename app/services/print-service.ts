@@ -1508,6 +1508,45 @@ export function printImageDocument(title: string, imageUrl: string): void {
   printWindow.document.close();
 }
 
+/** Print one or more POD images in a single print dialog (one section per image, page break between). */
+export function printPodImagesBatch(items: { title: string; imageUrl: string }[]): void {
+  const list = items.filter((item) => item.imageUrl?.trim());
+  if (list.length === 0 || typeof window === 'undefined') return;
+
+  const printWindow = window.open('', '', 'height=700,width=900');
+  if (!printWindow) return;
+
+  const body = list
+    .map(
+      (item, idx) => `
+    <section class="pod-sheet" style="page-break-after: ${idx < list.length - 1 ? 'always' : 'auto'};">
+      <h2 style="font-size:13px;margin:0 0 10px;font-family:system-ui,sans-serif;">${escapeHtml(item.title)}</h2>
+      <div style="display:flex;align-items:center;justify-content:center;min-height:70vh;">
+        <img src="${item.imageUrl}" alt="${escapeHtml(item.title)}" style="max-width:100%;max-height:72vh;object-fit:contain;border:1px solid #222;" />
+      </div>
+    </section>`
+    )
+    .join('');
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>POD batch (${list.length})</title>
+        <style>
+          @page { size: A4 portrait; margin: 10mm; }
+          body { margin: 0; background: #fff; font-family: system-ui, sans-serif; }
+        </style>
+      </head>
+      <body>${body}
+        <script>
+          window.onload = function () { window.print(); };
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
 export async function downloadPDF(html: string, filename: string): Promise<void> {
   try {
     const response = await fetch('/api/export/pdf', {

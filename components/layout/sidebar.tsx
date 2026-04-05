@@ -49,7 +49,7 @@ const navItems: NavItem[] = [
     label: 'Reports & Analytics',
     href: '/reports',
     icon: <BarChart3 size={20} />,
-    requiredRoles: ['Admin', 'Accountant', 'Viewer'],
+    requiredRoles: ['Admin', 'Accountant', 'Viewer', 'Operator'],
   },
   {
     label: 'Print & Export',
@@ -89,9 +89,6 @@ export function Sidebar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [expandedItems, setExpandedItems] = useState<string[]>(['Daily Entry']);
-  const [hovered, setHovered] = useState(false);
-
-  const collapsed = !hovered;
 
   const handleLogout = () => {
     logout();
@@ -117,24 +114,19 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        'h-full overflow-y-auto border-r border-slate-700 bg-slate-900 text-slate-50 transition-all duration-200',
-        collapsed ? 'w-20' : 'w-64'
+        'h-full w-64 shrink-0 overflow-y-auto border-r border-slate-700 bg-slate-900 text-slate-50 transition-all duration-200'
       )}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       <div className="border-b border-slate-700 p-6">
         <Link href="/dashboard" className="block">
-          <h1 className={cn('font-bold', collapsed ? 'text-center text-sm' : 'text-xl')}>TRIMURTI</h1>
-          {!collapsed ? <p className="text-xs text-slate-400">Transport System</p> : null}
+          <h1 className="text-xl font-bold">TRIMURTI</h1>
+          <p className="text-xs text-slate-400">Transport System</p>
         </Link>
       </div>
 
       <div className="border-b border-slate-700 bg-slate-800 p-4">
-        <p className={cn('font-medium', collapsed ? 'text-center text-xs' : 'text-sm')}>
-          {collapsed ? user?.firstName?.[0] : `${user?.firstName} ${user?.lastName}`}
-        </p>
-        {!collapsed ? <p className="text-xs text-slate-400">{user?.role}</p> : null}
+        <p className="text-sm font-medium">{`${user?.firstName} ${user?.lastName}`}</p>
+        <p className="text-xs text-slate-400">{user?.role}</p>
       </div>
 
       <nav className="space-y-2 p-4">
@@ -147,17 +139,13 @@ export function Sidebar() {
 
           if (!hasSubmenu) {
             return (
-              <Link key={item.label} href={item.href || '#'} title={collapsed ? item.label : undefined}>
+              <Link key={item.label} href={item.href || '#'}>
                 <Button
                   variant={isActive ? 'default' : 'ghost'}
-                  className={cn(
-                    'w-full gap-3',
-                    collapsed ? 'justify-center px-2' : 'justify-start',
-                    isActive && 'bg-blue-600 hover:bg-blue-700'
-                  )}
+                  className={cn('w-full justify-start gap-3', isActive && 'bg-blue-600 hover:bg-blue-700')}
                 >
                   {item.icon}
-                  {!collapsed ? item.label : null}
+                  {item.label}
                 </Button>
               </Link>
             );
@@ -167,22 +155,16 @@ export function Sidebar() {
             <div key={item.label}>
               <button
                 onClick={() => toggleExpand(item.label)}
-                title={collapsed ? item.label : undefined}
-                className={cn(
-                  'flex w-full items-center rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-slate-700',
-                  collapsed ? 'justify-center' : 'justify-between gap-3'
-                )}
+                className="flex w-full items-center justify-between gap-3 rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-slate-700"
               >
                 <div className="flex items-center gap-3">
                   {item.icon}
-                  {!collapsed ? item.label : null}
+                  {item.label}
                 </div>
-                {!collapsed ? (
-                  <ChevronDown size={16} className={cn('transition-transform', isExpanded && 'rotate-180')} />
-                ) : null}
+                <ChevronDown size={16} className={cn('transition-transform', isExpanded && 'rotate-180')} />
               </button>
 
-              {!collapsed && isExpanded && item.submenu ? (
+              {isExpanded && item.submenu ? (
                 <div className="ml-4 mt-1 space-y-1 border-l border-slate-700 pl-4">
                   {item.submenu.map((subitem) => (
                     <Link key={subitem.label} href={subitem.href || '#'}>
@@ -207,14 +189,14 @@ export function Sidebar() {
       </nav>
 
       <div className="space-y-2 border-t border-slate-700 p-4">
-        <Link href="/settings/users" title={collapsed ? 'Settings' : undefined}>
-          <Button variant="ghost" className={cn('w-full gap-2', collapsed ? 'justify-center px-2' : 'justify-start')}>
+        <Link href="/settings/users">
+          <Button variant="ghost" className="w-full justify-start gap-2">
             <Settings size={18} />
-            {!collapsed ? 'Settings' : null}
+            Settings
           </Button>
         </Link>
-        <Button variant="destructive" className={cn('w-full', collapsed ? 'px-2' : '')} onClick={handleLogout}>
-          {collapsed ? '↩' : 'Logout'}
+        <Button variant="destructive" className="w-full" onClick={handleLogout}>
+          Logout
         </Button>
       </div>
     </div>
