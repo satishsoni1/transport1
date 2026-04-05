@@ -241,6 +241,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 
   const cityToMr = data.to_city_mr || data.consignee_city_mr || '';
   const rows = [...(data.goods_items || [])];
+  const fillerRowCount = Math.max(0, 4 - rows.length);
 
   return `
   <!DOCTYPE html>
@@ -426,6 +427,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         border-top: 0;
         border-bottom: 0;
         border-collapse: collapse;
+        table-layout: fixed;
       }
       .lr-sheet .goods-table th,
       .lr-sheet .goods-table td {
@@ -471,8 +473,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         vertical-align: top;
       }
       .lr-sheet .goods-table .stamp-wrap {
-        min-height: 86px;
-        height: 86px;
+        min-height: 98px;
+        height: 98px;
         display: grid;
         grid-template-rows: 24px 1fr;
       }
@@ -495,6 +497,10 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .goods-table .center-cell {
         text-align: center;
+      }
+      .lr-sheet .goods-table .charge-label {
+        text-align: right;
+        padding-right: 6px;
       }
       .lr-sheet .goods-table .value-cell {
         text-align: right;
@@ -563,21 +569,27 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         text-align: center;
         line-height: 1.1;
       }
+      .lr-sheet .sign-subtitle {
+        font-size: 7.4px;
+        font-weight: 600;
+        text-align: center;
+        line-height: 1;
+      }
       .lr-sheet .freight-type-value {
-        font-size: 21px;
-        font-weight: 800;
+        font-size: 24px;
+        font-weight: 900;
         background: #fef3c7;
         letter-spacing: 0.3px;
       }
       .lr-sheet .grand-total-label {
         text-align: center;
-        font-size: 11px;
-        font-weight: 800;
+        font-size: 13px;
+        font-weight: 900;
         background: #fef3c7;
       }
       .lr-sheet .grand-total-value {
-        font-size: 16px;
-        font-weight: 800;
+        font-size: 18px;
+        font-weight: 900;
         text-align: right;
         padding-right: 5px;
         background: #fde68a;
@@ -653,7 +665,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 	        <tbody>
 	          ${rows
 	            .map(
-	              (item, idx) => `
+	              (item) => `
 	              <tr>
 	                <td class="desc-cell">${escapeHtml(item.nature ?? item.description ?? '')}</td>
 	                <td>${item.qty ?? ''}</td>
@@ -665,6 +677,20 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 	            `
 	            )
 	            .join('')}
+            ${Array.from({ length: fillerRowCount })
+              .map(
+                () => `
+              <tr>
+                <td class="desc-cell"></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+            `
+              )
+              .join('')}
             <tr class="totals-row">
               <td rowspan="4" class="stamp-cell">
                 <div class="stamp-wrap">
@@ -675,7 +701,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
               <td>${totalQty}</td>
               <td>TOTAL</td>
               <td>${totalWeightKg} Kg.</td>
-              <td class="center-cell">LR. CHARGE</td>
+              <td class="charge-label">LR. CHARGE</td>
               <td class="value-cell">${Number(data.lr_charge || 0).toFixed(2)}</td>
             </tr>
             <tr class="amount-row">
@@ -689,6 +715,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
               <td colspan="5" class="words-cell">AMOUNT IN WORDS : ${escapeHtml(amountWords)} Only</td>
             </tr>
             <tr class="footer-row">
+              <td colspan="2" class="remark-cell">${escapeHtml(data.return_remark || data.remarks || '')}</td>
               <td colspan="2" class="qr-cell">
                 <div class="qr-strip">
                   ${transporterQr ? `
@@ -701,11 +728,11 @@ export function generateLRPrintHTML(data: LRPrintData): string {
                   </div>` : ''}
                 </div>
               </td>
-              <td colspan="2" class="remark-cell">${escapeHtml(data.return_remark || data.remarks || '')}</td>
               <td class="transport-cell">
                 <div class="sign-box">
                   ${company.signature_url ? `<img class="signature" src="${company.signature_url}" alt="signature" />` : ''}
                   <div class="sign-title">${escapeHtml(company.company_name || 'TRANSPORT')}</div>
+                  <div class="sign-subtitle">Authorised Signatory</div>
                 </div>
               </td>
             </tr>
@@ -1253,25 +1280,23 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
           <div class="company-line">Contact No.:${escapeHtml(company.company_phone || '')}${company.company_email ? ` Email :${escapeHtml(company.company_email)}` : ''}</div>
         </div>
       </div>
-      <div class="challan-info">
-        <div>CH.No. : ${escapeHtml(data.challan_no || '-')}</div>
-        <div>Date : ${escapeHtml(new Date(data.challan_date).toLocaleDateString('en-IN'))}</div>
-        <div>Time : ${escapeHtml(nowTime)}</div>
-      </div>
 
       <div class="meta-head">
         <div class="meta-grid">
           <div class="meta-item"><span class="label">Tpt Name</span><span>:</span><span>${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</span></div>
-          <div class="meta-item"><span class="label">Date</span><span>:</span><span>${escapeHtml(new Date(data.challan_date).toLocaleDateString('en-IN'))}</span></div>
+          <div class="meta-item"><span class="label">Driver</span><span>:</span><span>${escapeHtml(data.driver_name || '-')}</span></div>
           <div class="meta-item"><span class="label">CH.No.</span><span>:</span><span>${escapeHtml(data.challan_no || '-')}</span></div>
           <div class="meta-item"><span class="label">Owner</span><span>:</span><span>${escapeHtml(data.owner_name || '-')}</span></div>
-          <div class="meta-item"><span class="label">Driver</span><span>:</span><span>${escapeHtml(data.driver_name || '-')}</span></div>
+          <div class="meta-item"><span class="label">From</span><span>:</span><span>${escapeHtml(data.from_city || '-')}</span></div>
           <div class="meta-item"><span class="label">Mob No.</span><span>:</span><span>${escapeHtml(data.driver_mobile || '-')}</span></div>
           <div class="meta-item"><span class="label">MV.No.</span><span>:</span><span>${escapeHtml(data.truck_no || '-')}</span></div>
-          <div class="meta-item"><span class="label">From</span><span>:</span><span>${escapeHtml(data.from_city || '-')}</span></div>
           <div class="meta-item"><span class="label">To</span><span>:</span><span>${escapeHtml(data.to_city || '-')}</span></div>
+          <div class="meta-item"><span class="label">Date</span><span>:</span><span>${escapeHtml(new Date(data.challan_date).toLocaleDateString('en-IN'))}</span></div>
           <div class="meta-item"><span class="label">Eway No</span><span>:</span><span>${escapeHtml(data.eway_no || '-')}</span></div>
+          <div class="meta-item"></div>
           <div class="meta-item"><span class="label">Time</span><span>:</span><span>${escapeHtml(nowTime)}</span></div>
+          <div class="meta-item"></div>
+          <div class="meta-item"></div>
           <div class="meta-item"><span class="label">Page</span><span>:</span><span>1 / 1</span></div>
         </div>
       </div>

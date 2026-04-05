@@ -1199,14 +1199,15 @@ export default function LREntryPage() {
                 <TableHead>Consignor</TableHead>
                 <TableHead>Consignee</TableHead>
                 <TableHead>Freight</TableHead>
-                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>POD</TableHead>
                 <TableHead>Remark</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {lrEntries.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-4">No L.R. entries found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-4">No L.R. entries found</TableCell></TableRow>
               ) : (
                 lrEntries.map((entry) => (
                   <TableRow key={entry.id}>
@@ -1216,6 +1217,11 @@ export default function LREntryPage() {
                     <TableCell>{consignees.find((item) => item.id === entry.consignee_id)?.name || entry.to_city}</TableCell>
                     <TableCell>₹{entry.freight.toFixed(2)}</TableCell>
                     <TableCell>{freightTypeOptions.find((item) => item.value === entry.status)?.label || entry.status}</TableCell>
+                    <TableCell>
+                      <span className={`text-xs font-semibold ${entry.pod_received ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {entry.pod_received ? 'Received' : 'Pending'}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       {entry.return_status === 'returned' ? (
                         <div className="text-xs font-semibold text-red-600">

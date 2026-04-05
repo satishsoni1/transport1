@@ -38,11 +38,11 @@ export async function GET(request: Request) {
         )
         AND (
           ${dateFrom} = ''
-          OR invoice_date::date >= ${dateFrom}::date
+          OR invoice_date::date >= NULLIF(${dateFrom}, '')::date
         )
         AND (
           ${dateTo} = ''
-          OR invoice_date::date <= ${dateTo}::date
+          OR invoice_date::date <= NULLIF(${dateTo}, '')::date
         )
       ORDER BY invoice_date::date DESC, id DESC
       LIMIT 200

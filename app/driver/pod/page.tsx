@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Printer } from 'lucide-react';
+import { generateLRPrintHTML, printHTML } from '@/app/services/print-service';
+import { transliterateToMarathi } from '@/app/services/marathi';
 import { clearDriverSession, driverFetch, getDriverToken, getDriverUser, type DriverSessionUser } from '@/app/services/driver-session';
 
 interface DriverLR {
@@ -20,7 +23,52 @@ interface DriverLR {
   pod_received?: boolean;
   pod_image_url?: string;
   remarks?: string;
+  return_remark?: string;
   status?: string;
+}
+
+interface LrPrintEntry {
+  id: number;
+  lr_no: string;
+  lr_date: string;
+  consignor_id: number;
+  consignee_id: number;
+  from_city: string;
+  to_city: string;
+  delivery_address?: string;
+  freight: number;
+  hamali: number;
+  lr_charge: number;
+  advance: number;
+  balance: number;
+  invoice_no: string;
+  remarks?: string;
+  goods_items: any[];
+  status: 'to_pay' | 'paid' | 'tbb';
+}
+
+interface PartyMaster {
+  id: number;
+  name: string;
+  name_mr?: string;
+  address?: string;
+  city?: string;
+  city_mr?: string;
+  gst_no?: string;
+  mobile?: string;
+}
+
+interface AdminSettings {
+  company_name?: string;
+  company_email?: string;
+  company_phone?: string;
+  address?: string;
+  gst_no?: string;
+  logo_url?: string;
+  signature_url?: string;
+  transporter_qr_url?: string;
+  transporter_name_font?: string;
+  lr_print_format?: 'classic' | 'compact' | 'detailed';
 }
 
 function normalizeScanValue(value: string) {
@@ -148,6 +196,56 @@ export default function DriverPodPage() {
     setRemarks(lr.remarks || '');
   };
 
+  const handlePrint = useCallback(async () => {
+    if (!selectedLR) {
+      toast.error('Select LR first');
+      return;
+    }
+
+    try {
+      const [lrEntries, consignors, consignees, settings] = await Promise.all([
+        fetch('/api/daily-entry/lr-entries', { cache: 'no-store' }).then((res) => res.json()),
+        fetch('/api/masters/consignors', { cache: 'no-store' }).then((res) => res.json()),
+        fetch('/api/masters/consignees', { cache: 'no-store' }).then((res) => res.json()),
+        fetch('/api/admin/settings', { cache: 'no-store' }).then((res) => res.json()),
+      ]);
+
+      const lr = (lrEntries as LrPrintEntry[]).find((item) => item.lr_no === selectedLR.lr_no);
+      if (!lr) {
+        toast.error('Full LR details not found');
+        return;
+      }
+
+      const consignor = (consignors as PartyMaster[]).find((item) => item.id === lr.consignor_id);
+      const consignee = (consignees as PartyMaster[]).find((item) => item.id === lr.consignee_id);
+      const html = generateLRPrintHTML({
+        ...lr,
+        consignor: consignor?.name || '',
+        consignor_name_mr: consignor?.name_mr || transliterateToMarathi(consignor?.name || ''),
+        consignor_address: consignor?.address || '',
+        consignor_city: consignor?.city || '',
+        consignor_mobile: consignor?.mobile || '',
+        consignor_gst: consignor?.gst_no || '',
+        consignee: consignee?.name || '',
+        consignee_name_mr: consignee?.name_mr || transliterateToMarathi(consignee?.name || ''),
+        consignee_address: consignee?.address || '',
+        consignee_city: consignee?.city || '',
+        consignee_city_mr: consignee?.city_mr || transliterateToMarathi(consignee?.city || ''),
+        from_city_mr: transliterateToMarathi(lr.from_city || ''),
+        to_city_mr: consignee?.city_mr || transliterateToMarathi(lr.to_city || consignee?.city || ''),
+        consignee_mobile: consignee?.mobile || '',
+        consignee_gst: consignee?.gst_no || '',
+        freight_type: lr.status,
+        format: (settings as AdminSettings)?.lr_print_format || 'classic',
+        company: settings as AdminSettings,
+      });
+
+      printHTML(html);
+    } catch {
+      toast.error('Failed to print LR');
+    }
+  }, [selectedLR]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLR) {
@@ -264,6 +362,14 @@ export default function DriverPodPage() {
                   <div className={`mt-1 text-sm ${selectedLR?.id === lr.id ? 'text-slate-200' : 'text-slate-600'}`}>
                     {lr.from_city || '-'} to {lr.to_city || '-'}
                   </div>
+                  <div className={`mt-1 text-xs font-semibold uppercase ${selectedLR?.id === lr.id ? 'text-slate-300' : 'text-slate-500'}`}>
+                    Status: {lr.status || '-'}
+                  </div>
+                  {lr.remarks || lr.return_remark ? (
+                    <div className={`mt-1 text-xs ${selectedLR?.id === lr.id ? 'text-slate-300' : 'text-slate-500'}`}>
+                      Remarks: {lr.return_remark || lr.remarks}
+                    </div>
+                  ) : null}
                   <div className={`mt-1 text-xs ${selectedLR?.id === lr.id ? 'text-slate-300' : 'text-slate-500'}`}>
                     Delivery: {lr.delivery_address || '-'}
                   </div>
@@ -285,6 +391,21 @@ export default function DriverPodPage() {
                 </label>
                 <Input id="selected_lr" value={selectedLR?.lr_no || ''} readOnly className="h-11 rounded-xl bg-slate-50" />
               </div>
+              {selectedLR ? (
+                <div className="rounded-2xl border bg-slate-50 p-3 text-sm text-slate-700">
+                  <div><b>Status:</b> {selectedLR.status || '-'}</div>
+                  <div><b>Route:</b> {selectedLR.from_city || '-'} to {selectedLR.to_city || '-'}</div>
+                  <div><b>Remarks:</b> {selectedLR.return_remark || selectedLR.remarks || '-'}</div>
+                  <div><b>POD:</b> {selectedLR.pod_received ? 'Available' : 'Pending'}</div>
+                </div>
+              ) : null}
+              {selectedLR?.pod_image_url ? (
+                <img
+                  src={selectedLR.pod_image_url}
+                  alt={`POD ${selectedLR.lr_no}`}
+                  className="h-40 w-full rounded-2xl border object-cover"
+                />
+              ) : null}
               <div className="space-y-2">
                 <label htmlFor="pod_file" className="text-sm font-semibold text-slate-700">
                   POD Image
@@ -316,6 +437,10 @@ export default function DriverPodPage() {
               </div>
               <Button type="submit" className="h-11 w-full rounded-xl text-base font-semibold" disabled={submitting || !selectedLR}>
                 {submitting ? 'Uploading...' : 'Upload POD'}
+              </Button>
+              <Button type="button" variant="outline" className="h-11 w-full rounded-xl text-base font-semibold" disabled={!selectedLR} onClick={() => void handlePrint()}>
+                <Printer className="mr-2 h-4 w-4" />
+                Print Selected LR
               </Button>
             </form>
           </CardContent>

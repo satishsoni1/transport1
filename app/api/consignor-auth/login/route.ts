@@ -33,11 +33,29 @@ export async function POST(request: Request) {
 
     const consignor = rows[0];
     const passwordHash = hashConsignorPassword(password);
-    if (String(consignor.password_hash || '') !== passwordHash) {
+    const storedHash = String(consignor.password_hash || '').trim();
+    const storedLegacyPassword = String(consignor.password || '').trim();
+    const passwordMatches =
+      (storedHash && storedHash === passwordHash) ||
+      (!storedHash && storedLegacyPassword !== '' && storedLegacyPassword === password);
+
+    if (!passwordMatches) {
       return NextResponse.json(
         { success: false, error: 'Invalid consignor credentials' },
         { status: 401 }
       );
+    }
+
+    if (!storedHash && storedLegacyPassword === password) {
+      await sql`
+        UPDATE consignors
+        SET
+          password = '',
+          password_hash = ${passwordHash}
+        WHERE id = ${consignor.id}
+      `;
+      consignor.password = '';
+      consignor.password_hash = passwordHash;
     }
 
     const token = createConsignorToken(consignor);

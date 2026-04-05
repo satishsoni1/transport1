@@ -49,11 +49,11 @@ export async function GET(request: Request) {
         )
         AND (
           ${dateFrom} = ''
-          OR lr_entries.lr_date::date >= ${dateFrom}::date
+          OR lr_entries.lr_date::date >= NULLIF(${dateFrom}, '')::date
         )
         AND (
           ${dateTo} = ''
-          OR lr_entries.lr_date::date <= ${dateTo}::date
+          OR lr_entries.lr_date::date <= NULLIF(${dateTo}, '')::date
         )
         AND (
           ${status} = ''
