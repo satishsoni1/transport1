@@ -283,7 +283,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .transport-name {
         font-family: ${transporterNameFont}, 'Trebuchet MS', Arial, sans-serif;
-        font-size: 32px;
+        font-size: 24px;
         font-weight: 800;
         letter-spacing: 0;
         line-height: 0.96;
@@ -504,8 +504,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         text-align: center;
       }
       .lr-sheet .goods-table .charge-label {
-        text-align: right;
-        padding-right: 6px;
+        text-align: center;
+        // padding-right: 6px;
       }
       .lr-sheet .goods-table .value-cell {
         text-align: right;
@@ -565,7 +565,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .sign-box img.signature {
         max-width: 58px;
-        max-height: 14px;
+        max-height: 28px;
         object-fit: contain;
       }
       .lr-sheet .sign-title {
@@ -581,19 +581,19 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         line-height: 1;
       }
       .lr-sheet .freight-type-value {
-        font-size: 24px;
+        font-size: 13px !important;
         font-weight: 900;
         background: #fef3c7;
         letter-spacing: 0.3px;
       }
       .lr-sheet .grand-total-label {
         text-align: center;
-        font-size: 13px;
+        font-size: 13px !important;
         font-weight: 900;
         background: #fef3c7;
       }
       .lr-sheet .grand-total-value {
-        font-size: 18px;
+        font-size: 13px !important;
         font-weight: 900;
         text-align: right;
         padding-right: 5px;
@@ -748,7 +748,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
                 <div class="sign-box">
                   ${company.signature_url ? `<img class="signature" src="${company.signature_url}" alt="signature" />` : ''}
                   <div class="sign-title">${escapeHtml(company.company_name || 'TRANSPORT')}</div>
-                  <div class="sign-subtitle">Authorised Signatory</div>
+                  <!--div class="sign-subtitle">Authorised Signatory</div-->
                 </div>
               </td>
             </tr>

@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
       { label: 'L.R. Entry', href: '/daily-entry/lr-entry', icon: <Scroll size={18} /> },
       { label: 'Challan', href: '/daily-entry/challan', icon: <Truck size={18} /> },
       { label: 'Invoice', href: '/daily-entry/invoice', icon: <FileText size={18} /> },
-      { label: 'Monthly Billing', href: '/daily-entry/monthly-billing', icon: <DollarSign size={18} /> },
+      // { label: 'Monthly Billing', href: '/daily-entry/monthly-billing', icon: <DollarSign size={18} /> },
       { label: 'Receipt', href: '/daily-entry/receipt', icon: <DollarSign size={18} /> },
     ],
   },

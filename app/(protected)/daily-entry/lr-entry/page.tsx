@@ -169,6 +169,11 @@ export default function LREntryPage() {
   const weightInputRef = useRef<HTMLInputElement | null>(null);
   const rateInputRef = useRef<HTMLInputElement | null>(null);
 
+  // References and state for synced horizontal scrolling
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const [tableWidth, setTableWidth] = useState<number>(0);
+
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [consignorSearch, setConsignorSearch] = useState('');
@@ -633,7 +638,7 @@ export default function LREntryPage() {
       setEditingId(entry.id);
       setConsignorSearch(consignor?.name || '');
       setConsigneeSearch(consignee?.name || '');
-    setFormData({
+      setFormData({
         consignor_id: String(entry.consignor_id),
         consignee_id: String(entry.consignee_id),
         from_city: entry.from_city || '',
@@ -645,9 +650,9 @@ export default function LREntryPage() {
         advance: String(entry.advance ?? 0),
         invoice_no: entry.invoice_no || '',
         status: entry.status || 'to_pay',
-      truck_no: '',
-      driver_name: '',
-      driver_mobile: '',
+        truck_no: '',
+        driver_name: '',
+        driver_mobile: '',
         eway_no: entry.eway_no || '',
         remarks: entry.remarks || '',
         return_status: entry.return_status || 'normal',
@@ -784,7 +789,6 @@ export default function LREntryPage() {
         mutateLrEntries();
         handlePrint(created);
 
-        // Auto refresh to fresh new LR screen
         setActiveTab('form');
         resetForNew();
       } catch (error) {
@@ -806,6 +810,47 @@ export default function LREntryPage() {
       resetForNew,
     ]
   );
+
+  // Scroll Sync Logic
+  const handleTopScroll = useCallback(() => {
+    if (tableScrollRef.current && topScrollRef.current) {
+      if (tableScrollRef.current.scrollLeft !== topScrollRef.current.scrollLeft) {
+        tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+      }
+    }
+  }, []);
+
+  const handleTableScroll = useCallback(() => {
+    if (tableScrollRef.current && topScrollRef.current) {
+      if (topScrollRef.current.scrollLeft !== tableScrollRef.current.scrollLeft) {
+        topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+      }
+    }
+  }, []);
+
+  // Sync width of dummy container with actual table using ResizeObserver
+  // Sync width of dummy container with actual table using ResizeObserver
+  useEffect(() => {
+    if (activeTab !== 'list') return;
+
+    const tableContainer = tableScrollRef.current;
+    if (!tableContainer) return;
+
+    // Measure the exact scrollable width of the bottom wrapper
+    const updateWidth = () => setTableWidth(tableContainer.scrollWidth);
+    
+    updateWidth();
+
+    // Observe the actual table inside for size changes
+    const tableEl = tableContainer.querySelector('table');
+    if (!tableEl) return;
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(tableEl);
+
+    return () => observer.disconnect();
+  }, [activeTab, lrEntries]);
+
 
   if (!user) return null;
 
@@ -1453,7 +1498,25 @@ export default function LREntryPage() {
             </div>
           ) : null}
 
-          <div className="overflow-x-auto rounded-lg border bg-white">
+          {/* 1. Dummy Top Scrollbar */}
+          <div
+            ref={topScrollRef}
+            className="overflow-x-auto rounded-t-lg border-x border-t bg-white [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-thumb]:rounded-full"
+            style={{ scrollbarWidth: 'auto', scrollbarColor: '#94a3b8 #f1f5f9' }}
+            onScroll={handleTopScroll}
+          >
+            {/* Added pt-[1px] to ensure the browser recognizes height and renders the scrollbar */}
+            <div style={{ width: `${tableWidth}px` }} className="h-[1px] pt-[1px]" />
+          </div>
+          
+
+          {/* 2. Actual Table Wrapper */}
+          <div 
+            ref={tableScrollRef}
+            className="overflow-x-auto rounded-b-lg border bg-white [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-thumb]:rounded-full"
+            style={{ scrollbarWidth: 'auto', scrollbarColor: '#94a3b8 #f1f5f9' }}
+            onScroll={handleTableScroll}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1540,7 +1603,7 @@ export default function LREntryPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-1" style={{ width: '150px' }}>
                             <Button size="sm" variant="ghost" onClick={() => handlePrint(entry)} title="Print LR receipt">
                               <Printer className="w-4 h-4" />
                             </Button>
