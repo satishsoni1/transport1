@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit2, Printer, FileImage } from 'lucide-react';
 import useSWR, { mutate as globalMutate } from 'swr';
@@ -513,6 +513,7 @@ export default function LREntryPage() {
       setShowNewConsignor(false);
       setNewConsignor(emptyNewConsignor);
       toast.success('Consignor created and selected');
+      setTimeout(() => consigneeInputRef.current?.focus(), 0);
     } catch {
       toast.error('Failed to create consignor');
     }
@@ -534,6 +535,7 @@ export default function LREntryPage() {
       setShowNewConsignee(false);
       setNewConsignee(emptyNewConsignee);
       toast.success('Consignee created and selected');
+      setTimeout(() => invoiceInputRef.current?.focus(), 0);
     } catch {
       toast.error('Failed to create consignee');
     }
