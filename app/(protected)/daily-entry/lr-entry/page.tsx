@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
-import { generateLRPrintHTML, printHTML } from '@/app/services/print-service';
+import { generateLRPrintHTML, printHTML, printImageDocument } from '@/app/services/print-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, Printer } from 'lucide-react';
+import { Plus, Trash2, Edit2, Printer, FileImage } from 'lucide-react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 
@@ -55,6 +55,7 @@ interface LREntry {
   return_status?: 'normal' | 'returned';
   return_remark?: string;
   pod_received?: boolean;
+  pod_image_url?: string;
   goods_items: GoodsItem[];
   status: 'to_pay' | 'paid' | 'tbb';
   created_at: string;
@@ -155,6 +156,8 @@ export default function LREntryPage() {
   const { user } = useAuth();
   const lrFormRef = useRef<HTMLFormElement | null>(null);
   const consignorInputRef = useRef<HTMLInputElement | null>(null);
+  const consigneeInputRef = useRef<HTMLInputElement | null>(null);
+  const invoiceInputRef = useRef<HTMLInputElement | null>(null);
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
   const typeInputRef = useRef<HTMLInputElement | null>(null);
   const natureInputRef = useRef<HTMLInputElement | null>(null);
@@ -204,8 +207,40 @@ export default function LREntryPage() {
     amount: 0,
   });
 
+  const [listSearch, setListSearch] = useState('');
+  const [listDateFrom, setListDateFrom] = useState('');
+  const [listDateTo, setListDateTo] = useState('');
+  const [listConsignorId, setListConsignorId] = useState('');
+  const [listConsigneeId, setListConsigneeId] = useState('');
+  const [listStatus, setListStatus] = useState('');
+  const [listPod, setListPod] = useState('');
+
+  const lrEntriesListKey = useMemo(() => {
+    const params = new URLSearchParams();
+    const s = listSearch.trim();
+    if (s) params.set('search', s);
+    if (listDateFrom) params.set('date_from', listDateFrom);
+    if (listDateTo) params.set('date_to', listDateTo);
+    if (listConsignorId) params.set('consignor_id', listConsignorId);
+    if (listConsigneeId) params.set('consignee_id', listConsigneeId);
+    if (listStatus) params.set('status', listStatus);
+    if (listPod) params.set('pod', listPod);
+    const q = params.toString();
+    return q ? `/api/daily-entry/lr-entries?${q}` : '/api/daily-entry/lr-entries';
+  }, [listSearch, listDateFrom, listDateTo, listConsignorId, listConsigneeId, listStatus, listPod]);
+
+  const clearListFilters = useCallback(() => {
+    setListSearch('');
+    setListDateFrom('');
+    setListDateTo('');
+    setListConsignorId('');
+    setListConsigneeId('');
+    setListStatus('');
+    setListPod('');
+  }, []);
+
   const { data: lrEntries = [], mutate: mutateLrEntries } = useSWR<LREntry[]>(
-    '/api/daily-entry/lr-entries',
+    lrEntriesListKey,
     apiClient.get
   );
   const { data: consignors = [] } = useSWR<Consignor[]>(
@@ -739,6 +774,9 @@ export default function LREntryPage() {
                         consignor_id: selected ? String(selected.id) : '',
                         from_city: selected?.city || prev.from_city,
                       }));
+                      if (selected) {
+                        setTimeout(() => consigneeInputRef.current?.focus(), 0);
+                      }
                     }}
                     placeholder="Type consignor name"
                   />
@@ -810,6 +848,7 @@ export default function LREntryPage() {
                   </div>
                   <Input
                     id="consignee"
+                    ref={consigneeInputRef}
                     list="consignee-options"
                     value={consigneeSearch}
                     onChange={(e) => {
@@ -823,6 +862,9 @@ export default function LREntryPage() {
                         consignee_id: selected ? String(selected.id) : '',
                         to_city: selected?.city || prev.to_city,
                       }));
+                      if (selected) {
+                        setTimeout(() => invoiceInputRef.current?.focus(), 0);
+                      }
                     }}
                     placeholder="Type consignee name"
                   />
@@ -934,6 +976,7 @@ export default function LREntryPage() {
                 <Label htmlFor="invoice_no">Invoice No *</Label>
                 <Input
                   id="invoice_no"
+                  ref={invoiceInputRef}
                   value={formData.invoice_no}
                   onChange={(e) => {
                     setInvoiceError('');

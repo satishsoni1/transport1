@@ -256,8 +256,13 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         min-height: calc(148mm - 8mm);
         height: calc(148mm - 8mm);
         padding: 2mm;
-        border: 1.4px solid #222;
+        
       }
+        .sheet.lr-sheet{
+        
+        border:0px;
+        border-bottom: 1.4px dotted #222;
+        }
       .lr-sheet .header {
         display: grid;
         grid-template-columns: 78px 1fr;
@@ -594,6 +599,17 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         padding-right: 5px;
         background: #fde68a;
       }
+      .lr-sheet .notice-box {
+        border: 1px solid #222;
+        border-top: 0;
+        padding: 5px 8px 6px;
+        font-size: 9.2px;
+        line-height: 1.35;
+      }
+      .lr-sheet .notice-title {
+        font-weight: 800;
+        margin-bottom: 2px;
+      }
     </style>
   </head>
   <body>
@@ -738,6 +754,12 @@ export function generateLRPrintHTML(data: LRPrintData): string {
             </tr>
 	        </tbody>
 	      </table>
+        <div class="notice-box">
+          <div class="notice-title">सुचना:</div>
+          <div>१. माल पुरी तरहसे मलिक के जोखीम पर भेजा जा रहा है, ट्रान्सपोर्ट कंपनी केवल वाहक के रूप मे कार्य करती है.</div>
+          <div>२. क्षति, चोरी या देरी के लिए ट्रान्सपोर्ट कंपनी उत्तरदायी नही होगी जबतक की यह लापरवाही साबित न हो.</div>
+          <div>३. माल की प्राप्ती के समय ग्राहक को सामान की जाचं करनी होगी, बाद मे कि गई शिकायत मान्य नही होगी.</div>
+        </div>
       </div>
     </div>
   </body>
@@ -1448,6 +1470,42 @@ export function printHTML(html: string): void {
     printWindow.document.close();
     printWindow.print();
   }
+}
+
+export function printImageDocument(title: string, imageUrl: string): void {
+  if (!imageUrl || typeof window === 'undefined') return;
+
+  const printWindow = window.open('', '', 'height=700,width=900');
+  if (!printWindow) return;
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>${escapeHtml(title)}</title>
+        <style>
+          @page { size: A4 portrait; margin: 10mm; }
+          body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+          }
+          img {
+            max-width: 100%;
+            max-height: calc(100vh - 20mm);
+            object-fit: contain;
+            border: 1px solid #222;
+          }
+        </style>
+      </head>
+      <body>
+        <img src="${imageUrl}" alt="${escapeHtml(title)}" onload="window.print()" />
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
 }
 
 export async function downloadPDF(html: string, filename: string): Promise<void> {

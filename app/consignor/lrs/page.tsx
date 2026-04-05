@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ConsignorShell } from '@/app/consignor/_components/consignor-shell';
+import { printImageDocument } from '@/app/services/print-service';
 import {
   clearConsignorSession,
   consignorFetch,
@@ -235,18 +236,29 @@ export default function ConsignorLrsPage() {
                   {lr.return_remark ? <div><b>Return Remark:</b> {lr.return_remark}</div> : null}
                   {lr.remarks ? <div><b>Remarks:</b> {lr.remarks}</div> : null}
                   {lr.pod_image_url ? (
-                    <a
-                      href={lr.pod_image_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block overflow-hidden rounded-xl border bg-slate-50"
-                    >
-                      <img
-                        src={lr.pod_image_url}
-                        alt={`POD ${lr.lr_no}`}
-                        className="h-40 w-full object-cover"
-                      />
-                    </a>
+                    <div className="space-y-2">
+                      <a
+                        href={lr.pod_image_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block overflow-hidden rounded-xl border bg-slate-50"
+                      >
+                        <img
+                          src={lr.pod_image_url}
+                          alt={`POD ${lr.lr_no}`}
+                          className="h-40 w-full object-cover"
+                        />
+                      </a>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => printImageDocument(`POD ${lr.lr_no}`, lr.pod_image_url || '')}
+                      >
+                        Print POD
+                      </Button>
+                    </div>
                   ) : null}
                 </CardContent>
               </Card>
