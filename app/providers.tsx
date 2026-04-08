@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/app/context/auth-context';
+import { AppSettingsProvider } from '@/app/context/app-settings-context';
 import { apiClient } from '@/app/services/api-client';
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -17,10 +18,13 @@ export function Providers({ children }: { children: ReactNode }) {
         errorRetryInterval: 1500,
       }}
     >
-      <AuthProvider>
-        {children}
-        <Toaster richColors position="top-right" />
-      </AuthProvider>
+      <AppSettingsProvider>
+        <AuthProvider>
+          {children}
+          <Toaster richColors position="top-right" />
+        </AuthProvider>
+      </AppSettingsProvider>
     </SWRConfig>
   );
 }
+
