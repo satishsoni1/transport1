@@ -58,7 +58,7 @@ export default function LoginPage() {
                 id="email"
                 name="email"
                 type="email"
-                placeholder="admin@trimurti.com"
+                placeholder="admin@email.com"
                 value={formData.email}
                 onChange={handleChange}
                 disabled={isLoading}
