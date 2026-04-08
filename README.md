@@ -20,28 +20,28 @@ A complete, production-ready Transport and Logistics Management System built wit
 
 ### Prerequisites
 - Node.js 18+
-- PostgreSQL installed and running
+- Neon PostgreSQL database
 
 ### Quick Setup
 ```bash
 # 1. Install dependencies
-pnpm install
+npm install
 
-# 2. Create database
-createdb trimurti_tms
-psql trimurti_tms < scripts/01-init-database.sql
+# 2. Set up Neon database
+# Create account at neon.tech and get connection string
 
 # 3. Configure environment
-cp .env.example .env.local
-# Edit .env.local if needed
+# Edit .env.local with your DATABASE_URL
 
-# 4. Start development
-pnpm dev
+# 4. Initialize database
+npm run db:init
 
-# 5. Login
+# 5. Start development
+npm run dev
+
+# 6. Login
 # Open http://localhost:3000
-# Email: admin@trimurti.com
-# Password: admin123
+# Use credentials from database (default admin user created)
 ```
 
 That's it! You're ready to use the system.

@@ -6,12 +6,38 @@ type QueryResult<T = any> = {
 
 let pool: Pool | null = null;
 
+function isValidUrl(value: string | undefined) {
+  if (!value) return false;
+  const invalidPlaceholders = ['your-neon-database-url-here', '<DATABASE_URL>'];
+  if (invalidPlaceholders.some(marker => value.includes(marker))) {
+    return false;
+  }
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getConnectionString() {
-  const fromUrl =
-    process.env.DATABASE_URL ||
-    process.env.POSTGRES_URL ||
-    process.env.NEON_DATABASE_URL;
+  const candidates = [
+    { key: 'DATABASE_URL', value: process.env.DATABASE_URL },
+    { key: 'POSTGRES_URL', value: process.env.POSTGRES_URL },
+    { key: 'NEON_DATABASE_URL', value: process.env.NEON_DATABASE_URL },
+  ];
+
+  const fromUrl = candidates.find(({ value }) => isValidUrl(value))?.value;
   if (fromUrl) return fromUrl;
+
+  const placeholder = candidates.find(
+    ({ value }) => value && /your-neon-database-url-here|<DATABASE_URL>/.test(value)
+  );
+  if (placeholder) {
+    throw new Error(
+      `Environment variable ${placeholder.key} contains a placeholder value. Replace it with your actual database URL.`
+    );
+  }
 
   const host = process.env.PGHOST_UNPOOLED || process.env.PGHOST;
   const user = process.env.PGUSER;
@@ -19,7 +45,7 @@ function getConnectionString() {
   const database = process.env.PGDATABASE;
   if (!host || !user || !password || !database) {
     throw new Error(
-      'Database connection is not configured. Set DATABASE_URL (recommended for Neon).'
+      'Database connection is not configured. Set DATABASE_URL (recommended for Neon) or provide PGHOST/PGUSER/PGPASSWORD/PGDATABASE.'
     );
   }
 

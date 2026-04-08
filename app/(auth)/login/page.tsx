@@ -14,8 +14,8 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    email: 'admin@trimurti.com',
-    password: 'admin123',
+    email: '',
+    password: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,11 +90,11 @@ export default function LoginPage() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
 
-            <div className="text-xs text-center text-muted-foreground mt-4 rounded bg-blue-50 p-3">
+            {/* <div className="text-xs text-center text-muted-foreground mt-4 rounded bg-blue-50 p-3">
               <p className="font-semibold mb-1">Company Demo Credentials</p>
               <p>Email: admin@trimurti.com</p>
               <p>Password: admin123</p>
-            </div>
+            </div> */}
 
             <div className="rounded bg-slate-50 p-3 text-xs text-slate-600">
               <p className="font-semibold text-slate-800">Driver Login</p>
