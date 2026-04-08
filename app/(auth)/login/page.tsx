@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/auth-context';
+import { useAppSettings } from '@/app/context/app-settings-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +13,11 @@ import { toast } from 'sonner';
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
+  const { settings } = useAppSettings();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    email: 'admin@trimurti.com',
-    password: 'admin123',
+    email: '',
+    password: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,8 +47,8 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl">Company Login</CardTitle>
-          <CardDescription>Transport Management System office modules</CardDescription>
+          <CardTitle className="text-2xl">{settings?.company_name} Login</CardTitle>
+          <CardDescription>{settings?.company_tagline}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -58,7 +60,7 @@ export default function LoginPage() {
                 id="email"
                 name="email"
                 type="email"
-                placeholder="admin@trimurti.com"
+                placeholder="admin@email.com"
                 value={formData.email}
                 onChange={handleChange}
                 disabled={isLoading}
@@ -89,12 +91,6 @@ export default function LoginPage() {
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
-
-            <div className="text-xs text-center text-muted-foreground mt-4 rounded bg-blue-50 p-3">
-              <p className="font-semibold mb-1">Company Demo Credentials</p>
-              <p>Email: admin@trimurti.com</p>
-              <p>Password: admin123</p>
-            </div>
 
             <div className="rounded bg-slate-50 p-3 text-xs text-slate-600">
               <p className="font-semibold text-slate-800">Driver Login</p>

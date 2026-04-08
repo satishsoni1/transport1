@@ -5,49 +5,31 @@
 ### Step 1: Install Dependencies (1 minute)
 ```bash
 cd /path/to/project
-pnpm install
+npm install
 ```
 
-### Step 2: Setup PostgreSQL Database (1 minute)
+### Step 2: Setup Database (1 minute)
 
-**On Windows (PowerShell/CMD):**
-```bash
-createdb trimurti_tms
-psql -U postgres -d trimurti_tms -f scripts/01-init-database.sql
-```
-
-**On macOS/Linux:**
-```bash
-createdb trimurti_tms
-psql trimurti_tms < scripts/01-init-database.sql
-```
-
-**Verify installation:**
-```bash
-psql trimurti_tms -c "SELECT COUNT(*) as tables FROM information_schema.tables WHERE table_schema='public';"
-# Should show 20+ tables
-```
+1. Create a Neon PostgreSQL database at [neon.tech](https://neon.tech)
+2. Get your connection string
 
 ### Step 3: Configure Environment (1 minute)
-```bash
-cp .env.example .env.local
-```
-
 Edit `.env.local`:
 ```env
-NODE_ENV=development
-PORT=3001
-DATABASE_URL=postgresql://postgres:password@localhost:5432/trimurti_tms
-JWT_SECRET=your-super-secret-key-change-in-production
-NEXT_PUBLIC_API_URL=http://localhost:3001
+DATABASE_URL=your-neon-database-connection-string
 ```
 
-### Step 4: Start Development Server (1 minute)
+### Step 4: Initialize Database (1 minute)
 ```bash
-pnpm dev
+npm run db:init
 ```
 
-This starts both:
+### Step 5: Start Development Server (1 minute)
+```bash
+npm run dev
+```
+
+This starts the Next.js development server at http://localhost:3000
 - **Frontend** on http://localhost:3000
 - **Backend** on http://localhost:3001
 

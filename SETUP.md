@@ -5,49 +5,36 @@ A complete transport management system for logistics companies built with Next.j
 
 ## Prerequisites
 - Node.js 18+ and npm/pnpm
-- PostgreSQL 12+
+- Neon PostgreSQL database (or any PostgreSQL-compatible database)
 - Git
 
-## Backend Setup
+## Setup
 
 ### 1. Install Dependencies
 ```bash
-pnpm install
+npm install
 ```
 
 ### 2. Database Setup
-```bash
-# Create PostgreSQL database
-createdb trimurti_tms
-
-# Import schema
-psql trimurti_tms < scripts/01-init-database.sql
-```
+1. Create a Neon PostgreSQL database at [neon.tech](https://neon.tech)
+2. Copy your database connection string
 
 ### 3. Environment Configuration
 ```bash
-# Copy the example environment file
-cp .env.example .env.local
-
-# Update .env.local with your configuration:
-# - DATABASE_URL: PostgreSQL connection string
-# - JWT_SECRET: Generate a strong secret key
-# - NEXT_PUBLIC_API_URL: Backend API URL (default: http://localhost:3001)
+# Update .env.local with your database URL:
+DATABASE_URL="your-neon-database-connection-string"
 ```
 
-### 4. Start Development
+### 4. Initialize Database
 ```bash
-# Runs both frontend (Next.js on :3000) and backend (Express on :3001)
-pnpm dev
+# Create users table and default admin user
+npm run db:init
 ```
 
-Or run them separately:
+### 5. Start Development
 ```bash
-# Terminal 1 - Frontend
-next dev
-
-# Terminal 2 - Backend
-node server.js
+npm run dev
+```
 ```
 
 ## Default Login Credentials

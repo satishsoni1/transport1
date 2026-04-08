@@ -4,7 +4,7 @@ import { ensureSchema, sql } from '@/lib/db';
 
 const CONSIGNOR_TOKEN_PREFIX = 'consignor-token:';
 const CONSIGNOR_AUTH_SECRET =
-  process.env.CONSIGNOR_AUTH_SECRET || 'trimurti-consignor-secret';
+  process.env.CONSIGNOR_AUTH_SECRET || 'consignor-auth-secret';
 
 function signConsignorToken(payload: string) {
   return createHash('sha256')

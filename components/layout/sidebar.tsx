@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/app/context/auth-context';
+import { useAppSettings } from '@/app/context/app-settings-context';
 import {
   LayoutDashboard,
   Database,
@@ -88,6 +89,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { settings } = useAppSettings();
   const [expandedItems, setExpandedItems] = useState<string[]>(['Daily Entry']);
 
   const handleLogout = () => {
@@ -119,8 +121,10 @@ export function Sidebar() {
     >
       <div className="border-b border-slate-700 p-6">
         <Link href="/dashboard" className="block">
-          <h1 className="text-xl font-bold">TRIMURTI</h1>
-          <p className="text-xs text-slate-400">Transport System</p>
+          <h1 className="text-xl font-bold">{settings?.company_name || 'Transport Company'}</h1>
+          <p className="text-xs text-slate-400">
+            {settings?.company_tagline || settings?.app_title || 'Transport Management System'}
+          </p>
         </Link>
       </div>
 

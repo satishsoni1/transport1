@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { ensureSchema, sql } from '@/lib/db';
 
 const DRIVER_TOKEN_PREFIX = 'driver-token:';
-const DRIVER_AUTH_SECRET = process.env.DRIVER_AUTH_SECRET || 'trimurti-driver-secret';
+const DRIVER_AUTH_SECRET = process.env.DRIVER_AUTH_SECRET || 'driver-auth-secret';
 
 function signDriverToken(payload: string) {
   return createHash('sha256')

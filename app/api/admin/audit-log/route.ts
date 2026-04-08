@@ -16,8 +16,8 @@ export async function GET(request: Request) {
       FROM audit_logs
       WHERE (${action} = '' OR action = ${action})
         AND (${entityType} = '' OR entity_type = ${entityType})
-        AND (${from} = '' OR created_at::date >= ${from}::date)
-        AND (${to} = '' OR created_at::date <= ${to}::date)
+        AND (${from} = '' OR created_at::date >= NULLIF(${from}, '')::date)
+        AND (${to} = '' OR created_at::date <= NULLIF(${to}, '')::date)
       ORDER BY id DESC
       LIMIT ${Number.isFinite(limit) && limit > 0 ? limit : 200}
     `;
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error fetching audit logs', error);
     return NextResponse.json(
-      { success: false, error: 'Database error. Configure DATABASE_URL for Neon (or POSTGRES_URL).' },
+      { success: false, error: 'Database error. Configure local PostgreSQL connection settings.' },
       { status: 500 }
     );
   }

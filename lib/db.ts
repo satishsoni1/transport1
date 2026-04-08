@@ -1,17 +1,76 @@
-import { Pool } from '@neondatabase/serverless';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { config as loadEnv } from 'dotenv';
+import { Pool } from 'pg';
 
 type QueryResult<T = any> = {
   rows: T[];
 };
 
 let pool: Pool | null = null;
+let envLoaded = false;
+
+function loadRuntimeEnv() {
+  if (envLoaded) return;
+  envLoaded = true;
+
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const envFiles =
+    nodeEnv === 'test'
+      ? ['.env.test.local', '.env.test', '.env']
+      : [`.env.${nodeEnv}.local`, '.env.local', `.env.${nodeEnv}`, '.env'];
+
+  for (const file of envFiles) {
+    const path = resolve(process.cwd(), file);
+    if (existsSync(path)) {
+      loadEnv({ path });
+    }
+  }
+}
+
+function isValidUrl(value: string | undefined) {
+  if (!value) return false;
+  const invalidPlaceholders = [
+    'your-neon-database-url-here',
+    'your-local-postgres-url-here',
+    '<DATABASE_URL>',
+  ];
+  if (invalidPlaceholders.some(marker => value.includes(marker))) {
+    return false;
+  }
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function getConnectionString() {
-  const fromUrl =
-    process.env.DATABASE_URL ||
-    process.env.POSTGRES_URL ||
-    process.env.NEON_DATABASE_URL;
+  loadRuntimeEnv();
+
+  const candidates = [
+    { key: 'DATABASE_URL', value: process.env.DATABASE_URL },
+    { key: 'DATABASE_URL_UNPOOLED', value: process.env.DATABASE_URL_UNPOOLED },
+    { key: 'POSTGRES_URL', value: process.env.POSTGRES_URL },
+    { key: 'POSTGRES_URL_NON_POOLING', value: process.env.POSTGRES_URL_NON_POOLING },
+    { key: 'POSTGRES_PRISMA_URL', value: process.env.POSTGRES_PRISMA_URL },
+    { key: 'NEON_DATABASE_URL', value: process.env.NEON_DATABASE_URL },
+  ];
+
+  const fromUrl = candidates.find(({ value }) => isValidUrl(value))?.value;
   if (fromUrl) return fromUrl;
+
+  const placeholder = candidates.find(
+    ({ value }) =>
+      value && /your-neon-database-url-here|your-local-postgres-url-here|<DATABASE_URL>/.test(value)
+  );
+  if (placeholder) {
+    throw new Error(
+      `Environment variable ${placeholder.key} contains a placeholder value. Replace it with your actual database URL.`
+    );
+  }
 
   const host = process.env.PGHOST_UNPOOLED || process.env.PGHOST;
   const user = process.env.PGUSER;
@@ -19,15 +78,16 @@ function getConnectionString() {
   const database = process.env.PGDATABASE;
   if (!host || !user || !password || !database) {
     throw new Error(
-      'Database connection is not configured. Set DATABASE_URL (recommended for Neon).'
+      'Database connection is not configured. Set DATABASE_URL for local PostgreSQL or provide PGHOST/PGUSER/PGPASSWORD/PGDATABASE.'
     );
   }
 
   const port = process.env.PGPORT || '5432';
-  const sslmode = process.env.PGSSLMODE || 'require';
-  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(
+  const sslmode = process.env.PGSSLMODE || 'disable';
+  const base = `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(
     password
-  )}@${host}:${port}/${database}?sslmode=${sslmode}`;
+  )}@${host}:${port}/${database}`;
+  return sslmode ? `${base}?sslmode=${sslmode}` : base;
 }
 
 function getPool() {
@@ -35,6 +95,36 @@ function getPool() {
     pool = new Pool({ connectionString: getConnectionString() });
   }
   return pool;
+}
+
+export async function closePool() {
+  if (!pool) return;
+  const currentPool = pool;
+  pool = null;
+  await currentPool.end();
+}
+
+async function hasColumn(tableName: string, columnName: string) {
+  const { rows } = await sql<{ exists: number }>`
+    SELECT 1 AS exists
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = ${tableName}
+      AND column_name = ${columnName}
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
+async function tableExists(tableName: string) {
+  const { rows } = await sql<{ exists: number }>`
+    SELECT 1 AS exists
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = ${tableName}
+    LIMIT 1
+  `;
+  return rows.length > 0;
 }
 
 export async function sql<T = any>(
@@ -182,6 +272,19 @@ export async function ensureSchema() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'User',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS app_users (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
@@ -205,10 +308,25 @@ export async function ensureSchema() {
     )
   `;
 
+  const appSettingsHasLegacyColumns =
+    (await hasColumn('app_settings', 'setting_key')) ||
+    (await hasColumn('app_settings', 'setting_value'));
+  const appSettingsHasCanonicalColumns =
+    (await hasColumn('app_settings', 'company_name')) ||
+    (await hasColumn('app_settings', 'lr_prefix'));
+  const hasLegacyAppSettingsTable = await tableExists('app_settings_legacy');
+
+  if (appSettingsHasLegacyColumns && !appSettingsHasCanonicalColumns && !hasLegacyAppSettingsTable) {
+    await sql`ALTER TABLE app_settings RENAME TO app_settings_legacy`;
+  }
+
   await sql`
     CREATE TABLE IF NOT EXISTS app_settings (
       id INTEGER PRIMARY KEY,
       company_name TEXT NOT NULL DEFAULT '',
+      company_tagline TEXT NOT NULL DEFAULT '',
+      app_title TEXT NOT NULL DEFAULT '',
+      support_email TEXT NOT NULL DEFAULT '',
       company_email TEXT NOT NULL DEFAULT '',
       company_phone TEXT NOT NULL DEFAULT '',
       address TEXT NOT NULL DEFAULT '',
@@ -228,6 +346,15 @@ export async function ensureSchema() {
     )
   `;
 
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS id INTEGER`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS company_tagline TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS app_title TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS support_email TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS company_email TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS company_phone TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS gst_no TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS name_mr TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS city_mr TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS name_mr TEXT NOT NULL DEFAULT ''`;
@@ -252,16 +379,84 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_prefix TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_print_format TEXT NOT NULL DEFAULT 'classic'`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_print_format TEXT NOT NULL DEFAULT 'classic'`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS financial_year_start TEXT NOT NULL DEFAULT '04-01'`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata'`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
 
   await sql`
     INSERT INTO app_settings (
-      id, company_name, company_email, company_phone, address, gst_no,
+      id, company_name, company_tagline, app_title, support_email, company_email, company_phone, address, gst_no,
       logo_url, signature_url, transporter_qr_url, transporter_name_font, lr_prefix, invoice_prefix, lr_print_format, invoice_print_format,
       default_gst_rate, financial_year_start, timezone
     )
-    VALUES (1, '', '', '', '', '', '', '', '', 'Arial', '', '', 'classic', 'classic', 18, '04-01', 'Asia/Kolkata')
+    VALUES (1, '', '', '', '', '', '', '', '', '', '', '', 'Arial', '', '', 'classic', 'classic', 18, '04-01', 'Asia/Kolkata')
     ON CONFLICT (id) DO NOTHING
   `;
+
+  if (await tableExists('app_settings_legacy')) {
+    const { rows: legacyRows } = await sql<{ setting_key: string; setting_value: string }>`
+      SELECT setting_key, setting_value
+      FROM app_settings_legacy
+      WHERE setting_key IN (
+        'company_name',
+        'company_tagline',
+        'app_title',
+        'support_email',
+        'company_email',
+        'company_phone',
+        'address',
+        'gst_no',
+        'logo_url',
+        'signature_url',
+        'transporter_qr_url',
+        'transporter_name_font',
+        'lr_prefix',
+        'invoice_prefix',
+        'lr_print_format',
+        'invoice_print_format',
+        'default_gst_rate',
+        'financial_year_start',
+        'timezone'
+      )
+    `;
+
+    const legacySettings = new Map(
+      legacyRows.map((row) => [String(row.setting_key || ''), String(row.setting_value || '')])
+    );
+
+    if (legacySettings.size > 0) {
+      const defaultGstRateValue = Number(legacySettings.get('default_gst_rate'));
+
+      await sql`
+        UPDATE app_settings
+        SET
+          company_name = COALESCE(NULLIF(${legacySettings.get('company_name') || ''}, ''), company_name),
+          company_tagline = COALESCE(NULLIF(${legacySettings.get('company_tagline') || ''}, ''), company_tagline),
+          app_title = COALESCE(NULLIF(${legacySettings.get('app_title') || ''}, ''), app_title),
+          support_email = COALESCE(NULLIF(${legacySettings.get('support_email') || ''}, ''), support_email),
+          company_email = COALESCE(NULLIF(${legacySettings.get('company_email') || ''}, ''), company_email),
+          company_phone = COALESCE(NULLIF(${legacySettings.get('company_phone') || ''}, ''), company_phone),
+          address = COALESCE(NULLIF(${legacySettings.get('address') || ''}, ''), address),
+          gst_no = COALESCE(NULLIF(${legacySettings.get('gst_no') || ''}, ''), gst_no),
+          logo_url = COALESCE(NULLIF(${legacySettings.get('logo_url') || ''}, ''), logo_url),
+          signature_url = COALESCE(NULLIF(${legacySettings.get('signature_url') || ''}, ''), signature_url),
+          transporter_qr_url = COALESCE(NULLIF(${legacySettings.get('transporter_qr_url') || ''}, ''), transporter_qr_url),
+          transporter_name_font = COALESCE(NULLIF(${legacySettings.get('transporter_name_font') || ''}, ''), transporter_name_font),
+          lr_prefix = COALESCE(NULLIF(${legacySettings.get('lr_prefix') || ''}, ''), lr_prefix),
+          invoice_prefix = COALESCE(NULLIF(${legacySettings.get('invoice_prefix') || ''}, ''), invoice_prefix),
+          lr_print_format = COALESCE(NULLIF(${legacySettings.get('lr_print_format') || ''}, ''), lr_print_format),
+          invoice_print_format = COALESCE(NULLIF(${legacySettings.get('invoice_print_format') || ''}, ''), invoice_print_format),
+          default_gst_rate = ${
+            Number.isFinite(defaultGstRateValue) ? defaultGstRateValue : 18
+          },
+          financial_year_start = COALESCE(NULLIF(${legacySettings.get('financial_year_start') || ''}, ''), financial_year_start),
+          timezone = COALESCE(NULLIF(${legacySettings.get('timezone') || ''}, ''), timezone),
+          updated_at = NOW()
+        WHERE id = 1
+      `;
+    }
+  }
 
   await sql`
     CREATE TABLE IF NOT EXISTS freight_rates (

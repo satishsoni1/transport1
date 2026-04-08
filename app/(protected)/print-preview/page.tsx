@@ -118,6 +118,8 @@ interface Consignee {
 
 interface AdminSettings {
   company_name?: string;
+  company_tagline?: string;
+  app_title?: string;
   company_email?: string;
   company_phone?: string;
   address?: string;
@@ -136,7 +138,7 @@ function generateBillHTML(bill: MonthlyBill, settings?: AdminSettings): string {
       <div style="display:flex;gap:8px;align-items:flex-start;border-bottom:1px solid #333;padding-bottom:8px;margin-bottom:8px;">
         ${settings?.logo_url ? `<img src="${settings.logo_url}" style="width:48px;height:48px;object-fit:contain;" />` : ''}
         <div>
-          <h2 style="margin:0">${settings?.company_name || 'TRIMURTI TRANSPORT'} - MONTHLY BILL</h2>
+          <h2 style="margin:0">${settings?.company_name || settings?.app_title || 'Transport Company'} - MONTHLY BILL</h2>
           <p style="margin:2px 0">${settings?.address || ''}</p>
           <p style="margin:2px 0">${settings?.company_phone || ''}</p>
         </div>

@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 
 const DEMO_USER = {
   id: 1,
-  email: 'admin@trimurti.com',
+  email: process.env.ADMIN_EMAIL || 'admin@example.com',
   firstName: 'Admin',
   lastName: 'User',
   role: 'Admin',
@@ -38,4 +38,3 @@ export async function GET(request: Request) {
     { status: 200 }
   );
 }
-

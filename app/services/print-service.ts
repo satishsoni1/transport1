@@ -620,7 +620,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         </div>
         <div>
           <div class="jurisdiction-note">Subject to Akola Jurisdiction</div>
-          <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
+          <div class="transport-name">${escapeHtml(company.company_name || company.app_title || 'Transport Company')}</div>
           <div class="header-meta">${escapeHtml(company.address || '')}</div>
           <div class="header-gst">GSTIN : ${escapeHtml(company.gst_no || '-')}</div>
           <div class="header-meta">${escapeHtml(company.company_phone || '')} ${company.company_email ? `| ${escapeHtml(company.company_email)}` : ''}</div>
@@ -747,7 +747,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
               <td class="transport-cell">
                 <div class="sign-box">
                   ${company.signature_url ? `<img class="signature" src="${company.signature_url}" alt="signature" />` : ''}
-                  <div class="sign-title">${escapeHtml(company.company_name || 'TRANSPORT')}</div>
+                  <div class="sign-title">${escapeHtml(company.company_name || company.app_title || 'Transport Company')}</div>
                   <!--div class="sign-subtitle">Authorised Signatory</div-->
                 </div>
               </td>
@@ -981,7 +981,7 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
         </div>
         <div>
           <div class="top-note">Subject to Akola Jurisdiction Only .</div>
-          <div class="transport-name">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
+          <div class="transport-name">${escapeHtml(company.company_name || company.app_title || 'Transport Company')}</div>
         </div>
       </div>
       <div class="company-lines">
@@ -1068,7 +1068,7 @@ export function generateInvoicePrintHTML(data: InvoicePrintData): string {
           <div class="note">WE ARE NOT LIABLE FOR PAYING GST ${escapeHtml(data.party_name || '')} TO BOOK THE MATERIAL UNDER REVERSE CHARGE MECHANISM . REMARK :-</div>
           <div class="sign-box">
             ${company.signature_url ? `<img src="${company.signature_url}" alt="signature" />` : ''}
-            <div class="sign-title">For ${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
+            <div class="sign-title">For ${escapeHtml(company.company_name || company.app_title || 'Transport Company')}</div>
             <div class="sign-title">Authorised sign. / Manager</div>
           </div>
         </div>
@@ -1296,7 +1296,7 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
         <div>
           <div class="top-note">Subject to AKOLA Jurisdiction Only .</div>
           <div class="title">GOODS DESPATCH MEMO</div>
-          <div class="transport">${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</div>
+          <div class="transport">${escapeHtml(company.company_name || company.app_title || 'Transport Company')}</div>
           <div class="company-line">${escapeHtml(company.address || '')}</div>
           <div class="company-line">GST No. : ${escapeHtml(company.gst_no || '-')}</div>
           <div class="company-line">Contact No.:${escapeHtml(company.company_phone || '')}${company.company_email ? ` Email :${escapeHtml(company.company_email)}` : ''}</div>
@@ -1305,7 +1305,7 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
 
       <div class="meta-head">
         <div class="meta-grid">
-          <div class="meta-item"><span class="label">Tpt Name</span><span>:</span><span>${escapeHtml(company.company_name || 'TRIMURTI TRANSPORT')}</span></div>
+          <div class="meta-item"><span class="label">Tpt Name</span><span>:</span><span>${escapeHtml(company.company_name || company.app_title || 'Transport Company')}</span></div>
           <div class="meta-item"><span class="label">Driver</span><span>:</span><span>${escapeHtml(data.driver_name || '-')}</span></div>
           <div class="meta-item"><span class="label">CH.No.</span><span>:</span><span>${escapeHtml(data.challan_no || '-')}</span></div>
           <div class="meta-item"><span class="label">Owner</span><span>:</span><span>${escapeHtml(data.owner_name || '-')}</span></div>

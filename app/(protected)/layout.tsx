@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 
-const SIDEBAR_HIDDEN_KEY = 'trimurti_sidebar_hidden';
+const SIDEBAR_HIDDEN_KEY = 'tms_sidebar_hidden';
 
 export default function ProtectedLayout({
   children,

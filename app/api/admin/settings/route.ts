@@ -26,6 +26,9 @@ export async function PUT(request: Request) {
       UPDATE app_settings
       SET
         company_name = ${body.company_name ?? existing.company_name},
+        company_tagline = ${body.company_tagline ?? existing.company_tagline},
+        app_title = ${body.app_title ?? existing.app_title},
+        support_email = ${body.support_email ?? existing.support_email},
         company_email = ${body.company_email ?? existing.company_email},
         company_phone = ${body.company_phone ?? existing.company_phone},
         address = ${body.address ?? existing.address},

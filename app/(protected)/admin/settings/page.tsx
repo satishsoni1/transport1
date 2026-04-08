@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/context/auth-context';
+import { useAppSettings } from '@/app/context/app-settings-context';
 import { apiClient } from '@/app/services/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -13,6 +14,9 @@ import { Button } from '@/components/ui/button';
 interface AdminSettings {
   id: number;
   company_name: string;
+  company_tagline: string;
+  app_title: string;
+  support_email: string;
   company_email: string;
   company_phone: string;
   address: string;
@@ -33,6 +37,7 @@ interface AdminSettings {
 
 export default function AdminSettingsPage() {
   const { user } = useAuth();
+  const { refreshSettings } = useAppSettings();
   const { data, mutate, isLoading } = useSWR<AdminSettings>(
     '/api/admin/settings',
     apiClient.get
@@ -40,6 +45,9 @@ export default function AdminSettingsPage() {
 
   const [formData, setFormData] = useState({
     company_name: '',
+    company_tagline: '',
+    app_title: '',
+    support_email: '',
     company_email: '',
     company_phone: '',
     address: '',
@@ -61,6 +69,9 @@ export default function AdminSettingsPage() {
     if (!data) return;
     setFormData({
       company_name: data.company_name || '',
+      company_tagline: data.company_tagline || '',
+      app_title: data.app_title || '',
+      support_email: data.support_email || '',
       company_email: data.company_email || '',
       company_phone: data.company_phone || '',
       address: data.address || '',
@@ -86,12 +97,13 @@ export default function AdminSettingsPage() {
         default_gst_rate: parseFloat(formData.default_gst_rate) || 0,
         updated_by: user?.email || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'system',
       });
+      await refreshSettings();
       toast.success('Settings updated successfully');
       mutate();
     } catch {
       toast.error('Failed to update settings');
     }
-  }, [formData, mutate, user]);
+  }, [formData, mutate, refreshSettings, user]);
 
   const handleFileUpload = useCallback(
     (field: 'logo_url' | 'signature_url' | 'transporter_qr_url', file: File | null) => {
@@ -119,7 +131,7 @@ export default function AdminSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Company Information</CardTitle>
+        <CardTitle>Company Information</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
           <div>
@@ -128,6 +140,30 @@ export default function AdminSettingsPage() {
               id="company_name"
               value={formData.company_name}
               onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="company_tagline">Company Tagline</Label>
+            <Input
+              id="company_tagline"
+              value={formData.company_tagline}
+              onChange={(e) => setFormData({ ...formData, company_tagline: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="app_title">Application Title</Label>
+            <Input
+              id="app_title"
+              value={formData.app_title}
+              onChange={(e) => setFormData({ ...formData, app_title: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="support_email">Support Email</Label>
+            <Input
+              id="support_email"
+              value={formData.support_email}
+              onChange={(e) => setFormData({ ...formData, support_email: e.target.value })}
             />
           </div>
           <div>
