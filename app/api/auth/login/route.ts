@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { createAppToken, getUserByEmail, toAuthenticatedUser } from '@/lib/app-auth';
+import { ensureSchema } from '@/lib/db';
 
 export async function POST(request: Request) {
   try {
+    await ensureSchema();
     const { email, password } = await request.json();
 
     if (!email || !password) {
@@ -13,23 +15,26 @@ export async function POST(request: Request) {
       );
     }
 
-    // Query user from database
-    const result = await sql`
-      SELECT id, email, password_hash, first_name, last_name, role
-      FROM users
-      WHERE email = ${email}
-    `;
-
-    if (result.rows.length === 0) {
+    const user = await getUserByEmail(String(email).trim());
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Invalid email or password' },
         { status: 401 }
       );
     }
+    if (user.status !== 'active') {
+      return NextResponse.json(
+        { success: false, error: 'This login is inactive. Contact support.' },
+        { status: 403 }
+      );
+    }
+    if (user.transport_id && user.transport_status && user.transport_status !== 'active') {
+      return NextResponse.json(
+        { success: false, error: 'This transport account is inactive. Contact support.' },
+        { status: 403 }
+      );
+    }
 
-    const user = result.rows[0];
-
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
       return NextResponse.json(
@@ -38,21 +43,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // For demo purposes we return a fake token string.
-    // In production, you should use JWT or similar
-    const token = 'demo-token';
+    const token = createAppToken(user);
 
     return NextResponse.json(
       {
         success: true,
         token,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role,
-        },
+        user: toAuthenticatedUser(user),
       },
       { status: 200 }
     );
@@ -64,4 +61,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

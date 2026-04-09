@@ -9,6 +9,19 @@ interface User {
   firstName: string;
   lastName: string;
   role: string;
+  platformRole?: string;
+  transportId?: number | null;
+  transportName?: string | null;
+  transportSlug?: string | null;
+  subscription?: {
+    plan?: string | null;
+    status?: 'none' | 'active' | 'near_expiry' | 'expired';
+    startDate?: string | null;
+    endDate?: string | null;
+    daysRemaining?: number | null;
+    warningDays?: number;
+    message?: string | null;
+  };
 }
 
 interface AuthContextType {
@@ -51,6 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!verification.ok) {
           throw new Error('Invalid session');
+        }
+        const verificationData = await verification.json();
+        if (verificationData?.user) {
+          setUser(verificationData.user);
+          localStorage.setItem('auth_user', JSON.stringify(verificationData.user));
         }
       } catch {
         localStorage.removeItem('auth_token');

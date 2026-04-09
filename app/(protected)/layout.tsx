@@ -53,11 +53,31 @@ export default function ProtectedLayout({
     return null;
   }
 
+  const subscription = user?.subscription;
+  const showSubscriptionWarning =
+    user?.platformRole === 'transport_admin' &&
+    subscription &&
+    (subscription.status === 'near_expiry' || subscription.status === 'expired');
+
   return (
     <div className="flex h-screen bg-background">
       {!sidebarHidden ? <Sidebar /> : null}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header sidebarHidden={sidebarHidden} onToggleSidebar={toggleSidebar} />
+        {showSubscriptionWarning ? (
+          <div
+            className={
+              subscription?.status === 'expired'
+                ? 'border-b border-red-200 bg-red-50 px-6 py-3 text-sm text-red-900'
+                : 'border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-950'
+            }
+          >
+            <div className="font-semibold">
+              {subscription?.status === 'expired' ? 'Subscription expired' : 'Subscription renewal due soon'}
+            </div>
+            <div>{subscription?.message || 'Please renew your subscription to avoid interruption.'}</div>
+          </div>
+        ) : null}
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             {children}

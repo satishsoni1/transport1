@@ -1,15 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// Very simple token verification for demo purposes.
-// Accepts the hardcoded "demo-token" and returns a dummy user.
-
-const DEMO_USER = {
-  id: 1,
-  email: process.env.ADMIN_EMAIL || 'admin@example.com',
-  firstName: 'Admin',
-  lastName: 'User',
-  role: 'Admin',
-};
+import { verifyAppToken } from '@/lib/app-auth';
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
@@ -22,8 +13,8 @@ export async function GET(request: Request) {
   }
 
   const token = authHeader.slice('Bearer '.length).trim();
-
-  if (token !== 'demo-token') {
+  const user = await verifyAppToken(token);
+  if (!user) {
     return NextResponse.json(
       { success: false, error: 'Invalid token' },
       { status: 401 }
@@ -33,7 +24,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       success: true,
-      user: DEMO_USER,
+      user,
     },
     { status: 200 }
   );

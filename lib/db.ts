@@ -272,6 +272,24 @@ export async function ensureSchema() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS transports (
+      id SERIAL PRIMARY KEY,
+      company_name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      contact_email TEXT NOT NULL DEFAULT '',
+      contact_phone TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      subscription_plan TEXT NOT NULL DEFAULT 'standard',
+      subscription_start_date DATE,
+      subscription_end_date DATE,
+      subscription_warning_days INTEGER NOT NULL DEFAULT 7,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
@@ -279,9 +297,22 @@ export async function ensureSchema() {
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'User',
+      platform_role TEXT NOT NULL DEFAULT 'transport_admin',
+      transport_id INTEGER REFERENCES transports(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'active',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS platform_role TEXT NOT NULL DEFAULT 'transport_admin'`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
+  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_transport_id_fkey`;
+  await sql`
+    ALTER TABLE users
+    ADD CONSTRAINT users_transport_id_fkey
+    FOREIGN KEY (transport_id) REFERENCES transports(id) ON DELETE SET NULL
   `;
 
   await sql`

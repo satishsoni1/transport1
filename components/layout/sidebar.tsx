@@ -76,8 +76,9 @@ const navItems: NavItem[] = [
   {
     label: 'Administration',
     icon: <Settings size={20} />,
-    requiredRoles: ['Admin'],
+    requiredRoles: ['Admin', 'Super Admin'],
     submenu: [
+      { label: 'Transports', href: '/admin/transports', icon: <Truck size={18} /> },
       { label: 'Users', href: '/admin/users', icon: <Users size={18} /> },
       { label: 'Audit Log', href: '/admin/audit-log', icon: <FileText size={18} /> },
       { label: 'Settings', href: '/admin/settings', icon: <Settings size={18} /> },
