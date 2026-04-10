@@ -64,6 +64,7 @@ export default function ConsignorsPage() {
     mobile: '',
     bank_name: '',
     account_no: '',
+    status: 'active' as 'active' | 'inactive',
   });
 
   const { data: consignors = [], mutate } = useSWR<Consignor[]>(
@@ -90,6 +91,7 @@ export default function ConsignorsPage() {
         mobile: '',
         bank_name: '',
         account_no: '',
+        status: 'active',
       });
     }
     setOpen(newOpen);
@@ -101,12 +103,10 @@ export default function ConsignorsPage() {
 
       if (
         !formData.name ||
-        !formData.username ||
-        !formData.password ||
         !formData.address ||
         !formData.city
       ) {
-        toast.error('Please fill required fields: Name, Username, Password, Address, City');
+        toast.error('Please fill required fields: Name, Address, City');
         return;
       }
 
@@ -141,6 +141,7 @@ export default function ConsignorsPage() {
       mobile: consignor.mobile,
       bank_name: consignor.bank_name || '',
       account_no: consignor.account_no || '',
+      status: consignor.status || 'active',
     });
     setOpen(true);
   };
@@ -225,18 +226,18 @@ export default function ConsignorsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="username">Username *</Label>
+                  <Label htmlFor="username">Username</Label>
                   <Input
                     id="username"
                     value={formData.username}
                     onChange={(e) =>
                       setFormData({ ...formData, username: e.target.value })
                     }
-                    placeholder="Consignor username"
+                    placeholder="Optional login username"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="password">Password *</Label>
+                  <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
                     type="password"
@@ -244,7 +245,7 @@ export default function ConsignorsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, password: e.target.value })
                     }
-                    placeholder="Consignor password"
+                    placeholder={editingId ? 'Leave blank to keep existing password' : 'Optional login password'}
                   />
                 </div>
               </div>
@@ -312,6 +313,20 @@ export default function ConsignorsPage() {
                     placeholder="Bank name"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <select
+                    id="status"
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    value={formData.status}
+                    onChange={(e) =>
+                      setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })
+                    }
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -353,13 +368,14 @@ export default function ConsignorsPage() {
               <TableHead>GST No.</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Mobile</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {consignors.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-4">
+                <TableCell colSpan={8} className="text-center py-4">
                   No consignors found
                 </TableCell>
               </TableRow>
@@ -372,6 +388,11 @@ export default function ConsignorsPage() {
                   <TableCell>{consignor.gst_no}</TableCell>
                   <TableCell>{consignor.contact_person}</TableCell>
                   <TableCell>{consignor.mobile}</TableCell>
+                  <TableCell>
+                    <span className={`rounded px-2 py-1 text-xs font-medium ${consignor.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {consignor.status}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       <Button

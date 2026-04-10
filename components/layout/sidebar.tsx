@@ -18,6 +18,7 @@ import {
   Package,
   DollarSign,
   Scroll,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -194,6 +195,12 @@ export function Sidebar() {
       </nav>
 
       <div className="space-y-2 border-t border-slate-700 p-4">
+        <Link href="/profile">
+          <Button variant="ghost" className="w-full justify-start gap-2">
+            <User size={18} />
+            Profile
+          </Button>
+        </Link>
         <Link href="/settings/users">
           <Button variant="ghost" className="w-full justify-start gap-2">
             <Settings size={18} />

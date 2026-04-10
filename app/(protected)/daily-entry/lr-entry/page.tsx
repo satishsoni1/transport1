@@ -583,12 +583,10 @@ export default function LREntryPage() {
   const saveNewConsignor = useCallback(async () => {
     if (
       !newConsignor.name ||
-      !newConsignor.username ||
-      !newConsignor.password ||
       !newConsignor.address ||
       !newConsignor.city
     ) {
-      toast.error('Name, username, password, address and city are required for new consignor');
+      toast.error('Name, address and city are required for new consignor');
       return;
     }
     try {
@@ -964,14 +962,14 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                         }
                       />
                       <Input
-                        placeholder="Username *"
+                        placeholder="Username (optional)"
                         value={newConsignor.username}
                         onChange={(e) =>
                           setNewConsignor({ ...newConsignor, username: e.target.value })
                         }
                       />
                       <Input
-                        placeholder="Password *"
+                        placeholder="Password (optional)"
                         type="password"
                         value={newConsignor.password}
                         onChange={(e) =>
@@ -1566,6 +1564,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                   <TableHead>Vehicle</TableHead>
                   <TableHead>Driver</TableHead>
                   <TableHead>Driver mob</TableHead>
+                  <TableHead>Qty</TableHead>
                   <TableHead>Freight</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>POD</TableHead>
@@ -1576,7 +1575,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
               <TableBody>
                 {lrEntries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={15} className="text-center py-4">
+                    <TableCell colSpan={16} className="text-center py-4">
                       No L.R. entries found
                     </TableCell>
                   </TableRow>
@@ -1591,6 +1590,10 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                         // 1. Get the full names
                     const consignorName = consignors.find((item) => item.id === entry.consignor_id)?.name || entry.from_city || '';
                     const consigneeName = consignees.find((item) => item.id === entry.consignee_id)?.name || entry.to_city || '';
+                    const totalQty = (entry.goods_items || []).reduce(
+                      (sum, item) => sum + (Number(item.qty) || 0),
+                      0
+                    );
                     return (
                       <TableRow key={entry.id}>
                         <TableCell className="pr-0">
@@ -1621,6 +1624,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                         <TableCell className="whitespace-nowrap">{ch?.vehicle_no ?? '-'}</TableCell>
                         <TableCell>{ch?.driver_name ?? '-'}</TableCell>
                         <TableCell className="whitespace-nowrap">{ch?.driver_mobile ?? '-'}</TableCell>
+                        <TableCell>{totalQty}</TableCell>
                         <TableCell>₹{entry.freight.toFixed(2)}</TableCell>
                         <TableCell>
                           {freightTypeOptions.find((item) => item.value === entry.status)?.label || entry.status}
@@ -1645,8 +1649,9 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1" style={{ width: '150px' }}>
-                            <Button size="sm" variant="ghost" onClick={() => handlePrint(entry)} title="Print LR receipt">
+                            <Button size="sm" variant="ghost" className="gap-1" onClick={() => handlePrint(entry)} title="Print LR receipt">
                               <Printer className="w-4 h-4" />
+                              <span className="text-xs">Print</span>
                             </Button>
                             <Button
                               size="sm"

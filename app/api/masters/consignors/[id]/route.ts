@@ -34,15 +34,37 @@ export async function PUT(
 
     const existing = existingRows[0];
     const nextUsername = String(body.username ?? existing.username ?? '').trim();
-    const nextPassword = String(body.password ?? existing.password ?? '').trim();
-    if (!nextUsername || !nextPassword) {
+    const submittedPassword = body.password === undefined ? undefined : String(body.password).trim();
+    if (!nextUsername && submittedPassword && submittedPassword !== '') {
       return NextResponse.json(
-        { success: false, error: 'Username and password are required' },
+        { success: false, error: 'Provide both username and password, or leave both blank' },
         { status: 400 }
       );
     }
 
-    const passwordHash = createHash('sha256').update(nextPassword).digest('hex');
+    if (nextUsername) {
+      const { rows: duplicateRows } = await sql`
+        SELECT id
+        FROM consignors
+        WHERE id <> ${id}
+          AND LOWER(username) = LOWER(${nextUsername})
+        LIMIT 1
+      `;
+
+      if (duplicateRows.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'Consignor username already exists' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const clearLogin = !nextUsername;
+    const passwordHash = clearLogin
+      ? ''
+      : submittedPassword && submittedPassword !== ''
+        ? createHash('sha256').update(submittedPassword).digest('hex')
+        : String(existing.password_hash || '');
 
     const { rows } = await sql`
       UPDATE consignors
@@ -58,7 +80,8 @@ export async function PUT(
         contact_person = ${body.contact_person ?? existing.contact_person},
         mobile = ${body.mobile ?? existing.mobile},
         bank_name = ${body.bank_name ?? existing.bank_name},
-        account_no = ${body.account_no ?? existing.account_no}
+        account_no = ${body.account_no ?? existing.account_no},
+        status = ${body.status ?? existing.status}
       WHERE id = ${id}
       RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, status, created_at
     `;

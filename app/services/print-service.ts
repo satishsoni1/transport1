@@ -226,7 +226,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
     ? 'PAID AMOUNT'
     : isTbb
       ? 'TBB AMOUNT'
-      : 'GRAND TOTAL';
+      : 'Grand Total';
   const totalQty = (data.goods_items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
   const totalWeightKg = (data.goods_items || []).reduce(
     (sum, item) => sum + (Number(item.qty) || 0) * (Number(item.weight_kg) || 0),
@@ -253,28 +253,28 @@ export function generateLRPrintHTML(data: LRPrintData): string {
     <style>
       body { font-family: Arial, sans-serif; }
       .sheet.lr-sheet {
-        min-height: calc(148mm - 8mm);
-        height: calc(148mm - 8mm);
+        min-height: calc(148mm - 10mm);
+        height: auto;
         padding: 2mm;
-        
+        width: calc(100% - 12mm);
+        margin: 0 auto;
       }
-        .sheet.lr-sheet{
-        
+      .sheet.lr-sheet{
         border:0px;
         border-bottom: 1.4px dotted #222;
-        }
+      }
       .lr-sheet .header {
         display: grid;
         grid-template-columns: 78px 1fr;
         align-items: stretch;
         gap: 8px;
-        min-height: 76px;
+        min-height: 68px;
         border: 1px solid #222;
-        padding: 4px 6px;
+        padding: 3px 5px;
         margin-bottom: 0;
       }
       .lr-sheet .jurisdiction-note {
-        font-size: 10px;
+        font-size: 9px;
         line-height: 1.1;
         text-align: center;
         font-weight: 700;
@@ -283,20 +283,20 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .transport-name {
         font-family: ${transporterNameFont}, 'Trebuchet MS', Arial, sans-serif;
-        font-size: 24px;
+        font-size: 22px;
         font-weight: 800;
         letter-spacing: 0;
         line-height: 0.96;
         text-align: center;
       }
       .lr-sheet .header-meta {
-        font-size: 10px;
-        line-height: 1.15;
+        font-size: 9px;
+        line-height: 1.1;
         text-align: center;
       }
       .lr-sheet .header-gst {
-        font-size: 9.8px;
-        line-height: 1.15;
+        font-size: 9px;
+        line-height: 1.1;
         text-align: center;
         font-weight: 700;
       }
@@ -320,42 +320,43 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .party-box,
       .lr-sheet .lr-box {
-        min-height: 92px;
+        min-height: 80px;
         border-bottom: 1px solid #222;
         border-right: 1px solid #222;
-        padding: 4px 6px;
+        padding: 3px 5px;
       }
       .lr-sheet .party-section > :last-child {
         border-right: 0;
       }
       .lr-sheet .box-label {
-        font-size: 9.5px;
+        font-size: 10.5px;
         font-weight: 700;
-        margin-bottom: 5px;
+        margin-bottom: 3px;
       }
       .lr-sheet .party-name {
-        font-size: 10px;
+        font-size: 12px;
         font-weight: 700;
-        min-height: 18px;
-        margin-bottom: 8px;
+        min-height: 16px;
+        margin-bottom: 4px;
+        line-height: 1.15;
       }
       .lr-sheet .party-mobile {
-        font-size: 9px;
+        font-size: 10.5px;
         font-weight: 700;
         min-height: 14px;
-        margin-bottom: 18px;
+        margin-bottom: 8px;
       }
       .lr-sheet .party-mr {
-        font-size: 12.8px;
+        font-size: 13.4px;
         font-weight: 700;
-        line-height: 1.2;
+        line-height: 1.1;
       }
       .lr-sheet .lr-box .kv {
         display: grid;
         grid-template-columns: 44px 8px 1fr;
-        font-size: 10px;
+        font-size: 11.2px;
         font-weight: 700;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
       }
       .lr-sheet .lr-box .kv.lr-number-row {
         grid-template-columns: 44px 8px 1fr 36px;
@@ -363,7 +364,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         column-gap: 4px;
       }
       .lr-sheet .lr-box .lr-number-value {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 800;
         letter-spacing: 0.2px;
       }
@@ -373,8 +374,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         justify-content: center;
       }
       .lr-sheet .lr-box .lr-mini-qr img {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         border: 1px solid #222;
         object-fit: contain;
         padding: 1px;
@@ -388,9 +389,9 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         border-bottom: 1px solid #222;
       }
       .lr-sheet .route-cell {
-        padding: 4px 6px;
+        padding: 3px 5px;
         border-right: 1px solid #222;
-        font-size: 10px;
+        font-size: 11px;
       }
       .lr-sheet .route-cell.route-main {
         grid-column: span 2;
@@ -407,21 +408,22 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .lr-sheet .route-inline {
         display: flex;
         justify-content: center;
-        gap: 14px;
+        gap: 10px;
         align-items: baseline;
         font-weight: 700;
+        flex-wrap: wrap;
       }
       .lr-sheet .route-inline .muted {
         font-weight: 400;
       }
       .lr-sheet .route-mr {
         text-align: center;
-        font-size: 12.8px;
+        font-size: 13.2px;
         font-weight: 700;
-        line-height: 1.2;
+        line-height: 1.1;
       }
       .lr-sheet .to-highlight {
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 800;
         letter-spacing: 0.2px;
       }
@@ -437,12 +439,12 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .lr-sheet .goods-table th,
       .lr-sheet .goods-table td {
         border: 1px solid #222;
-        font-size: 9.5px;
-        height: 20px;
-        min-height: 20px;
+        font-size: 10.3px;
+        height: 17px;
+        min-height: 17px;
         text-align: center;
         vertical-align: middle;
-        padding: 2px 2px;
+        padding: 1px 2px;
         line-height: 1.1;
         overflow: hidden;
       }
@@ -453,12 +455,13 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .goods-table td.desc-cell {
         text-align: left;
-        padding-left: 6px;
+        padding-left: 4px;
         font-weight: 700;
-        white-space: nowrap;
+        white-space: normal;
+        word-break: break-word;
       }
       .lr-sheet .goods-table tbody tr {
-        height: 20px;
+        height: 17px;
       }
       .lr-sheet .goods-table col:nth-child(1) { width: 31%; }
       .lr-sheet .goods-table col:nth-child(2) { width: 13%; }
@@ -478,10 +481,10 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         vertical-align: top;
       }
       .lr-sheet .goods-table .stamp-wrap {
-        min-height: 98px;
-        height: 98px;
+        min-height: 82px;
+        height: 82px;
         display: grid;
-        grid-template-rows: 24px 1fr;
+        grid-template-rows: 20px 1fr;
       }
       .lr-sheet .goods-table .stamp-label {
         border-bottom: 1px solid #222;
@@ -489,7 +492,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         align-items: center;
         justify-content: center;
         text-align: center;
-        font-size: 9px;
+        font-size: 8px;
         font-weight: 700;
         padding: 2px 4px;
       }
@@ -516,8 +519,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         padding-left: 5px;
       }
       .lr-sheet .goods-table .footer-row td {
-        height: 36px;
-        min-height: 36px;
+        height: 32px;
+        min-height: 32px;
       }
       .lr-sheet .goods-table .qr-cell,
       .lr-sheet .goods-table .remark-cell,
@@ -527,7 +530,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .lr-sheet .goods-table .remark-cell {
         text-align: left;
         color: #b91c1c;
-        font-size: 9px;
+        font-size: 8.4px;
+        line-height: 1.15;
       }
       .lr-sheet .qr-strip {
         display: flex;
@@ -543,15 +547,15 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         min-width: 0;
       }
       .lr-sheet .qr-box img {
-        width: 30px;
-        height: 30px;
+        width: 68px;
+        height: 68px;
         border: 1px solid #222;
         background: #fff;
         object-fit: contain;
         padding: 1px;
       }
       .lr-sheet .qr-copy {
-        font-size: 8.5px;
+        font-size: 9px;
         line-height: 1.1;
         font-weight: 700;
       }
@@ -565,7 +569,7 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .sign-box img.signature {
         max-width: 58px;
-        max-height: 28px;
+        max-height: 24px;
         object-fit: contain;
       }
       .lr-sheet .sign-title {
@@ -581,19 +585,20 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         line-height: 1;
       }
       .lr-sheet .freight-type-value {
-        font-size: 13px !important;
+        font-size: 11.8px !important;
         font-weight: 900;
         background: #fef3c7;
         letter-spacing: 0.3px;
       }
       .lr-sheet .grand-total-label {
         text-align: center;
-        font-size: 13px !important;
-        font-weight: 900;
+        font-size: 9px !important;
+        font-weight: 800;
         background: #fef3c7;
+        text-transform: none;
       }
       .lr-sheet .grand-total-value {
-        font-size: 13px !important;
+        font-size: 11.8px !important;
         font-weight: 900;
         text-align: right;
         padding-right: 5px;
@@ -602,13 +607,21 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       .lr-sheet .notice-box {
         border: 1px solid #222;
         border-top: 0;
-        padding: 5px 8px 6px;
-        font-size: 9.2px;
-        line-height: 1.35;
+        padding: 4px 6px 5px;
+        font-size: 8.3px;
+        line-height: 1.18;
       }
       .lr-sheet .notice-title {
         font-weight: 800;
         margin-bottom: 2px;
+        font-size: 8.8px;
+      }
+      .lr-sheet .notice-list {
+        margin: 0;
+        padding-left: 16px;
+      }
+      .lr-sheet .notice-list li + li {
+        margin-top: 1px;
       }
     </style>
   </head>
@@ -643,8 +656,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         </div>
         <div class="lr-box">
           <div class="kv lr-number-row"><span>LR.No.</span><span>:</span><span class="lr-number-value">${escapeHtml(data.lr_no)}</span><span class="lr-mini-qr"><img src="${lrQr}" alt="lr qr" /></span></div>
-          <div class="kv"><span>Date</span><span>:</span><span>${escapeHtml(new Date(data.lr_date).toLocaleDateString('en-IN'))}</span></div>
-          <div class="kv"><span>Inv. No.</span><span>:</span><span>${escapeHtml(data.invoice_no || '-')}</span></div>
+          <div class="kv"><span>LR Date</span><span>:</span><span>${escapeHtml(new Date(data.lr_date).toLocaleDateString('en-IN'))}</span></div>
+          <div class="kv"><span>Invoice No</span><span>:</span><span>${escapeHtml(data.invoice_no || '-')}</span></div>
         </div>
       </div>
 
@@ -659,8 +672,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         </div>
         <div class="route-cell route-city-mr route-mr">${escapeHtml(cityToMr || '-')}</div>
         <div class="route-cell route-delivery">
-          <div style="font-size:9px;font-weight:700;">Delivery At :</div>
-          <div style="font-size:9.4px;font-weight:700;">${escapeHtml(data.delivery_address || data.consignee_address || '-')}</div>
+          <div style="font-size:11px;font-weight:700;">Delivery At :</div>
+          <div style="font-size:11.4px;font-weight:700;">${escapeHtml(data.delivery_address || data.consignee_address || '-')}</div>
         </div>
       </div>
 
@@ -755,10 +768,12 @@ export function generateLRPrintHTML(data: LRPrintData): string {
 	        </tbody>
 	      </table>
         <div class="notice-box">
-          <div class="notice-title">सुचना:</div>
-          <div>१. माल पुरी तरहसे मलिक के जोखीम पर भेजा जा रहा है, ट्रान्सपोर्ट कंपनी केवल वाहक के रूप मे कार्य करती है.</div>
-          <div>२. क्षति, चोरी या देरी के लिए ट्रान्सपोर्ट कंपनी उत्तरदायी नही होगी जबतक की यह लापरवाही साबित न हो.</div>
-          <div>३. माल की प्राप्ती के समय ग्राहक को सामान की जाचं करनी होगी, बाद मे कि गई शिकायत मान्य नही होगी.</div>
+          <div class="notice-title">सूचना:</div>
+          <ol class="notice-list">
+            <li>माल पूरी तरह से मालिक के जोखीम पर भेजा जा रहा है, ट्रान्सपोर्ट कंपनी केवल वाहक के रूप में कार्य करती है.</li>
+            <li>क्षति, चोरी या देरी के लिए ट्रान्सपोर्ट कंपनी उत्तरदायी नहीं होगी, जब तक कि लापरवाही साबित न हो.</li>
+            <li>माल की प्राप्ति के समय ग्राहक को सामान की जांच करनी होगी, बाद में की गई शिकायत मान्य नहीं होगी.</li>
+          </ol>
         </div>
       </div>
     </div>
@@ -1444,19 +1459,38 @@ export function printHTML(html: string): void {
         .replace(
           '</style>',
           `
+          body {
+            margin: 0;
+            background: #fff;
+          }
           .lr-a4-copies {
             display: flex;
             flex-direction: column;
             gap: 2mm;
+            padding: 2mm 0 1mm;
           }
+          .lr-a4-copies::before {
+            content: '';
+            order: 2;
+            display: block;
+            margin: 0 auto;
+            width: calc(100% - 14mm);
+            border-top: 1px solid #222;
+          }
+          .lr-a4-copies .sheet.lr-sheet:first-child { order: 1; }
+          .lr-a4-copies .sheet.lr-sheet:last-child { order: 3; }
           .lr-a4-copies .sheet.lr-sheet {
             box-sizing: border-box;
-            min-height: calc((297mm - 30mm) / 2);
-            height: calc((297mm - 30mm) / 2);
-            max-height: calc((297mm - 30mm) / 2);
+            min-height: 0;
+            height: auto;
+            max-height: none;
             overflow: hidden;
             break-inside: avoid;
             page-break-inside: avoid;
+            width: calc(100% - 14mm);
+            margin: 0 auto;
+            transform: scale(0.97);
+            transform-origin: top center;
           }
           </style>`
         )
@@ -1468,7 +1502,38 @@ export function printHTML(html: string): void {
   if (printWindow) {
     printWindow.document.write(outputHtml);
     printWindow.document.close();
-    printWindow.print();
+    printWindow.onload = () => {
+      const images = Array.from(printWindow.document.images || []);
+      if (images.length === 0) {
+        printWindow.print();
+        return;
+      }
+
+      let pending = images.length;
+      const done = () => {
+        pending -= 1;
+        if (pending <= 0) {
+          printWindow.print();
+        }
+      };
+
+      const timeout = printWindow.setTimeout(() => printWindow.print(), 1500);
+      images.forEach((img) => {
+        if (img.complete) {
+          done();
+          return;
+        }
+        img.addEventListener('load', done, { once: true });
+        img.addEventListener('error', done, { once: true });
+      });
+      printWindow.addEventListener(
+        'afterprint',
+        () => {
+          printWindow.clearTimeout(timeout);
+        },
+        { once: true }
+      );
+    };
   }
 }
 
@@ -1501,7 +1566,20 @@ export function printImageDocument(title: string, imageUrl: string): void {
         </style>
       </head>
       <body>
-        <img src="${imageUrl}" alt="${escapeHtml(title)}" onload="window.print()" />
+        <img src="${imageUrl}" alt="${escapeHtml(title)}" />
+        <script>
+          const image = document.querySelector('img');
+          const triggerPrint = () => window.print();
+          if (image && image.complete) {
+            triggerPrint();
+          } else if (image) {
+            image.addEventListener('load', triggerPrint, { once: true });
+            image.addEventListener('error', triggerPrint, { once: true });
+            setTimeout(triggerPrint, 1500);
+          } else {
+            triggerPrint();
+          }
+        </script>
       </body>
     </html>
   `);

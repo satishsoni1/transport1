@@ -9,6 +9,7 @@ interface User {
   firstName: string;
   lastName: string;
   role: string;
+  status?: string;
   platformRole?: string;
   transportId?: number | null;
   transportName?: string | null;
@@ -29,6 +30,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  updateSession: (session: { token: string; user: User }) => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   register: (email: string, password: string, firstName: string, lastName: string, role: string) => Promise<void>;
@@ -95,17 +97,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('auth:unauthorized', onUnauthorized);
   }, []);
 
+  const updateSession = ({ token: nextToken, user: nextUser }: { token: string; user: User }) => {
+    setToken(nextToken);
+    setUser(nextUser);
+    localStorage.setItem('auth_token', nextToken);
+    localStorage.setItem('auth_user', JSON.stringify(nextUser));
+  };
+
   const login = async (email: string, password: string) => {
     const data = await apiClient.post<{ token: string; user: User }, { email: string; password: string }>(
       '/api/auth/login',
       { email, password }
     );
 
-    setToken(data.token);
-    setUser(data.user);
-
-    localStorage.setItem('auth_token', data.token);
-    localStorage.setItem('auth_user', JSON.stringify(data.user));
+    updateSession(data);
   };
 
   const logout = () => {
@@ -138,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         isLoading,
         isAuthenticated: !!token,
+        updateSession,
         login,
         logout,
         register,

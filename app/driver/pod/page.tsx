@@ -1,5 +1,6 @@
 'use client';
 
+import jsQR from 'jsqr';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -7,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Printer } from 'lucide-react';
+import { Camera, ImageUp, LoaderCircle, Printer, ScanLine, X } from 'lucide-react';
 import { generateLRPrintHTML, printHTML, printImageDocument } from '@/app/services/print-service';
 import { transliterateToMarathi } from '@/app/services/marathi';
 import { clearDriverSession, driverFetch, getDriverToken, getDriverUser, type DriverSessionUser } from '@/app/services/driver-session';
+import { useRef } from 'react';
 
 interface DriverLR {
   id: number;
@@ -105,10 +107,18 @@ function normalizeScanValue(value: string) {
 
 export default function DriverPodPage() {
   const router = useRouter();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraFrameRef = useRef<number | null>(null);
   const [driver, setDriver] = useState<DriverSessionUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState('');
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [imageScanning, setImageScanning] = useState(false);
   const [lrs, setLrs] = useState<DriverLR[]>([]);
   const [selectedLR, setSelectedLR] = useState<DriverLR | null>(null);
   const [podImageUrl, setPodImageUrl] = useState('');
@@ -153,8 +163,27 @@ export default function DriverPodPage() {
     [lrs]
   );
 
-  const handleSearch = async () => {
-    const normalizedSearch = normalizeScanValue(search);
+  const stopCamera = useCallback(() => {
+    if (cameraFrameRef.current) {
+      cancelAnimationFrame(cameraFrameRef.current);
+      cameraFrameRef.current = null;
+    }
+
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setCameraOpen(false);
+    setCameraStarting(false);
+  }, []);
+
+  const runSearch = useCallback(async (rawValue: string) => {
+    const normalizedSearch = normalizeScanValue(rawValue);
     setSearch(normalizedSearch);
     const data = await driverFetch<DriverLR[]>(
       `/api/driver/lrs?search=${encodeURIComponent(normalizedSearch)}`
@@ -178,7 +207,149 @@ export default function DriverPodPage() {
     if (normalizedSearch && data.length === 0) {
       toast.error('No LR found for this driver');
     }
+  }, []);
+
+  const handleSearch = async () => {
+    await runSearch(search);
   };
+
+  const scanQrImageFile = useCallback(
+    async (file: File | null) => {
+      if (!file) return;
+
+      setImageScanning(true);
+      setCameraError('');
+
+      try {
+        const imageUrl = URL.createObjectURL(file);
+        const image = new Image();
+        image.src = imageUrl;
+
+        await new Promise<void>((resolve, reject) => {
+          image.onload = () => resolve();
+          image.onerror = () => reject(new Error('Unable to read the selected image'));
+        });
+
+        const canvas = canvasRef.current || document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (!context) {
+          throw new Error('Unable to process the selected image');
+        }
+
+        canvas.width = image.naturalWidth || image.width;
+        canvas.height = image.naturalHeight || image.height;
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const detectedCode = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'attemptBoth',
+        });
+
+        URL.revokeObjectURL(imageUrl);
+
+        if (!detectedCode?.data) {
+          throw new Error('QR code not found in the selected image');
+        }
+
+        await runSearch(detectedCode.data);
+        toast.success('LR QR scanned from image');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to scan QR image';
+        setCameraError(message);
+        toast.error(message);
+      } finally {
+        setImageScanning(false);
+      }
+    },
+    [runSearch]
+  );
+
+  const startCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const message =
+        'Live camera access is not available here. Use HTTPS/localhost or scan from an image below.';
+      setCameraError(message);
+      toast.error(message);
+      return;
+    }
+
+    setCameraError('');
+    setCameraStarting(true);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+        },
+        audio: false,
+      });
+
+      cameraStreamRef.current = stream;
+      setCameraOpen(true);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      const scanFrame = async () => {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+
+        if (!video || !canvas || video.readyState < 2) {
+          cameraFrameRef.current = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        const context = canvas.getContext('2d');
+        if (!context) {
+          cameraFrameRef.current = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        try {
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const detectedCode = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth',
+          });
+          const foundValue = detectedCode?.data;
+          if (foundValue) {
+            stopCamera();
+            await runSearch(foundValue);
+            toast.success('LR QR scanned successfully');
+            return;
+          }
+        } catch {
+          setCameraError('Unable to read QR. Try moving the camera closer and keep it steady.');
+        }
+
+        cameraFrameRef.current = requestAnimationFrame(scanFrame);
+      };
+
+      cameraFrameRef.current = requestAnimationFrame(scanFrame);
+    } catch (error) {
+      stopCamera();
+      setCameraError(error instanceof Error ? error.message : 'Unable to start camera');
+      toast.error(error instanceof Error ? error.message : 'Unable to start camera');
+    } finally {
+      setCameraStarting(false);
+    }
+  }, [runSearch, stopCamera]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraFrameRef.current) {
+        cancelAnimationFrame(cameraFrameRef.current);
+      }
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
 
   const handleImageUpload = (file: File | null) => {
     if (!file) return;
@@ -308,8 +479,94 @@ export default function DriverPodPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-700">
-              Scan LR QR into the field below or type the LR number manually.
+              Scan LR QR with camera or type the LR number manually.
             </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={cameraOpen ? 'destructive' : 'outline'}
+                className="h-11 flex-1 rounded-xl"
+                onClick={() => {
+                  if (cameraOpen) {
+                    stopCamera();
+                    return;
+                  }
+                  void startCamera();
+                }}
+                disabled={cameraStarting}
+              >
+                {cameraStarting ? (
+                  <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    Starting Camera...
+                  </>
+                ) : cameraOpen ? (
+                  <>
+                    <X className="mr-2 h-4 w-4" />
+                    Stop Camera
+                  </>
+                ) : (
+                  <>
+                    <Camera className="mr-2 h-4 w-4" />
+                    Open Camera Scanner
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="lr_qr_image" className="text-sm font-semibold text-slate-700">
+                Scan From QR Image
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="lr_qr_image"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    void scanQrImageFile(e.target.files?.[0] || null);
+                    e.currentTarget.value = '';
+                  }}
+                  className="h-11 rounded-xl bg-white"
+                />
+                <div className="flex h-11 shrink-0 items-center rounded-xl border border-slate-200 px-3 text-slate-600">
+                  {imageScanning ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ImageUp className="h-4 w-4" />
+                  )}
+                </div>
+              </div>
+              <div className="text-xs text-slate-600">
+                If live camera does not open, take or choose a photo of the LR QR and scan it here.
+              </div>
+            </div>
+            {cameraOpen ? (
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-black">
+                <div className="relative aspect-[4/3] w-full overflow-hidden">
+                  <video
+                    ref={videoRef}
+                    className="h-full w-full object-cover"
+                    autoPlay
+                    playsInline
+                    muted
+                  />
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="h-40 w-40 rounded-3xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(15,23,42,0.35)]" />
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 bg-black/45 px-3 py-2 text-xs font-semibold text-white">
+                    <ScanLine className="h-4 w-4" />
+                    Align LR QR inside the box
+                  </div>
+                </div>
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+            ) : null}
+            {cameraError ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {cameraError}
+              </div>
+            ) : null}
             <div className="flex gap-2">
               <Input
                 value={search}
@@ -321,12 +578,13 @@ export default function DriverPodPage() {
                     void handleSearch();
                   }
                 }}
-                placeholder="Scan QR / Enter LR No"
+                placeholder="Scan LR QR / Enter LR No"
                 className="h-11 rounded-xl bg-white"
                 inputMode="search"
+                autoFocus
               />
               <Button type="button" className="h-11 rounded-xl px-4" onClick={() => void handleSearch()}>
-                Find
+                Scan / Find
               </Button>
             </div>
           </CardContent>

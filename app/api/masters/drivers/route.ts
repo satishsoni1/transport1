@@ -24,28 +24,37 @@ export async function POST(request: Request) {
     const username = String(body.username || '').trim();
     const password = String(body.password || '').trim();
 
-    if (!driverName || !username || !password) {
+    if (!driverName) {
       return NextResponse.json(
-        { success: false, error: 'Driver name, username, and password are required' },
+        { success: false, error: 'Driver name is required' },
         { status: 400 }
       );
     }
 
-    const { rows: duplicateRows } = await sql`
-      SELECT id
-      FROM drivers
-      WHERE LOWER(username) = LOWER(${username})
-      LIMIT 1
-    `;
-
-    if (duplicateRows.length > 0) {
+    if ((username && !password) || (!username && password)) {
       return NextResponse.json(
-        { success: false, error: 'Driver username already exists' },
+        { success: false, error: 'Provide both username and password, or leave both blank' },
         { status: 400 }
       );
     }
 
-    const passwordHash = hashDriverPassword(password);
+    if (username) {
+      const { rows: duplicateRows } = await sql`
+        SELECT id
+        FROM drivers
+        WHERE LOWER(username) = LOWER(${username})
+        LIMIT 1
+      `;
+
+      if (duplicateRows.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'Driver username already exists' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const passwordHash = password ? hashDriverPassword(password) : '';
 
     const { rows } = await sql`
       INSERT INTO drivers (
@@ -55,7 +64,7 @@ export async function POST(request: Request) {
       VALUES (
         ${driverName},
         ${username},
-        ${password},
+        '',
         ${passwordHash},
         ${String(body.mobile || '').trim()},
         ${String(body.license_no || '').trim()},
@@ -66,7 +75,7 @@ export async function POST(request: Request) {
         ${String(body.renewal_date || '').trim()},
         ${String(body.passport_photo_url || '').trim()},
         ${String(body.thumb_image_url || '').trim()},
-        'active'
+        ${body.status === 'inactive' ? 'inactive' : 'active'}
       )
       RETURNING *
     `;

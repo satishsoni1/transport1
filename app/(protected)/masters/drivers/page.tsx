@@ -96,8 +96,8 @@ export default function DriversPage() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!formData.driver_name.trim() || !formData.username.trim() || !formData.password.trim()) {
-        toast.error('Driver name, username and password are required');
+      if (!formData.driver_name.trim()) {
+        toast.error('Driver name is required');
         return;
       }
 
@@ -190,7 +190,7 @@ export default function DriversPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="username">Login Username *</Label>
+                <Label htmlFor="username">Login Username</Label>
                 <Input
                   id="username"
                   value={formData.username}
@@ -200,7 +200,7 @@ export default function DriversPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="password">Login Password *</Label>
+                <Label htmlFor="password">Login Password</Label>
                 <Input
                   id="password"
                   type="password"
@@ -208,6 +208,7 @@ export default function DriversPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, password: e.target.value })
                   }
+                  placeholder={editingId ? 'Leave blank to keep existing password' : 'Optional login password'}
                 />
               </div>
               <div>

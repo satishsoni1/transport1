@@ -169,7 +169,7 @@ export async function getUserByEmail(email: string) {
   return rows[0] || null;
 }
 
-async function getUserById(id: number) {
+export async function getUserById(id: number) {
   await ensureSchema();
   const { rows } = await sql<UserRow>`
     SELECT

@@ -33,38 +33,52 @@ export async function PUT(
 
     const existing = existingRows[0];
     const nextUsername = String(body.username ?? existing.username ?? '').trim();
-    const nextPassword = String(body.password ?? existing.password ?? '').trim();
+    const submittedPassword = body.password === undefined ? undefined : String(body.password).trim();
 
-    if (!String(body.driver_name ?? existing.driver_name ?? '').trim() || !nextUsername || !nextPassword) {
+    if (!String(body.driver_name ?? existing.driver_name ?? '').trim()) {
       return NextResponse.json(
-        { success: false, error: 'Driver name, username, and password are required' },
+        { success: false, error: 'Driver name is required' },
         { status: 400 }
       );
     }
 
-    const { rows: duplicateRows } = await sql`
-      SELECT id
-      FROM drivers
-      WHERE id <> ${id}
-        AND LOWER(username) = LOWER(${nextUsername})
-      LIMIT 1
-    `;
-
-    if (duplicateRows.length > 0) {
+    if (!nextUsername && submittedPassword && submittedPassword !== '') {
       return NextResponse.json(
-        { success: false, error: 'Driver username already exists' },
+        { success: false, error: 'Provide both username and password, or leave both blank' },
         { status: 400 }
       );
     }
 
-    const passwordHash = hashDriverPassword(nextPassword);
+    if (nextUsername) {
+      const { rows: duplicateRows } = await sql`
+        SELECT id
+        FROM drivers
+        WHERE id <> ${id}
+          AND LOWER(username) = LOWER(${nextUsername})
+        LIMIT 1
+      `;
+
+      if (duplicateRows.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'Driver username already exists' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const clearLogin = !nextUsername;
+    const passwordHash = clearLogin
+      ? ''
+      : submittedPassword && submittedPassword !== ''
+        ? hashDriverPassword(submittedPassword)
+        : String(existing.password_hash || '');
 
     const { rows } = await sql`
       UPDATE drivers
       SET
         driver_name = ${body.driver_name ?? existing.driver_name},
         username = ${nextUsername},
-        password = ${nextPassword},
+        password = '',
         password_hash = ${passwordHash},
         mobile = ${body.mobile ?? existing.mobile},
         license_no = ${body.license_no ?? existing.license_no},

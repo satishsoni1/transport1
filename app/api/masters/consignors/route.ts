@@ -27,17 +27,42 @@ export async function POST(request: Request) {
   try {
     await ensureSchema();
     const body = await request.json();
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '').trim();
 
-    if (!body.name || !body.address || !body.city || !body.username || !body.password) {
+    if (!body.name || !body.address || !body.city) {
       return NextResponse.json(
-        { success: false, error: 'Name, username, password, address, and city are required' },
+        { success: false, error: 'Name, address, and city are required' },
         { status: 400 }
       );
     }
 
-    const passwordHash = createHash('sha256')
-      .update(String(body.password).trim())
-      .digest('hex');
+    if ((username && !password) || (!username && password)) {
+      return NextResponse.json(
+        { success: false, error: 'Provide both username and password, or leave both blank' },
+        { status: 400 }
+      );
+    }
+
+    if (username) {
+      const { rows: duplicateRows } = await sql`
+        SELECT id
+        FROM consignors
+        WHERE LOWER(username) = LOWER(${username})
+        LIMIT 1
+      `;
+
+      if (duplicateRows.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'Consignor username already exists' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const passwordHash = password
+      ? createHash('sha256').update(password).digest('hex')
+      : '';
 
     const { rows } = await sql`
       INSERT INTO consignors (
@@ -46,7 +71,7 @@ export async function POST(request: Request) {
       VALUES (
         ${body.name},
         ${body.name_mr || ''},
-        ${String(body.username).trim()},
+        ${username},
         '',
         ${passwordHash},
         ${body.address},
@@ -56,7 +81,7 @@ export async function POST(request: Request) {
         ${body.mobile || ''},
         ${body.bank_name || ''},
         ${body.account_no || ''},
-        'active'
+        ${body.status === 'inactive' ? 'inactive' : 'active'}
       )
       RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, status, created_at
     `;
