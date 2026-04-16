@@ -9,7 +9,7 @@ export async function GET() {
     const { rows } = await sql`
       SELECT
         id, name, name_mr, username, address, city, gst_no, contact_person, mobile,
-        bank_name, account_no, status, created_at
+        bank_name, account_no, default_payment_method, status, created_at
       FROM consignors
       ORDER BY id DESC
     `;
@@ -29,6 +29,9 @@ export async function POST(request: Request) {
     const body = await request.json();
     const username = String(body.username || '').trim();
     const password = String(body.password || '').trim();
+    const defaultPaymentMethod = ['paid', 'tbb'].includes(String(body.default_payment_method))
+      ? String(body.default_payment_method)
+      : 'to_pay';
 
     if (!body.name || !body.address || !body.city) {
       return NextResponse.json(
@@ -66,7 +69,7 @@ export async function POST(request: Request) {
 
     const { rows } = await sql`
       INSERT INTO consignors (
-        name, name_mr, username, password, password_hash, address, city, gst_no, contact_person, mobile, bank_name, account_no, status
+        name, name_mr, username, password, password_hash, address, city, gst_no, contact_person, mobile, bank_name, account_no, default_payment_method, status
       )
       VALUES (
         ${body.name},
@@ -81,9 +84,10 @@ export async function POST(request: Request) {
         ${body.mobile || ''},
         ${body.bank_name || ''},
         ${body.account_no || ''},
+        ${defaultPaymentMethod},
         ${body.status === 'inactive' ? 'inactive' : 'active'}
       )
-      RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, status, created_at
+      RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, default_payment_method, status, created_at
     `;
     return NextResponse.json(rows[0], { status: 201 });
   } catch (error) {

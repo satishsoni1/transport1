@@ -153,11 +153,11 @@ export async function POST(request: Request) {
     const seq = await sql`SELECT nextval(pg_get_serial_sequence('lr_entries','id')) AS id`;
     const id = Number(seq.rows[0].id);
     const { rows: settingsRows } = await sql`
-      SELECT COALESCE(NULLIF(TRIM(lr_prefix), ''), 'LR') AS lr_prefix
+      SELECT COALESCE(TRIM(lr_prefix), '') AS lr_prefix
       FROM app_settings
       WHERE id = 1
     `;
-    const lrPrefix = String(settingsRows[0]?.lr_prefix || 'LR');
+    const lrPrefix = String(settingsRows[0]?.lr_prefix || '');
     const lrNo = `${lrPrefix}${String(id).padStart(5, '0')}`;
 
     const { rows } = await sql`

@@ -5,6 +5,7 @@ import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
 import {
   generateLRPrintHTML,
+  downloadPDF,
   printHTML,
   printImageDocument,
   printPodImagesBatch,
@@ -24,7 +25,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, Printer, FileImage,ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Trash2, Edit2, Printer, FileImage,ChevronLeft, ChevronRight } from 'lucide-react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 
@@ -77,6 +78,7 @@ interface Consignor {
   gst_no: string;
   mobile: string;
   contact_person: string;
+  default_payment_method?: 'to_pay' | 'paid' | 'tbb';
 }
 
 interface Consignee {
@@ -118,6 +120,7 @@ interface AdminSettings {
   transporter_name_font?: string;
   lr_print_format?: 'classic' | 'compact' | 'detailed';
   invoice_print_format?: 'classic' | 'compact' | 'detailed';
+  default_lr_charge?: number;
 }
 
 const emptyNewConsignor = {
@@ -174,7 +177,7 @@ export default function LREntryPage() {
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const [tableWidth, setTableWidth] = useState<number>(0);
 
-  const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'new' | 'update' | 'preview'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [consignorSearch, setConsignorSearch] = useState('');
   const [consigneeSearch, setConsigneeSearch] = useState('');
@@ -225,6 +228,7 @@ export default function LREntryPage() {
   const [listStatus, setListStatus] = useState('');
   const [listPod, setListPod] = useState('');
   const [podPrintSelection, setPodPrintSelection] = useState<Set<number>>(new Set());
+  const [lrPrintSelection, setLrPrintSelection] = useState<Set<number>>(new Set());
 
   const { data: challansForList = [] } = useSWR<
     Array<{
@@ -301,6 +305,7 @@ export default function LREntryPage() {
 
   useEffect(() => {
     setPodPrintSelection(new Set());
+    setLrPrintSelection(new Set());
   }, [lrEntriesListKey]);
 
   const toggleListPodSelect = useCallback((id: number, checked: boolean) => {
@@ -311,6 +316,23 @@ export default function LREntryPage() {
       return next;
     });
   }, []);
+
+  const toggleListLrSelect = useCallback((id: number, checked: boolean) => {
+    setLrPrintSelection((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const selectAllListLrs = useCallback(
+    (checked: boolean) => {
+      if (checked) setLrPrintSelection(new Set(lrEntries.map((e) => e.id)));
+      else setLrPrintSelection(new Set());
+    },
+    [lrEntries]
+  );
 
   const selectAllListPods = useCallback(
     (checked: boolean) => {
@@ -402,6 +424,14 @@ export default function LREntryPage() {
     });
   }, [selectedConsignor, selectedConsignee, deliveryAtDifferent]);
 
+  useEffect(() => {
+    if (!selectedConsignor?.default_payment_method || editingId) return;
+    setFormData((prev) => ({
+      ...prev,
+      status: selectedConsignor.default_payment_method || prev.status,
+    }));
+  }, [selectedConsignor?.default_payment_method, editingId]);
+
   const calculateBalance = useCallback(() => {
     const freight = parseFloat(formData.freight) || 0;
     const hamali = parseFloat(formData.hamali) || 0;
@@ -440,7 +470,7 @@ export default function LREntryPage() {
       delivery_address: '',
       freight: '0',
       hamali: '0',
-      lr_charge: '0',
+      lr_charge: String(settings?.default_lr_charge ?? 0),
       advance: '0',
       invoice_no: '',
       status: 'to_pay',
@@ -454,7 +484,7 @@ export default function LREntryPage() {
       pod_received: false,
     });
     setTimeout(() => consignorInputRef.current?.focus(), 30);
-  }, []);
+  }, [settings?.default_lr_charge]);
 
   const addGoodsItem = useCallback(async () => {
     if (currentItem.qty <= 0) {
@@ -676,7 +706,7 @@ export default function LREntryPage() {
         }))
       );
       setCurrentItem({ qty: 0, type: '', nature: '', weight_kg: 0, rate: 0, amount: 0 });
-      setActiveTab('form');
+      setActiveTab('update');
       setTimeout(() => consignorInputRef.current?.focus(), 20);
     },
     [consignors, consignees]
@@ -719,6 +749,25 @@ export default function LREntryPage() {
     },
     [buildPrintPayload]
   );
+
+  const handleDownload = useCallback(
+    async (entry: LREntry) => {
+      const html = generateLRPrintHTML(buildPrintPayload(entry));
+      await downloadPDF(html, `LR-${entry.lr_no}`);
+    },
+    [buildPrintPayload]
+  );
+
+  const printSelectedListLrs = useCallback(() => {
+    const selected = lrEntries.filter((entry) => lrPrintSelection.has(entry.id));
+    if (selected.length === 0) {
+      toast.error('Select at least one LR to print');
+      return;
+    }
+    selected.forEach((entry, index) => {
+      window.setTimeout(() => handlePrint(entry), index * 500);
+    });
+  }, [handlePrint, lrEntries, lrPrintSelection]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -787,7 +836,7 @@ export default function LREntryPage() {
         mutateLrEntries();
         handlePrint(created);
 
-        setActiveTab('form');
+        setActiveTab('new');
         resetForNew();
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to save L.R.';
@@ -847,7 +896,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
 }, []);
   // Sync width of dummy container with actual table using ResizeObserver
   useEffect(() => {
-    if (activeTab !== 'list') return;
+    if (activeTab !== 'list' && activeTab !== 'preview') return;
 
     const tableContainer = tableScrollRef.current;
     if (!tableContainer) return;
@@ -873,22 +922,32 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">L.R. Entry</h1>
-        {activeTab === 'list' && (
-          <Button
-            onClick={() => {
-              setActiveTab('form');
-              resetForNew();
-            }}
-            className="gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            New L.R.
-          </Button>
-        )}
+        <h1 className="text-3xl font-bold">LR Details</h1>
+        <div className="text-sm text-muted-foreground">Manage LR details, updates, and print previews.</div>
       </div>
 
-      {activeTab === 'form' ? (
+      <div className="flex flex-wrap gap-2 rounded-lg border bg-white p-2">
+        {[
+          { key: 'list', label: 'LR Details' },
+          { key: 'new', label: 'New LR' },
+          { key: 'update', label: 'Update LR' },
+          { key: 'preview', label: 'LR Preview' },
+        ].map((tab) => (
+          <Button
+            key={tab.key}
+            type="button"
+            variant={activeTab === tab.key ? 'default' : 'outline'}
+            onClick={() => {
+              if (tab.key === 'new') resetForNew();
+              setActiveTab(tab.key as typeof activeTab);
+            }}
+          >
+            {tab.label}
+          </Button>
+        ))}
+      </div>
+
+      {activeTab === 'new' || activeTab === 'update' ? (
         <form
           ref={lrFormRef}
           onSubmit={handleSubmit}
@@ -1375,7 +1434,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
           <div className="flex gap-2">
             <Button type="submit" className="flex-1">{editingId ? 'Update L.R.' : 'Create L.R.'}</Button>
             <Button type="button" variant="outline" onClick={() => { setActiveTab('list'); setEditingId(null); }}>
-              Back to List
+              Back to LR Details
             </Button>
           </div>
         </form>
@@ -1487,8 +1546,27 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
             </CardContent>
           </Card>
 
-          {listPrintablePodRows.length > 0 ? (
+          {lrEntries.length > 0 || listPrintablePodRows.length > 0 ? (
             <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="lr-list-lr-select-all"
+                  checked={lrEntries.length > 0 && lrEntries.every((row) => lrPrintSelection.has(row.id))}
+                  onCheckedChange={(v) => selectAllListLrs(v === true)}
+                />
+                <Label htmlFor="lr-list-lr-select-all" className="text-sm font-medium cursor-pointer">
+                  Select LRs ({lrEntries.length})
+                </Label>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={lrPrintSelection.size === 0}
+                onClick={printSelectedListLrs}
+              >
+                Print selected LRs ({lrPrintSelection.size})
+              </Button>
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="lr-list-pod-select-all"
@@ -1555,6 +1633,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10 pr-0">POD</TableHead>
+                  <TableHead className="w-10 pr-0">Print</TableHead>
                   <TableHead>L.R. No</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Consignor</TableHead>
@@ -1566,8 +1645,8 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                   <TableHead>Driver mob</TableHead>
                   <TableHead>Qty</TableHead>
                   <TableHead>Freight</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>POD</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>LR Status</TableHead>
                   <TableHead>Remark</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -1575,7 +1654,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
               <TableBody>
                 {lrEntries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={16} className="text-center py-4">
+                    <TableCell colSpan={17} className="text-center py-4">
                       No L.R. entries found
                     </TableCell>
                   </TableRow>
@@ -1594,6 +1673,11 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                       (sum, item) => sum + (Number(item.qty) || 0),
                       0
                     );
+                    const lrOperationalStatus = entry.pod_received
+                      ? 'Delivered'
+                      : ch
+                        ? 'In Transit'
+                        : 'In Godown';
                     return (
                       <TableRow key={entry.id}>
                         <TableCell className="pr-0">
@@ -1606,6 +1690,13 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
+                        </TableCell>
+                        <TableCell className="pr-0">
+                          <Checkbox
+                            checked={lrPrintSelection.has(entry.id)}
+                            onCheckedChange={(v) => toggleListLrSelect(entry.id, v === true)}
+                            aria-label={`Select LR ${entry.lr_no}`}
+                          />
                         </TableCell>
                         <TableCell className="font-medium whitespace-nowrap">{entry.lr_no}</TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -1631,9 +1722,15 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                         </TableCell>
                         <TableCell>
                           <span
-                            className={`text-xs font-semibold ${entry.pod_received ? 'text-emerald-600' : 'text-amber-600'}`}
+                            className={`text-xs font-semibold ${
+                              lrOperationalStatus === 'Delivered'
+                                ? 'text-emerald-600'
+                                : lrOperationalStatus === 'In Transit'
+                                  ? 'text-blue-600'
+                                  : 'text-amber-600'
+                            }`}
                           >
-                            {entry.pod_received ? 'Received' : 'Pending'}
+                            {lrOperationalStatus}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -1652,6 +1749,9 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                             <Button size="sm" variant="ghost" className="gap-1" onClick={() => handlePrint(entry)} title="Print LR receipt">
                               <Printer className="w-4 h-4" />
                               <span className="text-xs">Print</span>
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => void handleDownload(entry)} title="Download LR">
+                              <Download className="w-4 h-4" />
                             </Button>
                             <Button
                               size="sm"

@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Edit2, Trash2, Plus } from 'lucide-react';
+import { Edit2, Plus } from 'lucide-react';
 import useSWR from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 
@@ -121,18 +121,6 @@ export default function ConsigneesPage() {
       mobile: consignee.mobile,
     });
     setOpen(true);
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this consignee?')) return;
-
-    try {
-      await apiClient.delete(`/api/masters/consignees/${id}`);
-      toast.success('Consignee deleted successfully');
-      mutate();
-    } catch (error) {
-      toast.error('Failed to delete consignee');
-    }
   };
 
   if (!user) return null;
@@ -307,13 +295,6 @@ export default function ConsigneesPage() {
                         onClick={() => handleEdit(consignee)}
                       >
                         <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(consignee.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </TableCell>

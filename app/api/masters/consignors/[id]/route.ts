@@ -65,6 +65,9 @@ export async function PUT(
       : submittedPassword && submittedPassword !== ''
         ? createHash('sha256').update(submittedPassword).digest('hex')
         : String(existing.password_hash || '');
+    const defaultPaymentMethod = ['paid', 'tbb'].includes(String(body.default_payment_method ?? existing.default_payment_method))
+      ? String(body.default_payment_method ?? existing.default_payment_method)
+      : 'to_pay';
 
     const { rows } = await sql`
       UPDATE consignors
@@ -81,9 +84,10 @@ export async function PUT(
         mobile = ${body.mobile ?? existing.mobile},
         bank_name = ${body.bank_name ?? existing.bank_name},
         account_no = ${body.account_no ?? existing.account_no},
+        default_payment_method = ${defaultPaymentMethod},
         status = ${body.status ?? existing.status}
       WHERE id = ${id}
-      RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, status, created_at
+      RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, default_payment_method, status, created_at
     `;
     return NextResponse.json(rows[0], { status: 200 });
   } catch (error) {

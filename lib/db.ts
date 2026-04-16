@@ -370,6 +370,7 @@ export async function ensureSchema() {
       invoice_prefix TEXT NOT NULL DEFAULT '',
       lr_print_format TEXT NOT NULL DEFAULT 'classic',
       invoice_print_format TEXT NOT NULL DEFAULT 'classic',
+      default_lr_charge DOUBLE PRECISION NOT NULL DEFAULT 0,
       default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18,
       financial_year_start TEXT NOT NULL DEFAULT '04-01',
       timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
@@ -392,6 +393,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS default_payment_method TEXT NOT NULL DEFAULT 'to_pay'`;
   await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`;
@@ -410,6 +412,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_prefix TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_print_format TEXT NOT NULL DEFAULT 'classic'`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_print_format TEXT NOT NULL DEFAULT 'classic'`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS default_lr_charge DOUBLE PRECISION NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS financial_year_start TEXT NOT NULL DEFAULT '04-01'`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata'`;
@@ -419,9 +422,9 @@ export async function ensureSchema() {
     INSERT INTO app_settings (
       id, company_name, company_tagline, app_title, support_email, company_email, company_phone, address, gst_no,
       logo_url, signature_url, transporter_qr_url, transporter_name_font, lr_prefix, invoice_prefix, lr_print_format, invoice_print_format,
-      default_gst_rate, financial_year_start, timezone
+      default_lr_charge, default_gst_rate, financial_year_start, timezone
     )
-    VALUES (1, '', '', '', '', '', '', '', '', '', '', '', 'Arial', '', '', 'classic', 'classic', 18, '04-01', 'Asia/Kolkata')
+    VALUES (1, '', '', '', '', '', '', '', '', '', '', '', 'Arial', '', '', 'classic', 'classic', 0, 18, '04-01', 'Asia/Kolkata')
     ON CONFLICT (id) DO NOTHING
   `;
 

@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Edit2, Trash2, Plus } from 'lucide-react';
+import { Edit2, Plus } from 'lucide-react';
 import useSWR from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 
@@ -39,6 +39,7 @@ interface Consignor {
   mobile: string;
   bank_name?: string;
   account_no?: string;
+  default_payment_method?: 'to_pay' | 'paid' | 'tbb';
   status: 'active' | 'inactive';
   created_at: string;
 }
@@ -64,6 +65,7 @@ export default function ConsignorsPage() {
     mobile: '',
     bank_name: '',
     account_no: '',
+    default_payment_method: 'to_pay' as 'to_pay' | 'paid' | 'tbb',
     status: 'active' as 'active' | 'inactive',
   });
 
@@ -91,6 +93,7 @@ export default function ConsignorsPage() {
         mobile: '',
         bank_name: '',
         account_no: '',
+        default_payment_method: 'to_pay',
         status: 'active',
       });
     }
@@ -141,21 +144,10 @@ export default function ConsignorsPage() {
       mobile: consignor.mobile,
       bank_name: consignor.bank_name || '',
       account_no: consignor.account_no || '',
+      default_payment_method: consignor.default_payment_method || 'to_pay',
       status: consignor.status || 'active',
     });
     setOpen(true);
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this consignor?')) return;
-
-    try {
-      await apiClient.delete(`/api/masters/consignors/${id}`);
-      toast.success('Consignor deleted successfully');
-      mutate();
-    } catch (error) {
-      toast.error('Failed to delete consignor');
-    }
   };
 
   if (!user) return null;
@@ -240,7 +232,7 @@ export default function ConsignorsPage() {
                   <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
-                    type="password"
+                    type="text"
                     value={formData.password}
                     onChange={(e) =>
                       setFormData({ ...formData, password: e.target.value })
@@ -314,6 +306,24 @@ export default function ConsignorsPage() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="default_payment_method">Default Payment Method</Label>
+                  <select
+                    id="default_payment_method"
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    value={formData.default_payment_method}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        default_payment_method: e.target.value as 'to_pay' | 'paid' | 'tbb',
+                      })
+                    }
+                  >
+                    <option value="to_pay">TOPAY</option>
+                    <option value="paid">PAID</option>
+                    <option value="tbb">TBB</option>
+                  </select>
+                </div>
+                <div>
                   <Label htmlFor="status">Status</Label>
                   <select
                     id="status"
@@ -368,6 +378,7 @@ export default function ConsignorsPage() {
               <TableHead>GST No.</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Mobile</TableHead>
+              <TableHead>Default Payment</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -375,7 +386,7 @@ export default function ConsignorsPage() {
           <TableBody>
             {consignors.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-4">
+                <TableCell colSpan={9} className="text-center py-4">
                   No consignors found
                 </TableCell>
               </TableRow>
@@ -389,6 +400,13 @@ export default function ConsignorsPage() {
                   <TableCell>{consignor.contact_person}</TableCell>
                   <TableCell>{consignor.mobile}</TableCell>
                   <TableCell>
+                    {consignor.default_payment_method === 'paid'
+                      ? 'PAID'
+                      : consignor.default_payment_method === 'tbb'
+                        ? 'TBB'
+                        : 'TOPAY'}
+                  </TableCell>
+                  <TableCell>
                     <span className={`rounded px-2 py-1 text-xs font-medium ${consignor.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {consignor.status}
                     </span>
@@ -401,13 +419,6 @@ export default function ConsignorsPage() {
                         onClick={() => handleEdit(consignor)}
                       >
                         <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(consignor.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </TableCell>

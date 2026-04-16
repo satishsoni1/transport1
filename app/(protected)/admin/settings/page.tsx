@@ -29,6 +29,7 @@ interface AdminSettings {
   invoice_prefix: string;
   lr_print_format: 'classic' | 'compact' | 'detailed';
   invoice_print_format: 'classic' | 'compact' | 'detailed';
+  default_lr_charge: number;
   default_gst_rate: number;
   financial_year_start: string;
   timezone: string;
@@ -60,6 +61,7 @@ export default function AdminSettingsPage() {
     invoice_prefix: '',
     lr_print_format: 'classic',
     invoice_print_format: 'classic',
+    default_lr_charge: '0',
     default_gst_rate: '18',
     financial_year_start: '04-01',
     timezone: 'Asia/Kolkata',
@@ -84,6 +86,7 @@ export default function AdminSettingsPage() {
       invoice_prefix: data.invoice_prefix || '',
       lr_print_format: data.lr_print_format || 'classic',
       invoice_print_format: data.invoice_print_format || 'classic',
+      default_lr_charge: String(data.default_lr_charge ?? 0),
       default_gst_rate: String(data.default_gst_rate ?? 18),
       financial_year_start: data.financial_year_start || '04-01',
       timezone: data.timezone || 'Asia/Kolkata',
@@ -94,6 +97,7 @@ export default function AdminSettingsPage() {
     try {
       await apiClient.put('/api/admin/settings', {
         ...formData,
+        default_lr_charge: parseFloat(formData.default_lr_charge) || 0,
         default_gst_rate: parseFloat(formData.default_gst_rate) || 0,
         updated_by: user?.email || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'system',
       });
@@ -273,6 +277,12 @@ export default function AdminSettingsPage() {
               }
             >
               <option value="Arial">Arial</option>
+              <option value="Book Antiqua">Book Antiqua</option>
+              <option value="Baskerville Old Face">Baskerville Old Face</option>
+              <option value="Cambria">Cambria</option>
+              <option value="Candara">Candara</option>
+              <option value="Bodoni Bd BT">Bodoni Bd BT</option>
+              <option value="Bauhaus 93">Bauhaus 93</option>
               <option value="Segoe UI">Segoe UI</option>
               <option value="Tahoma">Tahoma</option>
               <option value="Verdana">Verdana</option>
@@ -342,6 +352,16 @@ export default function AdminSettingsPage() {
           <CardTitle>System Defaults</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-3 gap-4">
+          <div>
+            <Label htmlFor="default_lr_charge">Default LR Charge</Label>
+            <Input
+              id="default_lr_charge"
+              type="number"
+              step="0.01"
+              value={formData.default_lr_charge}
+              onChange={(e) => setFormData({ ...formData, default_lr_charge: e.target.value })}
+            />
+          </div>
           <div>
             <Label htmlFor="default_gst_rate">Default GST %</Label>
             <Input
