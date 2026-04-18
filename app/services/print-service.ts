@@ -4,6 +4,7 @@
 
 export interface CompanyPrintData {
   company_name?: string;
+  app_title?: string;
   address?: string;
   company_phone?: string;
   company_email?: string;
@@ -14,6 +15,7 @@ export interface CompanyPrintData {
   transporter_name_font?: string;
   lr_print_format?: LRPrintFormat;
   invoice_print_format?: InvoicePrintFormat;
+  lr_print_instructions?: string;
 }
 
 export type LRPrintFormat = 'classic' | 'compact' | 'detailed';
@@ -47,7 +49,8 @@ export interface LRPrintData {
   advance: number;
   balance: number;
   invoice_no: string;
-  remarks: string;
+  remarks?: string;
+  return_remark?: string;
   truck_no?: string;
   driver_name?: string;
   driver_mobile?: string;
@@ -223,9 +226,9 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       ? 'FREIGHT TBB'
       : 'FREIGHT TO PAY';
   const paymentSummaryLabel = isPaid
-    ? 'PAID AMOUNT'
+    ? ''
     : isTbb
-      ? 'TBB AMOUNT'
+      ? ''
       : 'Grand Total';
   const totalQty = (data.goods_items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
   const totalWeightKg = (data.goods_items || []).reduce(
@@ -234,10 +237,14 @@ export function generateLRPrintHTML(data: LRPrintData): string {
   );
   const totalWeightMt = totalWeightKg / 100;
   const payableAmount = Number(data.freight || 0) + Number(data.hamali || 0) + Number(data.lr_charge || 0);
-  const displayAmount = Number(data.balance || payableAmount);
-  const amountWords = numberToWords(payableAmount);
+  const displayAmount = isToPay ? Number(data.balance || payableAmount) : 0;
+  const amountWords = isToPay ? numberToWords(payableAmount) : '';
   const lrQr = getLRQr(data.lr_no);
   const transporterQr = company.transporter_qr_url || '';
+  const instructionLines = String(company.lr_print_instructions || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   const cityToMr = data.to_city_mr || data.consignee_city_mr || '';
   const rows = [...(data.goods_items || [])];
@@ -646,12 +653,14 @@ export function generateLRPrintHTML(data: LRPrintData): string {
           <div class="box-label">CONSIGNOR :</div>
           <div class="party-name">${escapeHtml(data.consignor || '-')}</div>
           <div class="party-mobile">Mob. : ${escapeHtml(data.consignor_mobile || '-')}</div>
+          <div class="party-mobile">GSTIN : ${escapeHtml(data.consignor_gst || '-')}</div>
           <div class="party-mr">${escapeHtml(data.consignor_name_mr || '-')}</div>
         </div>
         <div class="party-box">
           <div class="box-label">CONSIGNEE :</div>
           <div class="party-name">${escapeHtml(data.consignee || '-')}</div>
           <div class="party-mobile">Mob. : ${escapeHtml(data.consignee_mobile || '-')}</div>
+          <div class="party-mobile">GSTIN : ${escapeHtml(data.consignee_gst || '-')}</div>
           <div class="party-mr">${escapeHtml(data.consignee_name_mr || '-')}</div>
         </div>
         <div class="lr-box">
@@ -738,10 +747,10 @@ export function generateLRPrintHTML(data: LRPrintData): string {
               <td class="center-cell freight-type-value">${escapeHtml(freightTypeLabel.replace('To Pay', 'ToPay'))}</td>
               <td>${totalWeightMt.toFixed(2)} M.T.</td>
               <td class="grand-total-label">${paymentSummaryLabel}</td>
-              <td class="grand-total-value">${displayAmount.toFixed(2)}</td>
+              <td class="grand-total-value">${isToPay ? displayAmount.toFixed(2) : ''}</td>
             </tr>
             <tr class="words-row">
-              <td colspan="5" class="words-cell">AMOUNT IN WORDS : ${escapeHtml(amountWords)} Only</td>
+              <td colspan="5" class="words-cell">${isToPay ? `AMOUNT IN WORDS : ${escapeHtml(amountWords)} Only` : ''}</td>
             </tr>
             <tr class="footer-row">
               <td colspan="2" class="remark-cell">${escapeHtml(data.return_remark || data.remarks || '')}</td>
@@ -770,9 +779,14 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         <div class="notice-box">
           <div class="notice-title">सूचना:</div>
           <ol class="notice-list">
+            ${
+              instructionLines.length
+                ? instructionLines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')
+                : `
             <li>माल पूरी तरह से मालिक के जोखीम पर भेजा जा रहा है, ट्रान्सपोर्ट कंपनी केवल वाहक के रूप में कार्य करती है.</li>
             <li>क्षति, चोरी या देरी के लिए ट्रान्सपोर्ट कंपनी उत्तरदायी नहीं होगी, जब तक कि लापरवाही साबित न हो.</li>
-            <li>माल की प्राप्ति के समय ग्राहक को सामान की जांच करनी होगी, बाद में की गई शिकायत मान्य नहीं होगी.</li>
+            <li>माल की प्राप्ति के समय ग्राहक को सामान की जांच करनी होगी, बाद में की गई शिकायत मान्य नहीं होगी.</li>`
+            }
           </ol>
         </div>
       </div>

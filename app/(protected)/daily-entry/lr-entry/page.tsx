@@ -1485,6 +1485,8 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
                     <option value="">All POD</option>
+                    <option value="godown">In Godown</option>
+                    <option value="transit">In Transit</option>
                     <option value="pending">POD pending</option>
                     <option value="received">POD received</option>
                   </select>
@@ -1524,7 +1526,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="lr-list-status">LR status</Label>
+                  <Label htmlFor="lr-list-status">Freight Status</Label>
                   <select
                     id="lr-list-status"
                     value={listStatus}

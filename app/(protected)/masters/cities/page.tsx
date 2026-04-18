@@ -28,24 +28,49 @@ import useSWR from 'swr';
 interface City {
   id: number;
   city_name: string;
+  city_name_hi?: string;
+  city_name_mr?: string;
+  consignor_id?: number | null;
+  consignee_id?: number | null;
+  consignor_name?: string;
+  consignee_name?: string;
   status: 'active' | 'inactive';
   created_at: string;
+}
+
+interface Party {
+  id: number;
+  name: string;
 }
 
 export default function CitiesPage() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [cityName, setCityName] = useState('');
+  const [formData, setFormData] = useState({
+    city_name: '',
+    city_name_hi: '',
+    city_name_mr: '',
+    consignor_id: '',
+    consignee_id: '',
+  });
 
   const { data: cities = [], mutate } = useSWR<City[]>(
     '/api/masters/cities',
     apiClient.get
   );
+  const { data: consignors = [] } = useSWR<Party[]>('/api/masters/consignors', apiClient.get);
+  const { data: consignees = [] } = useSWR<Party[]>('/api/masters/consignees', apiClient.get);
 
   const resetForm = () => {
     setEditingId(null);
-    setCityName('');
+    setFormData({
+      city_name: '',
+      city_name_hi: '',
+      city_name_mr: '',
+      consignor_id: '',
+      consignee_id: '',
+    });
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -56,7 +81,7 @@ export default function CitiesPage() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      const trimmed = cityName.trim();
+      const trimmed = formData.city_name.trim();
       if (!trimmed) {
         toast.error('City name is required');
         return;
@@ -66,10 +91,20 @@ export default function CitiesPage() {
         if (editingId) {
           await apiClient.put(`/api/masters/cities/${editingId}`, {
             city_name: trimmed,
+            city_name_hi: formData.city_name_hi.trim(),
+            city_name_mr: formData.city_name_mr.trim(),
+            consignor_id: formData.consignor_id,
+            consignee_id: formData.consignee_id,
           });
           toast.success('City updated successfully');
         } else {
-          await apiClient.post('/api/masters/cities', { city_name: trimmed });
+          await apiClient.post('/api/masters/cities', {
+            city_name: trimmed,
+            city_name_hi: formData.city_name_hi.trim(),
+            city_name_mr: formData.city_name_mr.trim(),
+            consignor_id: formData.consignor_id,
+            consignee_id: formData.consignee_id,
+          });
           toast.success('City added successfully');
         }
         mutate();
@@ -78,12 +113,18 @@ export default function CitiesPage() {
         toast.error('Failed to save city');
       }
     },
-    [editingId, cityName, mutate]
+    [editingId, formData, mutate]
   );
 
   const handleEdit = (city: City) => {
     setEditingId(city.id);
-    setCityName(city.city_name);
+    setFormData({
+      city_name: city.city_name || '',
+      city_name_hi: city.city_name_hi || '',
+      city_name_mr: city.city_name_mr || '',
+      consignor_id: city.consignor_id ? String(city.consignor_id) : '',
+      consignee_id: city.consignee_id ? String(city.consignee_id) : '',
+    });
     setOpen(true);
   };
 
@@ -112,19 +153,69 @@ export default function CitiesPage() {
               Add City
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Edit City' : 'Add New City'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="city_name">City Name *</Label>
+                <Label htmlFor="city_name">City Name English *</Label>
                 <Input
                   id="city_name"
-                  value={cityName}
-                  onChange={(e) => setCityName(e.target.value)}
+                  value={formData.city_name}
+                  onChange={(e) => setFormData({ ...formData, city_name: e.target.value })}
                   placeholder="Enter city name"
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="city_name_hi">City Name Hindi</Label>
+                  <Input
+                    id="city_name_hi"
+                    value={formData.city_name_hi}
+                    onChange={(e) => setFormData({ ...formData, city_name_hi: e.target.value })}
+                    placeholder="Hindi city name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="city_name_mr">City Name Marathi</Label>
+                  <Input
+                    id="city_name_mr"
+                    value={formData.city_name_mr}
+                    onChange={(e) => setFormData({ ...formData, city_name_mr: e.target.value })}
+                    placeholder="Marathi city name"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="consignor_id">Linked Consignor</Label>
+                  <select
+                    id="consignor_id"
+                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
+                    value={formData.consignor_id}
+                    onChange={(e) => setFormData({ ...formData, consignor_id: e.target.value })}
+                  >
+                    <option value="">None</option>
+                    {consignors.map((party) => (
+                      <option key={party.id} value={party.id}>{party.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="consignee_id">Linked Consignee</Label>
+                  <select
+                    id="consignee_id"
+                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
+                    value={formData.consignee_id}
+                    onChange={(e) => setFormData({ ...formData, consignee_id: e.target.value })}
+                  >
+                    <option value="">None</option>
+                    {consignees.map((party) => (
+                      <option key={party.id} value={party.id}>{party.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button
@@ -146,13 +237,16 @@ export default function CitiesPage() {
           <TableHeader>
             <TableRow>
               <TableHead>City Name</TableHead>
+              <TableHead>Hindi</TableHead>
+              <TableHead>Marathi</TableHead>
+              <TableHead>Linked Party</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {cities.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={2} className="text-center py-4">
+                <TableCell colSpan={5} className="text-center py-4">
                   No cities found
                 </TableCell>
               </TableRow>
@@ -160,6 +254,11 @@ export default function CitiesPage() {
               cities.map((city) => (
                 <TableRow key={city.id}>
                   <TableCell className="font-medium">{city.city_name}</TableCell>
+                  <TableCell>{city.city_name_hi || '-'}</TableCell>
+                  <TableCell>{city.city_name_mr || '-'}</TableCell>
+                  <TableCell>
+                    {[city.consignor_name, city.consignee_name].filter(Boolean).join(' / ') || '-'}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       <Button size="sm" variant="ghost" onClick={() => handleEdit(city)}>

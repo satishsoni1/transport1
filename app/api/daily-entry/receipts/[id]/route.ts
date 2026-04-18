@@ -51,6 +51,10 @@ export async function PUT(
         remarks = ${body.remarks ?? existing.remarks},
         items = ${JSON.stringify(Array.isArray(items) ? items : [])}::jsonb,
         total_amount = ${body.total_amount === undefined ? existing.total_amount : Number(body.total_amount) || 0},
+        tds_amount = ${body.tds_amount === undefined ? existing.tds_amount : Number(body.tds_amount) || 0},
+        deduction_amount = ${body.deduction_amount === undefined ? existing.deduction_amount : Number(body.deduction_amount) || 0},
+        received_amount = ${body.received_amount === undefined ? existing.received_amount : Number(body.received_amount) || 0},
+        photo_url = ${body.photo_url ?? existing.photo_url},
         status = ${body.status ?? existing.status}
       WHERE id = ${id}
       RETURNING *

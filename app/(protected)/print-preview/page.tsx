@@ -42,6 +42,8 @@ interface LREntry {
   invoice_no: string;
   remarks: string;
   status: 'to_pay' | 'paid' | 'tbb';
+  pod_received?: boolean;
+  pod_image_url?: string;
 }
 
 interface Invoice {
@@ -188,7 +190,9 @@ export default function PrintPreviewPage() {
       let exportRows: any[] = [];
 
       if (documentType === 'lr') {
-        const lr = lrEntries.find((item) => item.lr_no === documentNo.trim());
+        const lr = lrEntries.find(
+          (item) => item.lr_no.toLowerCase() === documentNo.trim().toLowerCase()
+        );
         if (!lr) throw new Error('L.R. not found');
 
         const consignorName =
@@ -219,6 +223,17 @@ export default function PrintPreviewPage() {
           format: settings?.lr_print_format || 'classic',
           company: settings,
         });
+        if (lr.pod_image_url?.trim()) {
+          html = html.replace(
+            '</body>',
+            `
+            <div style="page-break-before: always; padding: 12px; font-family: Arial, sans-serif;">
+              <h2 style="margin:0 0 8px;">POD ${lr.lr_no}</h2>
+              <img src="${lr.pod_image_url}" alt="POD ${lr.lr_no}" style="max-width:100%; max-height:92vh; object-fit:contain;" />
+            </div>
+            </body>`
+          );
+        }
         exportRows = lr.goods_items?.length
           ? lr.goods_items.map((g: any) => ({
               lr_no: lr.lr_no,
@@ -348,10 +363,18 @@ export default function PrintPreviewPage() {
               <Label htmlFor="doc-no">Document Number</Label>
               <Input
                 id="doc-no"
-                placeholder="Enter exact document number (e.g. LR00001)"
+                list={documentType === 'lr' ? 'lr-preview-options' : undefined}
+                placeholder="Enter or search document number"
                 value={documentNo}
                 onChange={(e) => setDocumentNo(e.target.value)}
               />
+              {documentType === 'lr' ? (
+                <datalist id="lr-preview-options">
+                  {lrEntries.map((item) => (
+                    <option key={item.id} value={item.lr_no} />
+                  ))}
+                </datalist>
+              ) : null}
             </div>
           </div>
           <Button onClick={handleLoadPreview} disabled={loading} className="w-full">

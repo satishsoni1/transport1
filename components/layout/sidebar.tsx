@@ -68,6 +68,7 @@ const navItems: NavItem[] = [
       { label: 'Drivers', href: '/masters/drivers', icon: <Users size={18} /> },
       { label: 'Vehicles', href: '/masters/vehicles', icon: <Truck size={18} /> },
       { label: 'Cities', href: '/masters/cities', icon: <Package size={18} /> },
+      { label: 'Routes', href: '/masters/routes', icon: <Truck size={18} /> },
       { label: 'Banks', href: '/masters/banks', icon: <DollarSign size={18} /> },
       { label: 'Goods Types', href: '/masters/goods-types', icon: <Package size={18} /> },
       { label: 'Goods Natures', href: '/masters/goods-natures', icon: <Package size={18} /> },
@@ -199,12 +200,6 @@ export function Sidebar() {
           <Button variant="ghost" className="w-full justify-start gap-2">
             <User size={18} />
             Profile
-          </Button>
-        </Link>
-        <Link href="/settings/users">
-          <Button variant="ghost" className="w-full justify-start gap-2">
-            <Settings size={18} />
-            Settings
           </Button>
         </Link>
         <Button variant="destructive" className="w-full" onClick={handleLogout}>

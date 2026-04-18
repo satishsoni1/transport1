@@ -10,7 +10,7 @@ function toResponseRow(row: any) {
 }
 
 const LR_STATUSES = new Set(['to_pay', 'paid', 'tbb']);
-const POD_FILTERS = new Set(['received', 'pending']);
+const POD_FILTERS = new Set(['received', 'pending', 'godown', 'transit']);
 
 export async function GET(request: Request) {
   try {
@@ -87,6 +87,32 @@ export async function GET(request: Request) {
           ${hasPodFilter ? 0 : 1} = 1
           OR (${pod} = 'received' AND lr_entries.pod_received = TRUE)
           OR (${pod} = 'pending' AND lr_entries.pod_received = FALSE)
+          OR (
+            ${pod} = 'transit'
+            AND lr_entries.pod_received = FALSE
+            AND EXISTS (
+              SELECT 1
+              FROM challans
+              WHERE EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements(challans.lr_list) AS lr_item
+                WHERE UPPER(BTRIM(COALESCE(lr_item->>'lr_no', ''))) = UPPER(BTRIM(lr_entries.lr_no))
+              )
+            )
+          )
+          OR (
+            ${pod} = 'godown'
+            AND lr_entries.pod_received = FALSE
+            AND NOT EXISTS (
+              SELECT 1
+              FROM challans
+              WHERE EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements(challans.lr_list) AS lr_item
+                WHERE UPPER(BTRIM(COALESCE(lr_item->>'lr_no', ''))) = UPPER(BTRIM(lr_entries.lr_no))
+              )
+            )
+          )
         )
       ORDER BY lr_entries.lr_date DESC, lr_entries.id DESC
       LIMIT 200

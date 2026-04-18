@@ -30,6 +30,8 @@ interface ReceiptItem {
   invoice_no: string;
   invoice_amount: number;
   amount_received: number;
+  tds_amount?: number;
+  deduction_amount?: number;
 }
 
 interface Receipt {
@@ -43,6 +45,10 @@ interface Receipt {
   cheque_date?: string;
   bank_name?: string;
   remarks?: string;
+  tds_amount?: number;
+  deduction_amount?: number;
+  received_amount?: number;
+  photo_url?: string;
   items: ReceiptItem[];
   total_amount: number;
   status: 'pending' | 'cleared';
@@ -77,11 +83,14 @@ export default function ReceiptPage() {
     cheque_date: '',
     bank_name: '',
     remarks: '',
+    photo_url: '',
   });
 
   const [receiptItems, setReceiptItems] = useState<ReceiptItem[]>([]);
   const [currentInvoiceNo, setCurrentInvoiceNo] = useState('');
   const [currentAmountReceived, setCurrentAmountReceived] = useState('0');
+  const [currentTdsAmount, setCurrentTdsAmount] = useState('0');
+  const [currentDeductionAmount, setCurrentDeductionAmount] = useState('0');
 
   const { data: receipts = [], mutate } = useSWR<Receipt[]>(
     '/api/daily-entry/receipts',
@@ -110,6 +119,14 @@ export default function ReceiptPage() {
     () => receiptItems.reduce((sum, item) => sum + item.amount_received, 0),
     [receiptItems]
   );
+  const calculateTotalTds = useCallback(
+    () => receiptItems.reduce((sum, item) => sum + (Number(item.tds_amount) || 0), 0),
+    [receiptItems]
+  );
+  const calculateTotalDeduction = useCallback(
+    () => receiptItems.reduce((sum, item) => sum + (Number(item.deduction_amount) || 0), 0),
+    [receiptItems]
+  );
 
   const addReceiptItem = useCallback(() => {
     if (!currentInvoiceNo.trim()) {
@@ -127,12 +144,14 @@ export default function ReceiptPage() {
 
     const invoiceAmount = Number(selectedInvoice.total_amount) || 0;
     const amountReceived = parseFloat(currentAmountReceived) || 0;
+    const tdsAmount = parseFloat(currentTdsAmount) || 0;
+    const deductionAmount = parseFloat(currentDeductionAmount) || 0;
     if (amountReceived <= 0) {
       toast.error('Amount received must be greater than 0');
       return;
     }
-    if (amountReceived > invoiceAmount) {
-      toast.error('Amount received cannot exceed invoice amount');
+    if (amountReceived + tdsAmount + deductionAmount > invoiceAmount) {
+      toast.error('Received, TDS, and deduction cannot exceed invoice amount');
       return;
     }
 
@@ -142,12 +161,16 @@ export default function ReceiptPage() {
         invoice_no: selectedInvoice.invoice_no,
         invoice_amount: invoiceAmount,
         amount_received: amountReceived,
+        tds_amount: tdsAmount,
+        deduction_amount: deductionAmount,
       },
     ]);
     setCurrentInvoiceNo('');
     setCurrentAmountReceived('0');
+    setCurrentTdsAmount('0');
+    setCurrentDeductionAmount('0');
     toast.success('Invoice added to receipt');
-  }, [currentInvoiceNo, currentAmountReceived, filteredInvoices, receiptItems]);
+  }, [currentInvoiceNo, currentAmountReceived, currentTdsAmount, currentDeductionAmount, filteredInvoices, receiptItems]);
 
   const removeReceiptItem = useCallback(
     (index: number) => {
@@ -174,16 +197,21 @@ export default function ReceiptPage() {
           : '',
         bank_name: receipt.bank_name || '',
         remarks: receipt.remarks || '',
+        photo_url: receipt.photo_url || '',
       });
       setReceiptItems(
         (receipt.items || []).map((item) => ({
           invoice_no: item.invoice_no || '',
           invoice_amount: Number(item.invoice_amount) || 0,
           amount_received: Number(item.amount_received) || 0,
+          tds_amount: Number(item.tds_amount) || 0,
+          deduction_amount: Number(item.deduction_amount) || 0,
         }))
       );
       setCurrentInvoiceNo('');
       setCurrentAmountReceived('0');
+      setCurrentTdsAmount('0');
+      setCurrentDeductionAmount('0');
       setActiveTab('form');
     },
     [consignors]
@@ -230,7 +258,11 @@ export default function ReceiptPage() {
           cheque_date: formData.cheque_date,
           bank_name: formData.bank_name,
           remarks: formData.remarks,
+          photo_url: formData.photo_url,
           items: receiptItems,
+          received_amount: calculateTotalReceived(),
+          tds_amount: calculateTotalTds(),
+          deduction_amount: calculateTotalDeduction(),
           total_amount: calculateTotalReceived(),
         };
 
@@ -252,8 +284,17 @@ export default function ReceiptPage() {
         toast.error('Failed to save receipt');
       }
     },
-    [editingId, formData, receiptItems, calculateTotalReceived, mutate]
+    [editingId, formData, receiptItems, calculateTotalReceived, calculateTotalTds, calculateTotalDeduction, mutate]
   );
+
+  const handleReceiptPhotoUpload = useCallback((file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFormData((prev) => ({ ...prev, photo_url: String(reader.result || '') }));
+    };
+    reader.readAsDataURL(file);
+  }, []);
 
   if (!user) return null;
 
@@ -269,6 +310,8 @@ export default function ReceiptPage() {
               setReceiptItems([]);
               setCurrentInvoiceNo('');
               setCurrentAmountReceived('0');
+              setCurrentTdsAmount('0');
+              setCurrentDeductionAmount('0');
               setConsignorSearch('');
             }}
             className="gap-2"
@@ -329,7 +372,7 @@ export default function ReceiptPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="receipt_date">Receipt Date *</Label>
                   <Input
@@ -361,6 +404,15 @@ export default function ReceiptPage() {
                       <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label htmlFor="remarks">Remark</Label>
+                  <Input
+                    id="remarks"
+                    value={formData.remarks}
+                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                    placeholder="Payment remark"
+                  />
                 </div>
               </div>
 
@@ -409,7 +461,7 @@ export default function ReceiptPage() {
               <CardTitle>Invoices to Receive Payment</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-4 gap-2 mb-4">
+              <div className="grid grid-cols-6 gap-2 mb-4">
                 <Input
                   placeholder="Invoice No"
                   list="receipt-invoice-options"
@@ -436,6 +488,18 @@ export default function ReceiptPage() {
                   value={currentAmountReceived}
                   onChange={(e) => setCurrentAmountReceived(e.target.value)}
                 />
+                <Input
+                  placeholder="TDS"
+                  type="number"
+                  value={currentTdsAmount}
+                  onChange={(e) => setCurrentTdsAmount(e.target.value)}
+                />
+                <Input
+                  placeholder="Deduction"
+                  type="number"
+                  value={currentDeductionAmount}
+                  onChange={(e) => setCurrentDeductionAmount(e.target.value)}
+                />
                 <Button type="button" onClick={addReceiptItem} className="col-span-2">
                   Add
                 </Button>
@@ -449,6 +513,8 @@ export default function ReceiptPage() {
                         <TableHead>Invoice No</TableHead>
                         <TableHead>Invoice Amount</TableHead>
                         <TableHead>Amount Received</TableHead>
+                        <TableHead>TDS</TableHead>
+                        <TableHead>Deduction</TableHead>
                         <TableHead>Balance</TableHead>
                         <TableHead>Action</TableHead>
                       </TableRow>
@@ -459,8 +525,10 @@ export default function ReceiptPage() {
                           <TableCell className="font-medium">{item.invoice_no}</TableCell>
                           <TableCell>₹{item.invoice_amount.toFixed(2)}</TableCell>
                           <TableCell>₹{item.amount_received.toFixed(2)}</TableCell>
+                          <TableCell>₹{Number(item.tds_amount || 0).toFixed(2)}</TableCell>
+                          <TableCell>₹{Number(item.deduction_amount || 0).toFixed(2)}</TableCell>
                           <TableCell>
-                            ₹{(item.invoice_amount - item.amount_received).toFixed(2)}
+                            ₹{(item.invoice_amount - item.amount_received - Number(item.tds_amount || 0) - Number(item.deduction_amount || 0)).toFixed(2)}
                           </TableCell>
                           <TableCell>
                             <Button
@@ -480,6 +548,9 @@ export default function ReceiptPage() {
                     <p className="text-lg font-bold text-blue-600">
                       Total Received: ₹{calculateTotalReceived().toFixed(2)}
                     </p>
+                    <p className="text-sm text-slate-700">
+                      TDS: ₹{calculateTotalTds().toFixed(2)} | Deduction: ₹{calculateTotalDeduction().toFixed(2)}
+                    </p>
                   </div>
                 </>
               )}
@@ -491,16 +562,19 @@ export default function ReceiptPage() {
               <CardTitle>Additional Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div>
-                <Label htmlFor="remarks">Remarks</Label>
+              <div className="space-y-2">
+                <Label htmlFor="receipt_photo">Payment Photo / Reference</Label>
                 <Input
-                  id="remarks"
-                  value={formData.remarks}
-                  onChange={(e) =>
-                    setFormData({ ...formData, remarks: e.target.value })
-                  }
-                  placeholder="Any additional remarks"
+                  id="receipt_photo"
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => handleReceiptPhotoUpload(e.target.files?.[0] || null)}
                 />
+                {formData.photo_url ? (
+                  <a href={formData.photo_url} target="_blank" rel="noreferrer" className="text-sm font-medium text-blue-700">
+                    View attached reference
+                  </a>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -552,7 +626,12 @@ export default function ReceiptPage() {
                     <TableCell className="capitalize">
                       {receipt.mode.replace('_', ' ')}
                     </TableCell>
-                    <TableCell>₹{receipt.total_amount.toFixed(2)}</TableCell>
+                    <TableCell>
+                      ₹{Number(receipt.received_amount ?? receipt.total_amount).toFixed(2)}
+                      <div className="text-xs text-slate-500">
+                        TDS ₹{Number(receipt.tds_amount || 0).toFixed(2)} | Deduct ₹{Number(receipt.deduction_amount || 0).toFixed(2)}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <span
                         className={`px-2 py-1 rounded text-sm font-medium ${

@@ -36,6 +36,7 @@ interface LREntry {
   invoice_no?: string;
   freight: number;
   status: 'to_pay' | 'paid' | 'tbb';
+  goods_items?: Array<{ qty?: number }>;
 }
 
 interface ChallanListItem {
@@ -257,6 +258,7 @@ export default function ReportsPage() {
           consignee: consigneeMap.get(row.consignee_id || 0) || '-',
           invoice_no: row.invoice_no || '-',
           route: `${row.from_city || '-'} -> ${row.to_city || '-'}`,
+          qty: (row.goods_items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
           freight_type: row.status === 'to_pay' ? 'To Pay' : row.status === 'paid' ? 'Paid' : 'TBB',
           amount: Number(row.freight || 0).toFixed(2),
         };

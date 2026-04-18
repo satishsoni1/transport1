@@ -50,6 +50,10 @@ export async function PUT(
       UPDATE cities
       SET
         city_name = ${cityName ?? existing.city_name},
+        city_name_hi = ${body.city_name_hi ?? existing.city_name_hi},
+        city_name_mr = ${body.city_name_mr ?? existing.city_name_mr},
+        consignor_id = ${body.consignor_id === undefined || body.consignor_id === '' ? existing.consignor_id : Number(body.consignor_id)},
+        consignee_id = ${body.consignee_id === undefined || body.consignee_id === '' ? existing.consignee_id : Number(body.consignee_id)},
         status = ${body.status ?? existing.status}
       WHERE id = ${id}
       RETURNING *

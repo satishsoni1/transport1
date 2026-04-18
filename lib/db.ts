@@ -234,10 +234,18 @@ export async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS cities (
       id SERIAL PRIMARY KEY,
       city_name TEXT NOT NULL UNIQUE,
+      city_name_hi TEXT NOT NULL DEFAULT '',
+      city_name_mr TEXT NOT NULL DEFAULT '',
+      consignor_id INTEGER,
+      consignee_id INTEGER,
       status TEXT NOT NULL DEFAULT 'active',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS city_name_hi TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS city_name_mr TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS consignor_id INTEGER`;
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS consignee_id INTEGER`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS drivers (
@@ -370,6 +378,7 @@ export async function ensureSchema() {
       invoice_prefix TEXT NOT NULL DEFAULT '',
       lr_print_format TEXT NOT NULL DEFAULT 'classic',
       invoice_print_format TEXT NOT NULL DEFAULT 'classic',
+      lr_print_instructions TEXT NOT NULL DEFAULT '',
       default_lr_charge DOUBLE PRECISION NOT NULL DEFAULT 0,
       default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18,
       financial_year_start TEXT NOT NULL DEFAULT '04-01',
@@ -412,6 +421,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_prefix TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_print_format TEXT NOT NULL DEFAULT 'classic'`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS invoice_print_format TEXT NOT NULL DEFAULT 'classic'`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_print_instructions TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS default_lr_charge DOUBLE PRECISION NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS financial_year_start TEXT NOT NULL DEFAULT '04-01'`;
@@ -421,10 +431,10 @@ export async function ensureSchema() {
   await sql`
     INSERT INTO app_settings (
       id, company_name, company_tagline, app_title, support_email, company_email, company_phone, address, gst_no,
-      logo_url, signature_url, transporter_qr_url, transporter_name_font, lr_prefix, invoice_prefix, lr_print_format, invoice_print_format,
+      logo_url, signature_url, transporter_qr_url, transporter_name_font, lr_prefix, invoice_prefix, lr_print_format, invoice_print_format, lr_print_instructions,
       default_lr_charge, default_gst_rate, financial_year_start, timezone
     )
-    VALUES (1, '', '', '', '', '', '', '', '', '', '', '', 'Arial', '', '', 'classic', 'classic', 0, 18, '04-01', 'Asia/Kolkata')
+    VALUES (1, '', '', '', '', '', '', '', '', '', '', '', 'Arial', '', '', 'classic', 'classic', '', 0, 18, '04-01', 'Asia/Kolkata')
     ON CONFLICT (id) DO NOTHING
   `;
 
@@ -449,6 +459,7 @@ export async function ensureSchema() {
         'invoice_prefix',
         'lr_print_format',
         'invoice_print_format',
+        'lr_print_instructions',
         'default_gst_rate',
         'financial_year_start',
         'timezone'
@@ -481,6 +492,7 @@ export async function ensureSchema() {
           invoice_prefix = COALESCE(NULLIF(${legacySettings.get('invoice_prefix') || ''}, ''), invoice_prefix),
           lr_print_format = COALESCE(NULLIF(${legacySettings.get('lr_print_format') || ''}, ''), lr_print_format),
           invoice_print_format = COALESCE(NULLIF(${legacySettings.get('invoice_print_format') || ''}, ''), invoice_print_format),
+          lr_print_instructions = COALESCE(NULLIF(${legacySettings.get('lr_print_instructions') || ''}, ''), lr_print_instructions),
           default_gst_rate = ${
             Number.isFinite(defaultGstRateValue) ? defaultGstRateValue : 18
           },
@@ -500,6 +512,19 @@ export async function ensureSchema() {
       rate_per_kg DOUBLE PRECISION NOT NULL,
       min_rate DOUBLE PRECISION NOT NULL,
       vehicle_type TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS routes (
+      id SERIAL PRIMARY KEY,
+      route_name TEXT NOT NULL DEFAULT '',
+      from_city TEXT NOT NULL DEFAULT '',
+      to_city TEXT NOT NULL DEFAULT '',
+      consignor_id INTEGER,
+      consignee_id INTEGER,
       status TEXT NOT NULL DEFAULT 'active',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
@@ -611,7 +636,27 @@ export async function ensureSchema() {
       remarks TEXT NOT NULL DEFAULT '',
       items JSONB NOT NULL DEFAULT '[]'::jsonb,
       total_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      tds_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      deduction_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      received_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      photo_url TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS tds_amount DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS deduction_amount DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS received_amount DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT ''`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS financial_years (
+      id SERIAL PRIMARY KEY,
+      year_label TEXT NOT NULL UNIQUE,
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      is_default BOOLEAN NOT NULL DEFAULT FALSE,
+      status TEXT NOT NULL DEFAULT 'active',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;

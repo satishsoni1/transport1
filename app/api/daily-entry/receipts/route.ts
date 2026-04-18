@@ -3,7 +3,10 @@ import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
 
 function toResponseRow(row: any) {
-  return { ...row, items: parseJsonField(row.items, []) };
+  return {
+    ...row,
+    items: parseJsonField(row.items, []),
+  };
 }
 
 export async function GET() {
@@ -40,7 +43,7 @@ export async function POST(request: Request) {
     const { rows } = await sql`
       INSERT INTO receipts (
         id, receipt_no, receipt_date, party_name, consignor_id, mode, cheque_no, cheque_date,
-        bank_name, remarks, items, total_amount, status
+        bank_name, remarks, items, total_amount, tds_amount, deduction_amount, received_amount, photo_url, status
       )
       VALUES (
         ${id},
@@ -55,6 +58,10 @@ export async function POST(request: Request) {
         ${body.remarks || ''},
         ${JSON.stringify(items)}::jsonb,
         ${Number(body.total_amount) || 0},
+        ${Number(body.tds_amount) || 0},
+        ${Number(body.deduction_amount) || 0},
+        ${Number(body.received_amount) || Number(body.total_amount) || 0},
+        ${body.photo_url || ''},
         'pending'
       )
       RETURNING *

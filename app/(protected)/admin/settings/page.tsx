@@ -29,6 +29,7 @@ interface AdminSettings {
   invoice_prefix: string;
   lr_print_format: 'classic' | 'compact' | 'detailed';
   invoice_print_format: 'classic' | 'compact' | 'detailed';
+  lr_print_instructions: string;
   default_lr_charge: number;
   default_gst_rate: number;
   financial_year_start: string;
@@ -61,6 +62,7 @@ export default function AdminSettingsPage() {
     invoice_prefix: '',
     lr_print_format: 'classic',
     invoice_print_format: 'classic',
+    lr_print_instructions: '',
     default_lr_charge: '0',
     default_gst_rate: '18',
     financial_year_start: '04-01',
@@ -86,6 +88,7 @@ export default function AdminSettingsPage() {
       invoice_prefix: data.invoice_prefix || '',
       lr_print_format: data.lr_print_format || 'classic',
       invoice_print_format: data.invoice_print_format || 'classic',
+      lr_print_instructions: data.lr_print_instructions || '',
       default_lr_charge: String(data.default_lr_charge ?? 0),
       default_gst_rate: String(data.default_gst_rate ?? 18),
       financial_year_start: data.financial_year_start || '04-01',
@@ -343,6 +346,18 @@ export default function AdminSettingsPage() {
               <option value="compact">Compact</option>
               <option value="detailed">Detailed</option>
             </select>
+          </div>
+          <div className="col-span-2">
+            <Label htmlFor="lr_print_instructions">LR Print Instructions</Label>
+            <textarea
+              id="lr_print_instructions"
+              className="min-h-24 w-full rounded-md border px-3 py-2 text-sm"
+              value={formData.lr_print_instructions}
+              onChange={(e) =>
+                setFormData({ ...formData, lr_print_instructions: e.target.value })
+              }
+              placeholder="One instruction per line"
+            />
           </div>
         </CardContent>
       </Card>

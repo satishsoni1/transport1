@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
@@ -79,7 +79,9 @@ interface Invoice {
   created_at: string;
 }
 
-interface AdminSettings extends CompanyPrintData {}
+interface AdminSettings extends CompanyPrintData {
+  default_gst_rate?: number;
+}
 
 export default function InvoicePage() {
   const { user } = useAuth();
@@ -136,6 +138,15 @@ export default function InvoicePage() {
     apiClient.get
   );
 
+  useEffect(() => {
+    if (editingId) return;
+    if (settings?.default_gst_rate === undefined) return;
+    setFormData((prev) => ({
+      ...prev,
+      gst_percentage: String(settings.default_gst_rate ?? 18),
+    }));
+  }, [editingId, settings?.default_gst_rate]);
+
   const calculateTotals = useCallback(() => {
     const itemsTotal = invoiceItems.reduce((sum, item) => sum + item.amount, 0);
     const chargesTotal = additionalCharges.reduce(
@@ -174,7 +185,6 @@ export default function InvoicePage() {
       return (
       String(entry.consignor_id) === formData.consignor_id &&
       (!lrDateFilter.freight_type || entry.status === lrDateFilter.freight_type) &&
-      !entry.pod_received &&
       entry.return_status !== 'returned' &&
       !usedInAnotherInvoice &&
       !invoiceItems.some((item) => item.lr_no === entry.lr_no) &&
@@ -231,7 +241,42 @@ export default function InvoicePage() {
       amount: 0,
     });
     toast.success('Item added');
-  }, [currentItem, invoiceItems]);
+  }, [currentItem, invoiceItems, invoices, editingId]);
+
+  const buildInvoiceItemFromLR = useCallback((entry: LREntryApi): InvoiceItem => {
+    const qty = (entry.goods_items || []).reduce(
+      (sum, item) => sum + (Number(item.qty) || 0),
+      0
+    );
+    const firstDescription =
+      entry.goods_items.find((item) => item.description)?.description || 'Goods from LR';
+    const rate = qty > 0 ? (Number(entry.freight) || 0) / qty : Number(entry.freight) || 0;
+
+    return {
+      lr_no: entry.lr_no,
+      lr_date: entry.lr_date || '',
+      city: entry.to_city || '',
+      invoice_no: entry.invoice_no || '',
+      consignee: firstDescription,
+      description: firstDescription,
+      qty: qty || 1,
+      rate,
+      amount: qty > 0 ? qty * rate : Number(entry.freight) || 0,
+    };
+  }, []);
+
+  const addFilteredLrs = useCallback(() => {
+    if (!formData.consignor_id) {
+      toast.error('Select consignor first');
+      return;
+    }
+    if (availableLREntries.length === 0) {
+      toast.error('No filtered LR available');
+      return;
+    }
+    setInvoiceItems((prev) => [...prev, ...availableLREntries.map(buildInvoiceItemFromLR)]);
+    toast.success(`${availableLREntries.length} LR added to invoice`);
+  }, [availableLREntries, buildInvoiceItemFromLR, formData.consignor_id]);
 
   const addAdditionalCharge = useCallback(() => {
     if (!currentCharge.charge_name.trim()) {
@@ -412,7 +457,7 @@ export default function InvoicePage() {
               setInvoiceItems([]);
               setAdditionalCharges([]);
               setConsignorSearch('');
-              setLrDateFilter({ from_date: '', to_date: '' });
+              setLrDateFilter({ from_date: '', to_date: '', freight_type: 'to_pay' });
             }}
             className="gap-2"
           >
@@ -557,7 +602,9 @@ export default function InvoicePage() {
                     className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="to_pay">To Pay</option>
+                    <option value="">All LR Status</option>
                     <option value="paid">Paid</option>
+                    <option value="tbb">TBB</option>
                   </select>
                 </div>
                 <div className="md:col-span-2">
@@ -567,6 +614,12 @@ export default function InvoicePage() {
                       ? `${availableLREntries.length} LR found for selected consignor`
                       : 'Select consignor first to search LR'}
                   </div>
+                </div>
+                <div>
+                  <Label>&nbsp;</Label>
+                  <Button type="button" onClick={addFilteredLrs} className="w-full">
+                    Get LR
+                  </Button>
                 </div>
               </div>
               <div className="grid grid-cols-6 gap-2 mb-4">
@@ -582,26 +635,7 @@ export default function InvoicePage() {
                       return;
                     }
 
-                    const qty = (entry.goods_items || []).reduce(
-                      (sum, item) => sum + (Number(item.qty) || 0),
-                      0
-                    );
-                    const firstDescription =
-                      entry.goods_items.find((item) => item.description)?.description ||
-                      'Goods from LR';
-                    const rate = qty > 0 ? (Number(entry.freight) || 0) / qty : 0;
-
-                    setCurrentItem({
-                      lr_no: entry.lr_no,
-                      lr_date: entry.lr_date || '',
-                      city: entry.to_city || '',
-                      invoice_no: entry.invoice_no || '',
-                      consignee: firstDescription,
-                      description: firstDescription,
-                      qty,
-                      rate,
-                      amount: qty * rate,
-                    });
+                    setCurrentItem(buildInvoiceItemFromLR(entry));
                   }}
                 />
                 <datalist id="invoice-lr-options">

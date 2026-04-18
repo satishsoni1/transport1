@@ -1,22 +1,22 @@
 import { NextResponse } from 'next/server';
-import { sql, ensureSchema } from '@/lib/db';
+import { ensureSchema, sql } from '@/lib/db';
 
 export async function GET() {
   try {
     await ensureSchema();
     const { rows } = await sql`
       SELECT
-        cities.*,
+        routes.*,
         consignors.name AS consignor_name,
         consignees.name AS consignee_name
-      FROM cities
-      LEFT JOIN consignors ON consignors.id = cities.consignor_id
-      LEFT JOIN consignees ON consignees.id = cities.consignee_id
-      ORDER BY cities.city_name ASC
+      FROM routes
+      LEFT JOIN consignors ON consignors.id = routes.consignor_id
+      LEFT JOIN consignees ON consignees.id = routes.consignee_id
+      ORDER BY routes.id DESC
     `;
     return NextResponse.json(rows, { status: 200 });
   } catch (error) {
-    console.error('Error fetching cities', error);
+    console.error('Error fetching routes', error);
     return NextResponse.json(
       { success: false, error: 'Database error. Configure DATABASE_URL for Neon (or POSTGRES_URL).' },
       { status: 500 }
@@ -28,31 +28,22 @@ export async function POST(request: Request) {
   try {
     await ensureSchema();
     const body = await request.json();
-    const cityName = String(body.city_name || '').trim();
-
-    if (!cityName) {
+    if (!body.from_city || !body.to_city) {
       return NextResponse.json(
-        { success: false, error: 'City name is required' },
+        { success: false, error: 'From city and to city are required' },
         { status: 400 }
       );
     }
 
-    const { rows: existingRows } = await sql`
-      SELECT id FROM cities WHERE LOWER(city_name) = LOWER(${cityName})
-    `;
-    if (existingRows.length > 0) {
-      return NextResponse.json(
-        { success: false, error: 'City already exists' },
-        { status: 409 }
-      );
-    }
+    const routeName =
+      String(body.route_name || '').trim() || `${String(body.from_city).trim()} - ${String(body.to_city).trim()}`;
 
     const { rows } = await sql`
-      INSERT INTO cities (city_name, city_name_hi, city_name_mr, consignor_id, consignee_id, status)
+      INSERT INTO routes (route_name, from_city, to_city, consignor_id, consignee_id, status)
       VALUES (
-        ${cityName},
-        ${String(body.city_name_hi || '').trim()},
-        ${String(body.city_name_mr || '').trim()},
+        ${routeName},
+        ${String(body.from_city || '').trim()},
+        ${String(body.to_city || '').trim()},
         ${body.consignor_id ? Number(body.consignor_id) : null},
         ${body.consignee_id ? Number(body.consignee_id) : null},
         ${body.status || 'active'}
@@ -61,7 +52,7 @@ export async function POST(request: Request) {
     `;
     return NextResponse.json(rows[0], { status: 201 });
   } catch (error) {
-    console.error('Error creating city', error);
+    console.error('Error creating route', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
