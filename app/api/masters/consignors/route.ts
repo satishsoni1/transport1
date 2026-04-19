@@ -8,7 +8,7 @@ export async function GET() {
     await ensureSchema();
     const { rows } = await sql`
       SELECT
-        id, name, name_mr, username, address, city, gst_no, contact_person, mobile,
+        id, name, name_mr, username, address, city, gst_no, lr_print_instructions, contact_person, mobile,
         bank_name, account_no, default_payment_method, status, created_at
       FROM consignors
       ORDER BY id DESC
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
     const { rows } = await sql`
       INSERT INTO consignors (
-        name, name_mr, username, password, password_hash, address, city, gst_no, contact_person, mobile, bank_name, account_no, default_payment_method, status
+        name, name_mr, username, password, password_hash, address, city, gst_no, lr_print_instructions, contact_person, mobile, bank_name, account_no, default_payment_method, status
       )
       VALUES (
         ${body.name},
@@ -80,6 +80,7 @@ export async function POST(request: Request) {
         ${body.address},
         ${body.city},
         ${body.gst_no || ''},
+        ${body.lr_print_instructions || ''},
         ${body.contact_person || ''},
         ${body.mobile || ''},
         ${body.bank_name || ''},
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
         ${defaultPaymentMethod},
         ${body.status === 'inactive' ? 'inactive' : 'active'}
       )
-      RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, default_payment_method, status, created_at
+      RETURNING id, name, name_mr, username, address, city, gst_no, lr_print_instructions, contact_person, mobile, bank_name, account_no, default_payment_method, status, created_at
     `;
     return NextResponse.json(rows[0], { status: 201 });
   } catch (error) {

@@ -55,6 +55,7 @@ export async function PUT(
         deduction_amount = ${body.deduction_amount === undefined ? existing.deduction_amount : Number(body.deduction_amount) || 0},
         received_amount = ${body.received_amount === undefined ? existing.received_amount : Number(body.received_amount) || 0},
         photo_url = ${body.photo_url ?? existing.photo_url},
+        receipt_type = ${body.receipt_type ?? existing.receipt_type},
         status = ${body.status ?? existing.status}
       WHERE id = ${id}
       RETURNING *

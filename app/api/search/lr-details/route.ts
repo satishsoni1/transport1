@@ -85,7 +85,7 @@ export async function GET(request: Request) {
       .filter((row) =>
         invoice?.invoice_no
           ? row.items.some(
-              (item) =>
+              (item: any) =>
                 String(item?.invoice_no || '').trim().toUpperCase() ===
                 String(invoice.invoice_no || '').trim().toUpperCase()
             )
@@ -95,17 +95,17 @@ export async function GET(request: Request) {
     const matchedReceipt = receiptList[0] || null;
     const matchedReceiptItem =
       matchedReceipt?.items.find(
-        (item) =>
+        (item: any) =>
           String(item?.invoice_no || '').trim().toUpperCase() ===
           String(invoice?.invoice_no || '').trim().toUpperCase()
       ) || null;
 
     const totalCases = (lr.goods_items || []).reduce(
-      (sum, item) => sum + (Number(item?.qty) || 0),
+      (sum: number, item: any) => sum + (Number(item?.qty) || 0),
       0
     );
     const goodsValue = (lr.goods_items || []).reduce(
-      (sum, item) => sum + (Number(item?.amount) || 0),
+      (sum: number, item: any) => sum + (Number(item?.amount) || 0),
       0
     );
 

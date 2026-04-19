@@ -35,6 +35,7 @@ interface Consignor {
   address: string;
   city: string;
   gst_no: string;
+  lr_print_instructions?: string;
   contact_person: string;
   mobile: string;
   bank_name?: string;
@@ -61,6 +62,7 @@ export default function ConsignorsPage() {
     address: '',
     city: '',
     gst_no: '',
+    lr_print_instructions: '',
     contact_person: '',
     mobile: '',
     bank_name: '',
@@ -89,6 +91,7 @@ export default function ConsignorsPage() {
         address: '',
         city: '',
         gst_no: '',
+        lr_print_instructions: '',
         contact_person: '',
         mobile: '',
         bank_name: '',
@@ -140,6 +143,7 @@ export default function ConsignorsPage() {
       address: consignor.address,
       city: consignor.city,
       gst_no: consignor.gst_no,
+      lr_print_instructions: consignor.lr_print_instructions || '',
       contact_person: consignor.contact_person,
       mobile: consignor.mobile,
       bank_name: consignor.bank_name || '',
@@ -348,6 +352,18 @@ export default function ConsignorsPage() {
                     setFormData({ ...formData, account_no: e.target.value })
                   }
                   placeholder="Account number"
+                />
+              </div>
+              <div>
+                <Label htmlFor="lr_print_instructions">Client LR Print Instructions</Label>
+                <textarea
+                  id="lr_print_instructions"
+                  className="min-h-20 w-full rounded-md border px-3 py-2 text-sm"
+                  value={formData.lr_print_instructions}
+                  onChange={(e) =>
+                    setFormData({ ...formData, lr_print_instructions: e.target.value })
+                  }
+                  placeholder="One instruction per line. Leave blank to use default instructions."
                 />
               </div>
 

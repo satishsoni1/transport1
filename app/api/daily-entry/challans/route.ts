@@ -100,7 +100,7 @@ export async function POST(request: Request) {
       INSERT INTO challans (
         id, challan_no, challan_date, from_city, to_city, truck_no, driver_name, driver_mobile,
         owner_name, eway_no, remarks, engine_reading, short_reading, rate_per_km, reading_total,
-        hamali, advance, lr_list, total_freight, total_to_pay, total_paid, status
+        hamali, advance, lr_list, total_freight, total_to_pay, total_paid, status, created_by
       )
       VALUES (
         ${id},
@@ -124,7 +124,8 @@ export async function POST(request: Request) {
         ${totalFreight},
         ${totalToPay},
         ${totalPaid},
-        'open'
+        'open',
+        ${String(body.created_by || '').trim()}
       )
       RETURNING *
     `;

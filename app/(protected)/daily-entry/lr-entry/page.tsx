@@ -64,6 +64,7 @@ interface LREntry {
   pod_image_url?: string;
   goods_items: GoodsItem[];
   status: 'to_pay' | 'paid' | 'tbb';
+  created_by?: string;
   created_at: string;
 }
 
@@ -76,6 +77,7 @@ interface Consignor {
   address: string;
   city: string;
   gst_no: string;
+  lr_print_instructions?: string;
   mobile: string;
   contact_person: string;
   default_payment_method?: 'to_pay' | 'paid' | 'tbb';
@@ -120,6 +122,7 @@ interface AdminSettings {
   transporter_name_font?: string;
   lr_print_format?: 'classic' | 'compact' | 'detailed';
   invoice_print_format?: 'classic' | 'compact' | 'detailed';
+  lr_print_instructions?: string;
   default_lr_charge?: number;
 }
 
@@ -736,7 +739,11 @@ export default function LREntryPage() {
         consignee_gst: consignee?.gst_no || '',
         freight_type: entry.status,
         format: settings?.lr_print_format || 'classic',
-        company: settings,
+        company: {
+          ...settings,
+          lr_print_instructions:
+            consignor?.lr_print_instructions || settings?.lr_print_instructions || '',
+        },
       };
     },
     [consignors, consignees, settings]
@@ -816,6 +823,7 @@ export default function LREntryPage() {
         pod_received: formData.pod_received,
         status: formData.status,
         goods_items: goodsItems,
+        created_by: user?.email || `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
       };
 
       try {
@@ -1649,6 +1657,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                   <TableHead>Freight</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead>LR Status</TableHead>
+                  <TableHead>Created By</TableHead>
                   <TableHead>Remark</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -1656,7 +1665,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
               <TableBody>
                 {lrEntries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={17} className="text-center py-4">
+                    <TableCell colSpan={18} className="text-center py-4">
                       No L.R. entries found
                     </TableCell>
                   </TableRow>
@@ -1722,6 +1731,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                         <TableCell>
                           {freightTypeOptions.find((item) => item.value === entry.status)?.label || entry.status}
                         </TableCell>
+                        <TableCell>{entry.created_by || '-'}</TableCell>
                         <TableCell>
                           <span
                             className={`text-xs font-semibold ${

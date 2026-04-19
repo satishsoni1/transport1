@@ -28,6 +28,7 @@ import useSWR from 'swr';
 interface AppUser {
   id: number;
   email: string;
+  username: string;
   first_name: string;
   last_name: string;
   role: string;
@@ -41,6 +42,8 @@ export default function SettingsUsersPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     email: '',
+    username: '',
+    password: '',
     first_name: '',
     last_name: '',
     role: 'Operator',
@@ -53,7 +56,7 @@ export default function SettingsUsersPage() {
 
   const resetForm = () => {
     setEditingId(null);
-    setFormData({ email: '', first_name: '', last_name: '', role: 'Operator' });
+    setFormData({ email: '', username: '', password: '', first_name: '', last_name: '', role: 'Operator' });
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -65,7 +68,7 @@ export default function SettingsUsersPage() {
     async (e: React.FormEvent) => {
       e.preventDefault();
 
-      if (!formData.email || !formData.first_name || !formData.last_name || !formData.role) {
+      if (!formData.email || !formData.username || (!editingId && !formData.password) || !formData.first_name || !formData.last_name || !formData.role) {
         toast.error('Please fill all required fields');
         return;
       }
@@ -91,6 +94,8 @@ export default function SettingsUsersPage() {
     setEditingId(item.id);
     setFormData({
       email: item.email,
+      username: item.username || '',
+      password: '',
       first_name: item.first_name,
       last_name: item.last_name,
       role: item.role,
@@ -128,12 +133,30 @@ export default function SettingsUsersPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
+                <Label htmlFor="username">Username *</Label>
+                <Input
+                  id="username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                />
+              </div>
+              <div>
                 <Label htmlFor="email">Email *</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">{editingId ? 'New Password' : 'Password *'}</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder={editingId ? 'Leave blank to keep existing password' : ''}
                 />
               </div>
               <div>
@@ -185,6 +208,7 @@ export default function SettingsUsersPage() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
+              <TableHead>Username</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -192,7 +216,7 @@ export default function SettingsUsersPage() {
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-4">
+                <TableCell colSpan={5} className="text-center py-4">
                   No users found
                 </TableCell>
               </TableRow>
@@ -203,6 +227,7 @@ export default function SettingsUsersPage() {
                     {item.first_name} {item.last_name}
                   </TableCell>
                   <TableCell>{item.email}</TableCell>
+                  <TableCell>{item.username || '-'}</TableCell>
                   <TableCell>{item.role}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">

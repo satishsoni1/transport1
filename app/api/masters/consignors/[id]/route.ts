@@ -80,6 +80,7 @@ export async function PUT(
         address = ${body.address ?? existing.address},
         city = ${body.city ?? existing.city},
         gst_no = ${body.gst_no ?? existing.gst_no},
+        lr_print_instructions = ${body.lr_print_instructions ?? existing.lr_print_instructions},
         contact_person = ${body.contact_person ?? existing.contact_person},
         mobile = ${body.mobile ?? existing.mobile},
         bank_name = ${body.bank_name ?? existing.bank_name},
@@ -87,7 +88,7 @@ export async function PUT(
         default_payment_method = ${defaultPaymentMethod},
         status = ${body.status ?? existing.status}
       WHERE id = ${id}
-      RETURNING id, name, name_mr, username, address, city, gst_no, contact_person, mobile, bank_name, account_no, default_payment_method, status, created_at
+      RETURNING id, name, name_mr, username, address, city, gst_no, lr_print_instructions, contact_person, mobile, bank_name, account_no, default_payment_method, status, created_at
     `;
     return NextResponse.json(rows[0], { status: 200 });
   } catch (error) {

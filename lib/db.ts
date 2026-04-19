@@ -193,6 +193,7 @@ export async function ensureSchema() {
       address TEXT NOT NULL,
       city TEXT NOT NULL,
       gst_no TEXT NOT NULL DEFAULT '',
+      lr_print_instructions TEXT NOT NULL DEFAULT '',
       contact_person TEXT NOT NULL DEFAULT '',
       mobile TEXT NOT NULL DEFAULT '',
       bank_name TEXT NOT NULL DEFAULT '',
@@ -313,6 +314,7 @@ export async function ensureSchema() {
     )
   `;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS platform_role TEXT NOT NULL DEFAULT 'transport_admin'`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
@@ -382,6 +384,7 @@ export async function ensureSchema() {
       default_lr_charge DOUBLE PRECISION NOT NULL DEFAULT 0,
       default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18,
       financial_year_start TEXT NOT NULL DEFAULT '04-01',
+      current_financial_year_id INTEGER,
       timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
@@ -403,6 +406,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS default_payment_method TEXT NOT NULL DEFAULT 'to_pay'`;
+  await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS lr_print_instructions TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`;
@@ -425,6 +429,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS default_lr_charge DOUBLE PRECISION NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS default_gst_rate DOUBLE PRECISION NOT NULL DEFAULT 18`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS financial_year_start TEXT NOT NULL DEFAULT '04-01'`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS current_financial_year_id INTEGER`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata'`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
 
@@ -557,6 +562,7 @@ export async function ensureSchema() {
       pod_received BOOLEAN NOT NULL DEFAULT FALSE,
       goods_items JSONB NOT NULL DEFAULT '[]'::jsonb,
       status TEXT NOT NULL DEFAULT 'to_pay',
+      created_by TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
@@ -567,6 +573,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received_at TIMESTAMPTZ`;
   await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received_by_driver_id INTEGER`;
   await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received_by_driver_name TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS challans (
@@ -592,6 +599,7 @@ export async function ensureSchema() {
       total_to_pay DOUBLE PRECISION NOT NULL DEFAULT 0,
       total_paid DOUBLE PRECISION NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'open',
+      created_by TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
@@ -601,6 +609,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS reading_total DOUBLE PRECISION NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS hamali DOUBLE PRECISION NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS advance DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (
@@ -617,10 +626,12 @@ export async function ensureSchema() {
       gst_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
       net_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'draft',
+      created_by TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS additional_charges JSONB NOT NULL DEFAULT '[]'::jsonb`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS receipts (
@@ -640,7 +651,9 @@ export async function ensureSchema() {
       deduction_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
       received_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
       photo_url TEXT NOT NULL DEFAULT '',
+      receipt_type TEXT NOT NULL DEFAULT 'invoice',
       status TEXT NOT NULL DEFAULT 'pending',
+      created_by TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
@@ -648,6 +661,8 @@ export async function ensureSchema() {
   await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS deduction_amount DOUBLE PRECISION NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS received_amount DOUBLE PRECISION NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS receipt_type TEXT NOT NULL DEFAULT 'invoice'`;
+  await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS financial_years (

@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     const { rows } = await sql`
       INSERT INTO invoices (
         id, invoice_no, invoice_date, party_name, consignor_id, gst_percentage, remarks,
-        items, additional_charges, total_amount, gst_amount, net_amount, status
+        items, additional_charges, total_amount, gst_amount, net_amount, status, created_by
       )
       VALUES (
         ${id},
@@ -101,7 +101,8 @@ export async function POST(request: Request) {
         ${Number(body.total_amount) || 0},
         ${Number(body.gst_amount) || 0},
         ${Number(body.net_amount) || 0},
-        'draft'
+        'draft',
+        ${String(body.created_by || '').trim()}
       )
       RETURNING *
     `;

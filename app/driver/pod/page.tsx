@@ -57,6 +57,7 @@ interface PartyMaster {
   city?: string;
   city_mr?: string;
   gst_no?: string;
+  lr_print_instructions?: string;
   mobile?: string;
 }
 
@@ -71,6 +72,7 @@ interface AdminSettings {
   transporter_qr_url?: string;
   transporter_name_font?: string;
   lr_print_format?: 'classic' | 'compact' | 'detailed';
+  lr_print_instructions?: string;
 }
 
 function normalizeScanValue(value: string) {
@@ -408,7 +410,11 @@ export default function DriverPodPage() {
         consignee_gst: consignee?.gst_no || '',
         freight_type: lr.status,
         format: (settings as AdminSettings)?.lr_print_format || 'classic',
-        company: settings as AdminSettings,
+        company: {
+          ...(settings as AdminSettings),
+          lr_print_instructions:
+            consignor?.lr_print_instructions || (settings as AdminSettings)?.lr_print_instructions || '',
+        },
       });
 
       printHTML(html);
@@ -522,7 +528,6 @@ export default function DriverPodPage() {
                   id="lr_qr_image"
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   onChange={(e) => {
                     void scanQrImageFile(e.target.files?.[0] || null);
                     e.currentTarget.value = '';
@@ -670,6 +675,18 @@ export default function DriverPodPage() {
                 </label>
                 <Input
                   id="pod_file"
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => handleImageUpload(e.target.files?.[0] || null)}
+                  className="h-11 rounded-xl bg-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="pod_camera_file" className="text-sm font-semibold text-slate-700">
+                  POD Image From Camera
+                </label>
+                <Input
+                  id="pod_camera_file"
                   type="file"
                   accept="image/*"
                   capture="environment"

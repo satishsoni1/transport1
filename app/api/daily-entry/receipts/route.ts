@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const { rows } = await sql`
       INSERT INTO receipts (
         id, receipt_no, receipt_date, party_name, consignor_id, mode, cheque_no, cheque_date,
-        bank_name, remarks, items, total_amount, tds_amount, deduction_amount, received_amount, photo_url, status
+        bank_name, remarks, items, total_amount, tds_amount, deduction_amount, received_amount, photo_url, receipt_type, status, created_by
       )
       VALUES (
         ${id},
@@ -62,7 +62,9 @@ export async function POST(request: Request) {
         ${Number(body.deduction_amount) || 0},
         ${Number(body.received_amount) || Number(body.total_amount) || 0},
         ${body.photo_url || ''},
-        'pending'
+        ${body.receipt_type === 'on_account' ? 'on_account' : 'invoice'},
+        'pending',
+        ${String(body.created_by || '').trim()}
       )
       RETURNING *
     `;

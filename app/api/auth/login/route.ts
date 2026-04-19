@@ -6,16 +6,17 @@ import { ensureSchema } from '@/lib/db';
 export async function POST(request: Request) {
   try {
     await ensureSchema();
-    const { email, password } = await request.json();
+    const { email, username, password } = await request.json();
+    const login = String(email || username || '').trim();
 
-    if (!email || !password) {
+    if (!login || !password) {
       return NextResponse.json(
-        { success: false, error: 'Email and password are required' },
+        { success: false, error: 'Username/email and password are required' },
         { status: 400 }
       );
     }
 
-    const user = await getUserByEmail(String(email).trim());
+    const user = await getUserByEmail(login);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Invalid email or password' },

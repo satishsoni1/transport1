@@ -293,7 +293,7 @@ export default function AdminTransportsPage() {
                       <div className="text-xs text-slate-500">
                         {item.subscription?.daysRemaining === null
                           ? 'No expiry set'
-                          : `${item.subscription.daysRemaining} day(s) remaining`}
+                          : `${item.subscription?.daysRemaining ?? '-'} day(s) remaining`}
                       </div>
                     </TableCell>
                     <TableCell>

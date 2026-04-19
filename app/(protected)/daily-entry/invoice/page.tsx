@@ -76,6 +76,7 @@ interface Invoice {
   gst_amount: number;
   net_amount: number;
   status: 'draft' | 'issued' | 'paid';
+  created_by?: string;
   created_at: string;
 }
 
@@ -389,6 +390,7 @@ export default function InvoicePage() {
           total_amount: totals.subtotal,
           gst_amount: totals.gstAmount,
           net_amount: totals.netAmount,
+          created_by: user?.email || `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
         };
 
         if (editingId) {
@@ -875,6 +877,7 @@ export default function InvoicePage() {
                 <TableHead>Party Name</TableHead>
                 <TableHead>Total Amount</TableHead>
                 <TableHead>Net Amount</TableHead>
+                <TableHead>Created By</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -882,7 +885,7 @@ export default function InvoicePage() {
             <TableBody>
               {invoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-4">
+                  <TableCell colSpan={8} className="text-center py-4">
                     No invoices found
                   </TableCell>
                 </TableRow>
@@ -898,6 +901,7 @@ export default function InvoicePage() {
                     <TableCell>{invoice.party_name}</TableCell>
                     <TableCell>₹{invoice.total_amount.toFixed(2)}</TableCell>
                     <TableCell>₹{invoice.net_amount.toFixed(2)}</TableCell>
+                    <TableCell>{invoice.created_by || '-'}</TableCell>
                     <TableCell>
                       <span
                         className={`px-2 py-1 rounded text-sm font-medium ${

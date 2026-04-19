@@ -104,6 +104,7 @@ interface Consignor {
   address: string;
   city: string;
   gst_no: string;
+  lr_print_instructions?: string;
   mobile: string;
 }
 
@@ -131,6 +132,7 @@ interface AdminSettings {
   transporter_qr_url?: string;
   lr_print_format?: 'classic' | 'compact' | 'detailed';
   invoice_print_format?: 'classic' | 'compact' | 'detailed';
+  lr_print_instructions?: string;
 }
 
 function generateBillHTML(bill: MonthlyBill, settings?: AdminSettings): string {
@@ -198,6 +200,7 @@ export default function PrintPreviewPage() {
         const consignorName =
           consignors.find((item) => item.id === lr.consignor_id)?.name ||
           `Consignor #${lr.consignor_id}`;
+        const consignor = consignors.find((item) => item.id === lr.consignor_id);
         const consigneeName =
           consignees.find((item) => item.id === lr.consignee_id)?.name ||
           `Consignee #${lr.consignee_id}`;
@@ -206,13 +209,13 @@ export default function PrintPreviewPage() {
           ...lr,
           consignor: consignorName,
           consignor_name_mr:
-            consignors.find((item) => item.id === lr.consignor_id)?.name_mr ||
+            consignor?.name_mr ||
             transliterateToMarathi(consignorName),
           consignee: consigneeName,
-          consignor_address: consignors.find((item) => item.id === lr.consignor_id)?.address || '',
-          consignor_city: consignors.find((item) => item.id === lr.consignor_id)?.city || '',
-          consignor_mobile: consignors.find((item) => item.id === lr.consignor_id)?.mobile || '',
-          consignor_gst: consignors.find((item) => item.id === lr.consignor_id)?.gst_no || '',
+          consignor_address: consignor?.address || '',
+          consignor_city: consignor?.city || '',
+          consignor_mobile: consignor?.mobile || '',
+          consignor_gst: consignor?.gst_no || '',
           consignee_address: consignees.find((item) => item.id === lr.consignee_id)?.address || '',
           consignee_city: consignees.find((item) => item.id === lr.consignee_id)?.city || '',
           consignee_city_mr: consignees.find((item) => item.id === lr.consignee_id)?.city_mr || '',
@@ -221,7 +224,11 @@ export default function PrintPreviewPage() {
           consignee_gst: consignees.find((item) => item.id === lr.consignee_id)?.gst_no || '',
           freight_type: lr.status,
           format: settings?.lr_print_format || 'classic',
-          company: settings,
+          company: {
+            ...settings,
+            lr_print_instructions:
+              consignor?.lr_print_instructions || settings?.lr_print_instructions || '',
+          },
         });
         if (lr.pod_image_url?.trim()) {
           html = html.replace(

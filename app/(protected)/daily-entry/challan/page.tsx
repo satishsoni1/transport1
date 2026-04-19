@@ -1,5 +1,6 @@
 'use client';
 
+import jsQR from 'jsqr';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
@@ -17,7 +18,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, Printer } from 'lucide-react';
+import { ImageUp, LoaderCircle, Plus, Trash2, Edit2, Printer } from 'lucide-react';
+import { useRef } from 'react';
 import useSWR from 'swr';
 import {
   generateChallanPrintHTML,
@@ -124,10 +126,29 @@ interface Challan {
   total_to_pay: number;
   total_paid: number;
   status: string;
+  created_by?: string;
   created_at: string;
 }
 
 interface AdminSettings extends CompanyPrintData {}
+
+function normalizeScanValue(value: string) {
+  const trimmed = value.trim();
+  const prefixedMatch = trimmed.match(/LR\s*[:\-]\s*([A-Z0-9/_-]+)/i);
+  if (prefixedMatch?.[1]) return prefixedMatch[1].trim();
+  try {
+    const parsed = new URL(trimmed);
+    return (
+      parsed.searchParams.get('lr_no') ||
+      parsed.searchParams.get('lrNo') ||
+      parsed.searchParams.get('lr') ||
+      parsed.pathname.split('/').filter(Boolean).pop() ||
+      trimmed
+    ).trim();
+  } catch {
+    return trimmed;
+  }
+}
 
 /** City and consignee labels for challan rows — Marathi from masters or transliteration (same rules as LR entry). */
 function cityConsigneeMarathiForLR(
@@ -159,6 +180,7 @@ function cityConsigneeMarathiForLR(
 
 export default function ChallanPage() {
   const { user } = useAuth();
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -184,6 +206,7 @@ export default function ChallanPage() {
 
   const [selectedLRs, setSelectedLRs] = useState<ChallanLR[]>([]);
   const [newLRInput, setNewLRInput] = useState('');
+  const [qrScanning, setQrScanning] = useState(false);
 
   const { data: challans = [], mutate } = useSWR<Challan[]>(
     '/api/daily-entry/challans',
@@ -265,7 +288,7 @@ export default function ChallanPage() {
   }, [drivers, vehicles, formData.truck_no]);
 
   const addLRToChallan = useCallback(() => {
-    const lrNo = newLRInput.trim();
+    const lrNo = normalizeScanValue(newLRInput);
     if (!lrNo) {
       toast.error('Please enter L.R. number');
       return;
@@ -325,13 +348,45 @@ export default function ChallanPage() {
       remarks: lrEntry.remarks || '',
       return_status: lrEntry.return_status || 'normal',
       return_remark: lrEntry.return_remark || '',
-      previous_challan_no: previousChallan?.challan_no || '',
+      previous_challan_no: '',
     };
 
     setSelectedLRs([...selectedLRs, newLR]);
     setNewLRInput('');
     toast.success('L.R. added to challan');
   }, [newLRInput, selectedLRs, lrEntries, consignees, consignors, challans, editingId]);
+
+  const scanQrImageFile = useCallback(async (file: File | null) => {
+    if (!file) return;
+    setQrScanning(true);
+    try {
+      const imageUrl = URL.createObjectURL(file);
+      const image = new Image();
+      image.src = imageUrl;
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error('Unable to read image'));
+      });
+      const canvas = qrCanvasRef.current || document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Unable to process QR image');
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'attemptBoth',
+      });
+      URL.revokeObjectURL(imageUrl);
+      if (!code?.data) throw new Error('QR code not found');
+      setNewLRInput(normalizeScanValue(code.data));
+      toast.success('LR QR scanned. Click Add L.R.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to scan QR');
+    } finally {
+      setQrScanning(false);
+    }
+  }, []);
 
   const removeLRFromChallan = useCallback(
     (index: number) => {
@@ -444,6 +499,7 @@ export default function ChallanPage() {
           advance: parseFloat(formData.advance) || 0,
           remarks: formData.remarks,
           lr_list: selectedLRs,
+          created_by: user?.email || `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
         };
 
         if (editingId) {
@@ -778,10 +834,10 @@ export default function ChallanPage() {
             <CardContent className="space-y-4">
               <div className="flex gap-2">
                 <Input
-                  placeholder="Enter L.R. number"
+                  placeholder="Enter/Search/Scan L.R. number"
                   list="available-lr-options"
                   value={newLRInput}
-                  onChange={(e) => setNewLRInput(e.target.value)}
+                  onChange={(e) => setNewLRInput(normalizeScanValue(e.target.value))}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -810,6 +866,22 @@ export default function ChallanPage() {
                   Add L.R.
                 </Button>
               </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="challan_lr_qr"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    void scanQrImageFile(e.target.files?.[0] || null);
+                    e.currentTarget.value = '';
+                  }}
+                />
+                <div className="flex h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground">
+                  {qrScanning ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
+                  Scan LR QR Image
+                </div>
+              </div>
+              <canvas ref={qrCanvasRef} className="hidden" />
 
               {selectedLRs.length > 0 && (
                 <>
@@ -956,6 +1028,7 @@ export default function ChallanPage() {
                 <TableHead>To</TableHead>
                 <TableHead>Vehicle</TableHead>
                 <TableHead>Total Freight</TableHead>
+                <TableHead>Created By</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -963,7 +1036,7 @@ export default function ChallanPage() {
             <TableBody>
               {challans.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-4">
+                  <TableCell colSpan={9} className="text-center py-4">
                     No challans found
                   </TableCell>
                 </TableRow>
@@ -980,6 +1053,7 @@ export default function ChallanPage() {
                     <TableCell>{challan.to_city}</TableCell>
                     <TableCell>{challan.truck_no}</TableCell>
                     <TableCell>₹{challan.total_freight.toFixed(2)}</TableCell>
+                    <TableCell>{challan.created_by || '-'}</TableCell>
                     <TableCell>
                       <span
                         className={`px-2 py-1 rounded text-sm font-medium ${

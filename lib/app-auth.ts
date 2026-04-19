@@ -143,6 +143,7 @@ export function toAuthenticatedUser(row: UserRow): AuthenticatedUser {
 
 export async function getUserByEmail(email: string) {
   await ensureSchema();
+  const login = String(email || '').trim();
   const { rows } = await sql<UserRow>`
     SELECT
       users.id,
@@ -163,7 +164,11 @@ export async function getUserByEmail(email: string) {
       transports.subscription_warning_days
     FROM users
     LEFT JOIN transports ON transports.id = users.transport_id
-    WHERE LOWER(users.email) = LOWER(${email})
+    WHERE LOWER(users.email) = LOWER(${login})
+      OR (
+        COALESCE(BTRIM(users.username), '') <> ''
+        AND LOWER(users.username) = LOWER(${login})
+      )
     LIMIT 1
   `;
   return rows[0] || null;

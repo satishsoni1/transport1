@@ -4,18 +4,21 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
   try {
-    const { email, password, firstName, lastName, role = 'User' } = await request.json();
+    const { email, username, password, firstName, lastName, role = 'User' } = await request.json();
+    const cleanUsername = String(username || '').trim();
 
-    if (!email || !password || !firstName || !lastName) {
+    if (!email || !cleanUsername || !password || !firstName || !lastName) {
       return NextResponse.json(
-        { success: false, error: 'All fields are required' },
+        { success: false, error: 'Username, email, password, first name and last name are required' },
         { status: 400 }
       );
     }
 
     // Check if user already exists
     const existingUser = await sql`
-      SELECT id FROM users WHERE email = ${email}
+      SELECT id FROM users
+      WHERE LOWER(email) = LOWER(${email})
+         OR LOWER(username) = LOWER(${cleanUsername})
     `;
 
     if (existingUser.rows.length > 0) {
@@ -30,9 +33,9 @@ export async function POST(request: Request) {
 
     // Insert new user
     const result = await sql`
-      INSERT INTO users (email, password_hash, first_name, last_name, role)
-      VALUES (${email}, ${passwordHash}, ${firstName}, ${lastName}, ${role})
-      RETURNING id, email, first_name, last_name, role, created_at
+      INSERT INTO users (email, username, password_hash, first_name, last_name, role)
+      VALUES (${email}, ${cleanUsername}, ${passwordHash}, ${firstName}, ${lastName}, ${role})
+      RETURNING id, email, username, first_name, last_name, role, created_at
     `;
 
     const newUser = result.rows[0];
@@ -43,6 +46,7 @@ export async function POST(request: Request) {
         user: {
           id: newUser.id,
           email: newUser.email,
+          username: newUser.username,
           firstName: newUser.first_name,
           lastName: newUser.last_name,
           role: newUser.role,
@@ -63,7 +67,7 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const result = await sql`
-      SELECT id, email, first_name, last_name, role, created_at, updated_at
+      SELECT id, email, username, first_name, last_name, role, created_at, updated_at
       FROM users
       ORDER BY created_at DESC
     `;
@@ -71,6 +75,7 @@ export async function GET() {
     const users = result.rows.map(user => ({
       id: user.id,
       email: user.email,
+      username: user.username,
       firstName: user.first_name,
       lastName: user.last_name,
       role: user.role,

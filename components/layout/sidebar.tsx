@@ -45,6 +45,8 @@ const navItems: NavItem[] = [
       { label: 'Invoice', href: '/daily-entry/invoice', icon: <FileText size={18} /> },
       // { label: 'Monthly Billing', href: '/daily-entry/monthly-billing', icon: <DollarSign size={18} /> },
       { label: 'Receipt', href: '/daily-entry/receipt', icon: <DollarSign size={18} /> },
+      { label: 'On Account Receipt', href: '/daily-entry/on-account-receipt', icon: <DollarSign size={18} /> },
+      { label: 'POD Upload', href: '/daily-entry/pod-upload', icon: <Package size={18} /> },
     ],
   },
   {
@@ -84,6 +86,7 @@ const navItems: NavItem[] = [
       { label: 'Users', href: '/admin/users', icon: <Users size={18} /> },
       { label: 'Audit Log', href: '/admin/audit-log', icon: <FileText size={18} /> },
       { label: 'Settings', href: '/admin/settings', icon: <Settings size={18} /> },
+      { label: 'Financial Years', href: '/settings/financial-years', icon: <DollarSign size={18} /> },
     ],
   },
 ];

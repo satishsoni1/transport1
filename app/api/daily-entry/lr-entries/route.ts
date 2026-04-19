@@ -190,7 +190,7 @@ export async function POST(request: Request) {
       INSERT INTO lr_entries (
         id, lr_no, lr_date, consignor_id, consignee_id, from_city, to_city, delivery_address,
         freight, hamali, lr_charge, advance, balance, invoice_no, invoice_date, truck_no,
-        driver_name, driver_mobile, eway_no, remarks, return_status, return_remark, pod_received, goods_items, status
+        driver_name, driver_mobile, eway_no, remarks, return_status, return_remark, pod_received, goods_items, status, created_by
       )
       VALUES (
         ${id},
@@ -217,7 +217,8 @@ export async function POST(request: Request) {
         ${body.return_remark || ''},
         ${Boolean(body.pod_received)},
         ${JSON.stringify(Array.isArray(body.goods_items) ? body.goods_items : [])}::jsonb,
-        ${body.status === 'paid' || body.status === 'tbb' ? body.status : 'to_pay'}
+        ${body.status === 'paid' || body.status === 'tbb' ? body.status : 'to_pay'},
+        ${String(body.created_by || '').trim()}
       )
       RETURNING *
     `;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -71,6 +71,29 @@ export default function ConsignorLedgerPage() {
     invoices: [],
     receipts: [],
   });
+
+  const ledgerRows = useMemo(() => {
+    const rows = [
+      ...ledger.invoices.map((invoice) => ({
+        date: invoice.invoice_date,
+        particulars: `Invoice ${invoice.invoice_no}`,
+        debit: Number(invoice.net_amount) || 0,
+        credit: 0,
+      })),
+      ...ledger.receipts.map((receipt) => ({
+        date: receipt.receipt_date,
+        particulars: `Receipt ${receipt.receipt_no}`,
+        debit: 0,
+        credit: Number(receipt.total_amount) || 0,
+      })),
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let balanceAmount = 0;
+    return rows.map((row) => {
+      balanceAmount += row.debit - row.credit;
+      return { ...row, balance: balanceAmount };
+    });
+  }, [ledger.invoices, ledger.receipts]);
 
   const loadLedger = useCallback(async () => {
     const params = new URLSearchParams();
@@ -199,6 +222,45 @@ export default function ConsignorLedgerPage() {
               onChange={(e) => setDateTo(e.target.value)}
               className="h-11 rounded-xl bg-white"
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="gap-3 py-4 shadow-md">
+        <CardHeader className="pb-0">
+          <CardTitle className="text-xl font-black">Ledger Format</CardTitle>
+          <CardDescription>Debit, credit, and running balance.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="border-b px-3 py-2 text-left">Date</th>
+                  <th className="border-b px-3 py-2 text-left">Particulars</th>
+                  <th className="border-b px-3 py-2 text-right">Debit</th>
+                  <th className="border-b px-3 py-2 text-right">Credit</th>
+                  <th className="border-b px-3 py-2 text-right">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledgerRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                      No ledger records found.
+                    </td>
+                  </tr>
+                ) : ledgerRows.map((row, index) => (
+                  <tr key={`${row.particulars}-${index}`} className="border-b odd:bg-white even:bg-slate-50">
+                    <td className="px-3 py-2">{row.date ? new Date(row.date).toLocaleDateString('en-IN') : '-'}</td>
+                    <td className="px-3 py-2 font-medium">{row.particulars}</td>
+                    <td className="px-3 py-2 text-right">{row.debit ? row.debit.toFixed(2) : ''}</td>
+                    <td className="px-3 py-2 text-right">{row.credit ? row.credit.toFixed(2) : ''}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{row.balance.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>

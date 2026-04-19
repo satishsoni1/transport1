@@ -99,7 +99,7 @@ export async function GET(request: Request) {
       const matchesSearch =
         !search ||
         String(receipt.receipt_no || '').toLowerCase().includes(search) ||
-        receipt.items.some((item) =>
+        receipt.items.some((item: ReceiptItem) =>
           String(item.invoice_no || '').toLowerCase().includes(search)
         );
       const receiptDate = new Date(receipt.receipt_date);
@@ -107,7 +107,7 @@ export async function GET(request: Request) {
       const matchesTo = !dateTo || receiptDate <= new Date(`${dateTo}T23:59:59`);
       const matchesInvoice =
         matchedInvoiceNos.size === 0 ||
-        receipt.items.some((item) => matchedInvoiceNos.has(String(item.invoice_no || '')));
+        receipt.items.some((item: ReceiptItem) => matchedInvoiceNos.has(String(item.invoice_no || '')));
 
       return matchesSearch && matchesFrom && matchesTo && matchesInvoice;
     });

@@ -49,6 +49,8 @@ interface Receipt {
   deduction_amount?: number;
   received_amount?: number;
   photo_url?: string;
+  receipt_type?: string;
+  created_by?: string;
   items: ReceiptItem[];
   total_amount: number;
   status: 'pending' | 'cleared';
@@ -264,6 +266,8 @@ export default function ReceiptPage() {
           tds_amount: calculateTotalTds(),
           deduction_amount: calculateTotalDeduction(),
           total_amount: calculateTotalReceived(),
+          receipt_type: 'invoice',
+          created_by: user?.email || `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
         };
 
         if (editingId) {
@@ -606,6 +610,7 @@ export default function ReceiptPage() {
                 <TableHead>Party Name</TableHead>
                 <TableHead>Mode</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead>Created By</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -613,7 +618,7 @@ export default function ReceiptPage() {
             <TableBody>
               {receipts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-4">
+                  <TableCell colSpan={8} className="text-center py-4">
                     No receipts found
                   </TableCell>
                 </TableRow>
@@ -632,6 +637,7 @@ export default function ReceiptPage() {
                         TDS ₹{Number(receipt.tds_amount || 0).toFixed(2)} | Deduct ₹{Number(receipt.deduction_amount || 0).toFixed(2)}
                       </div>
                     </TableCell>
+                    <TableCell>{receipt.created_by || '-'}</TableCell>
                     <TableCell>
                       <span
                         className={`px-2 py-1 rounded text-sm font-medium ${

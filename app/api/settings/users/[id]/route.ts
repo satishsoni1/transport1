@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
+import bcrypt from 'bcryptjs';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -22,7 +23,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { rows: existingRows } = await sql`SELECT * FROM app_users WHERE id = ${id}`;
+    const { rows: existingRows } = await sql`SELECT * FROM users WHERE id = ${id}`;
     if (existingRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'User not found' },
@@ -32,9 +33,10 @@ export async function PUT(
 
     const existing = existingRows[0];
     const email = body.email ?? existing.email;
+    const username = body.username ?? existing.username;
     if (email !== existing.email) {
       const { rows: dupRows } = await sql`
-        SELECT id FROM app_users WHERE LOWER(email) = LOWER(${email}) AND id <> ${id}
+        SELECT id FROM users WHERE LOWER(email) = LOWER(${email}) AND id <> ${id}
       `;
       if (dupRows.length > 0) {
         return NextResponse.json(
@@ -43,17 +45,33 @@ export async function PUT(
         );
       }
     }
+    if (username !== existing.username) {
+      const { rows: dupRows } = await sql`
+        SELECT id FROM users WHERE LOWER(username) = LOWER(${username}) AND id <> ${id}
+      `;
+      if (dupRows.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'User with this username already exists' },
+          { status: 409 }
+        );
+      }
+    }
+
+    const password = String(body.password || '').trim();
+    const passwordHash = password ? await bcrypt.hash(password, 10) : existing.password_hash;
 
     const { rows } = await sql`
-      UPDATE app_users
+      UPDATE users
       SET
         email = ${email},
+        username = ${username},
+        password_hash = ${passwordHash},
         first_name = ${body.first_name ?? existing.first_name},
         last_name = ${body.last_name ?? existing.last_name},
         role = ${body.role ?? existing.role},
         status = ${body.status ?? existing.status}
       WHERE id = ${id}
-      RETURNING id, email, first_name, last_name, role, status, created_at
+      RETURNING id, email, username, first_name, last_name, role, status, created_at
     `;
 
     await sql`
@@ -92,7 +110,7 @@ export async function DELETE(
       );
     }
 
-    const { rows } = await sql`DELETE FROM app_users WHERE id = ${id} RETURNING id`;
+    const { rows } = await sql`DELETE FROM users WHERE id = ${id} RETURNING id`;
     if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'User not found' },
