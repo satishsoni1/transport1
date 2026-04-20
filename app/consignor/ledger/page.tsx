@@ -228,22 +228,29 @@ export default function ConsignorLedgerPage() {
 
       <Card className="gap-3 py-4 shadow-md">
         <CardHeader className="pb-0">
-          <CardTitle className="text-xl font-black">Ledger Format</CardTitle>
-          <CardDescription>Debit, credit, and running balance.</CardDescription>
+          <CardTitle className="text-xl font-black">Account Ledger</CardTitle>
+          <CardDescription>Debit (invoice billed) · Credit (payment received) · Running balance</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-100">
                 <tr>
-                  <th className="border-b px-3 py-2 text-left">Date</th>
-                  <th className="border-b px-3 py-2 text-left">Particulars</th>
-                  <th className="border-b px-3 py-2 text-right">Debit</th>
-                  <th className="border-b px-3 py-2 text-right">Credit</th>
-                  <th className="border-b px-3 py-2 text-right">Balance</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Date</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Particulars</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-red-700">Debit (Dr)</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-green-700">Credit (Cr)</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-slate-600">Balance</th>
                 </tr>
               </thead>
               <tbody>
+                <tr className="border-b bg-yellow-50">
+                  <td className="px-3 py-2 text-xs text-slate-500">—</td>
+                  <td className="px-3 py-2 text-xs font-semibold text-slate-700">Opening Balance</td>
+                  <td className="px-3 py-2 text-right text-xs text-slate-400">—</td>
+                  <td className="px-3 py-2 text-right text-xs text-slate-400">—</td>
+                  <td className="px-3 py-2 text-right text-xs font-bold text-slate-600">0.00</td>
+                </tr>
                 {ledgerRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
@@ -251,14 +258,40 @@ export default function ConsignorLedgerPage() {
                     </td>
                   </tr>
                 ) : ledgerRows.map((row, index) => (
-                  <tr key={`${row.particulars}-${index}`} className="border-b odd:bg-white even:bg-slate-50">
-                    <td className="px-3 py-2">{row.date ? new Date(row.date).toLocaleDateString('en-IN') : '-'}</td>
-                    <td className="px-3 py-2 font-medium">{row.particulars}</td>
-                    <td className="px-3 py-2 text-right">{row.debit ? row.debit.toFixed(2) : ''}</td>
-                    <td className="px-3 py-2 text-right">{row.credit ? row.credit.toFixed(2) : ''}</td>
-                    <td className="px-3 py-2 text-right font-semibold">{row.balance.toFixed(2)}</td>
+                  <tr key={`${row.particulars}-${index}`} className="border-b odd:bg-white even:bg-slate-50/60 hover:bg-blue-50/30">
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-600">
+                      {row.date ? new Date(row.date).toLocaleDateString('en-IN') : '-'}
+                    </td>
+                    <td className="px-3 py-2 font-medium text-slate-900">{row.particulars}</td>
+                    <td className="px-3 py-2 text-right font-medium text-red-600">
+                      {row.debit ? row.debit.toFixed(2) : ''}
+                    </td>
+                    <td className="px-3 py-2 text-right font-medium text-green-600">
+                      {row.credit ? row.credit.toFixed(2) : ''}
+                    </td>
+                    <td className={`whitespace-nowrap px-3 py-2 text-right font-bold ${row.balance > 0 ? 'text-red-700' : row.balance < 0 ? 'text-green-700' : 'text-slate-500'}`}>
+                      {Math.abs(row.balance).toFixed(2)}{' '}
+                      <span className="text-xs font-semibold">
+                        {row.balance > 0 ? 'Dr' : row.balance < 0 ? 'Cr' : ''}
+                      </span>
+                    </td>
                   </tr>
                 ))}
+                {ledgerRows.length > 0 ? (
+                  <tr className="border-t-2 bg-slate-100 font-bold">
+                    <td colSpan={2} className="px-3 py-2 text-slate-700">Closing Balance</td>
+                    <td className="px-3 py-2 text-right text-red-700">
+                      {ledgerRows.reduce((s, r) => s + r.debit, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-green-700">
+                      {ledgerRows.reduce((s, r) => s + r.credit, 0).toFixed(2)}
+                    </td>
+                    <td className={`whitespace-nowrap px-3 py-2 text-right ${(ledgerRows.at(-1)?.balance ?? 0) > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                      {Math.abs(ledgerRows.at(-1)?.balance ?? 0).toFixed(2)}{' '}
+                      <span className="text-xs">{(ledgerRows.at(-1)?.balance ?? 0) > 0 ? 'Dr' : (ledgerRows.at(-1)?.balance ?? 0) < 0 ? 'Cr' : ''}</span>
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

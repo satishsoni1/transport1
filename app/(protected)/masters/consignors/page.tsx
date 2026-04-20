@@ -203,20 +203,17 @@ export default function ConsignorsPage() {
                 </div>
                 <div>
                   <Label htmlFor="city">City *</Label>
-                  <Input
+                  <select
                     id="city"
-                    list="consignor-city-options"
+                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
                     value={formData.city}
-                    onChange={(e) =>
-                      setFormData({ ...formData, city: e.target.value })
-                    }
-                    placeholder="City"
-                  />
-                  <datalist id="consignor-city-options">
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  >
+                    <option value="">Select city</option>
                     {cities.map((city) => (
-                      <option key={city.id} value={city.city_name} />
+                      <option key={city.id} value={city.city_name}>{city.city_name}</option>
                     ))}
-                  </datalist>
+                  </select>
                 </div>
               </div>
 

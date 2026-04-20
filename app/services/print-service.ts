@@ -739,8 +739,8 @@ export function generateLRPrintHTML(data: LRPrintData): string {
               <td>${totalQty}</td>
               <td>TOTAL</td>
               <td>${totalWeightKg} Kg.</td>
-              <td class="charge-label">LR. CHARGE</td>
-              <td class="value-cell">${Number(data.lr_charge || 0).toFixed(2)}</td>
+              <td class="charge-label">${isToPay ? 'LR. CHARGE' : ''}</td>
+              <td class="value-cell">${isToPay ? Number(data.lr_charge || 0).toFixed(2) : ''}</td>
             </tr>
             <tr class="amount-row">
               <td></td>

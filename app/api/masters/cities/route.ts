@@ -48,11 +48,14 @@ export async function POST(request: Request) {
     }
 
     const { rows } = await sql`
-      INSERT INTO cities (city_name, city_name_hi, city_name_mr, consignor_id, consignee_id, status)
+      INSERT INTO cities (city_name, city_name_hi, city_name_mr, taluka, district, distance_km, consignor_id, consignee_id, status)
       VALUES (
         ${cityName},
         ${String(body.city_name_hi || '').trim()},
         ${String(body.city_name_mr || '').trim()},
+        ${String(body.taluka || '').trim()},
+        ${String(body.district || '').trim()},
+        ${Number(body.distance_km) || 0},
         ${body.consignor_id ? Number(body.consignor_id) : null},
         ${body.consignee_id ? Number(body.consignee_id) : null},
         ${body.status || 'active'}

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import jsQR from 'jsqr';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, Printer } from 'lucide-react';
+import { Plus, Trash2, Edit2, Printer, ImageUp, LoaderCircle } from 'lucide-react';
 import useSWR from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 import {
@@ -84,11 +85,31 @@ interface AdminSettings extends CompanyPrintData {
   default_gst_rate?: number;
 }
 
+function normalizeLrNo(value: string) {
+  const trimmed = value.trim();
+  const prefixedMatch = trimmed.match(/LR\s*[:\-]\s*([A-Z0-9/_-]+)/i);
+  if (prefixedMatch?.[1]) return prefixedMatch[1].trim();
+  try {
+    const parsed = new URL(trimmed);
+    return (
+      parsed.searchParams.get('lr_no') ||
+      parsed.searchParams.get('lrNo') ||
+      parsed.searchParams.get('lr') ||
+      parsed.pathname.split('/').filter(Boolean).pop() ||
+      trimmed
+    ).trim();
+  } catch {
+    return trimmed;
+  }
+}
+
 export default function InvoicePage() {
   const { user } = useAuth();
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [consignorSearch, setConsignorSearch] = useState('');
+  const [qrScanning, setQrScanning] = useState(false);
   const [lrDateFilter, setLrDateFilter] = useState({
     from_date: '',
     to_date: '',
@@ -265,6 +286,48 @@ export default function InvoicePage() {
       amount: qty > 0 ? qty * rate : Number(entry.freight) || 0,
     };
   }, []);
+
+  const scanQrImageFile = useCallback(async (file: File | null) => {
+    if (!file) return;
+    setQrScanning(true);
+    try {
+      const imageUrl = URL.createObjectURL(file);
+      const image = new Image();
+      image.src = imageUrl;
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error('Unable to read image'));
+      });
+      const canvas = qrCanvasRef.current || document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Unable to process QR image');
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'attemptBoth',
+      });
+      URL.revokeObjectURL(imageUrl);
+      if (!code?.data) throw new Error('QR code not found');
+      const scannedNo = normalizeLrNo(code.data);
+      const entry = availableLREntries.find((item) => item.lr_no === scannedNo);
+      if (!entry) {
+        toast.error(`L.R. ${scannedNo} not found or not available`);
+        return;
+      }
+      if (invoiceItems.some((item) => item.lr_no === scannedNo)) {
+        toast.error('This L.R. is already added');
+        return;
+      }
+      setInvoiceItems((prev) => [...prev, buildInvoiceItemFromLR(entry)]);
+      toast.success(`L.R. ${scannedNo} added to invoice`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to scan QR');
+    } finally {
+      setQrScanning(false);
+    }
+  }, [availableLREntries, invoiceItems, buildInvoiceItemFromLR]);
 
   const addFilteredLrs = useCallback(() => {
     if (!formData.consignor_id) {
@@ -624,6 +687,19 @@ export default function InvoicePage() {
                   </Button>
                 </div>
               </div>
+              <div className="flex items-center gap-2 mb-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => { void scanQrImageFile(e.target.files?.[0] || null); e.currentTarget.value = ''; }}
+                  className="flex-1"
+                />
+                <div className="flex h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground">
+                  {qrScanning ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
+                  Scan LR QR
+                </div>
+                <canvas ref={qrCanvasRef} className="hidden" />
+              </div>
               <div className="grid grid-cols-6 gap-2 mb-4">
                 <Input
                   placeholder="L.R. No"
@@ -636,9 +712,9 @@ export default function InvoicePage() {
                       setCurrentItem({ ...currentItem, lr_no: value });
                       return;
                     }
-
                     setCurrentItem(buildInvoiceItemFromLR(entry));
                   }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addInvoiceItem(); } }}
                 />
                 <datalist id="invoice-lr-options">
                   {availableLREntries.map((item) => (
@@ -654,6 +730,7 @@ export default function InvoicePage() {
                       description: e.target.value,
                     })
                   }
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addInvoiceItem(); } }}
                   className="col-span-2"
                 />
                 <Input
@@ -666,6 +743,7 @@ export default function InvoicePage() {
                       qty: parseFloat(e.target.value) || 0,
                     })
                   }
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addInvoiceItem(); } }}
                 />
                 <Input
                   placeholder="Rate"
@@ -677,6 +755,7 @@ export default function InvoicePage() {
                       rate: parseFloat(e.target.value) || 0,
                     })
                   }
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addInvoiceItem(); } }}
                 />
                 <Button type="button" onClick={addInvoiceItem} className="w-full">
                   Add

@@ -232,6 +232,8 @@ export default function LREntryPage() {
   const [listPod, setListPod] = useState('');
   const [podPrintSelection, setPodPrintSelection] = useState<Set<number>>(new Set());
   const [lrPrintSelection, setLrPrintSelection] = useState<Set<number>>(new Set());
+  const [previewLrSearch, setPreviewLrSearch] = useState('');
+  const [previewHtml, setPreviewHtml] = useState('');
 
   const { data: challansForList = [] } = useSWR<
     Array<{
@@ -373,6 +375,10 @@ export default function LREntryPage() {
   );
   const { data: goodsNatures = [] } = useSWR<GoodsNatureMaster[]>(
     '/api/masters/goods-natures',
+    apiClient.get
+  );
+  const { data: allLrEntries = [] } = useSWR<LREntry[]>(
+    activeTab === 'preview' ? '/api/daily-entry/lr-entries' : null,
     apiClient.get
   );
 
@@ -764,6 +770,24 @@ export default function LREntryPage() {
     },
     [buildPrintPayload]
   );
+
+  const handleLoadLrPreview = useCallback(() => {
+    const search = previewLrSearch.trim().toLowerCase();
+    if (!search) { toast.error('Please enter an L.R. number'); return; }
+    const lr = allLrEntries.find((item) => item.lr_no.toLowerCase() === search);
+    if (!lr) { toast.error('L.R. not found'); return; }
+    let html = generateLRPrintHTML(buildPrintPayload(lr));
+    if (lr.pod_image_url?.trim()) {
+      html = html.replace(
+        '</body>',
+        `<div style="page-break-before:always;padding:12px;font-family:Arial,sans-serif;">
+          <h2 style="margin:0 0 8px;">POD ${lr.lr_no}</h2>
+          <img src="${lr.pod_image_url}" alt="POD ${lr.lr_no}" style="max-width:100%;max-height:92vh;object-fit:contain;" />
+        </div></body>`
+      );
+    }
+    setPreviewHtml(html);
+  }, [allLrEntries, previewLrSearch, buildPrintPayload]);
 
   const printSelectedListLrs = useCallback(() => {
     const selected = lrEntries.filter((entry) => lrPrintSelection.has(entry.id));
@@ -1446,6 +1470,57 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
             </Button>
           </div>
         </form>
+      ) : activeTab === 'preview' ? (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>LR Preview</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <Input
+                  list="lr-preview-nos"
+                  value={previewLrSearch}
+                  onChange={(e) => { setPreviewLrSearch(e.target.value); setPreviewHtml(''); }}
+                  placeholder="Enter or select L.R. number"
+                  className="flex-1"
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleLoadLrPreview(); } }}
+                />
+                <datalist id="lr-preview-nos">
+                  {allLrEntries.map((item) => (
+                    <option key={item.id} value={item.lr_no} />
+                  ))}
+                </datalist>
+                <Button type="button" onClick={handleLoadLrPreview}>Load Preview</Button>
+              </div>
+              {previewHtml && (
+                <div className="flex gap-2 flex-wrap">
+                  <Button type="button" onClick={() => printHTML(previewHtml)} className="gap-2">
+                    <Printer className="w-4 h-4" /> Print
+                  </Button>
+                  <Button type="button" onClick={() => void downloadPDF(previewHtml, `LR-${previewLrSearch}`)} variant="outline" className="gap-2">
+                    <Download className="w-4 h-4" /> Download PDF
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          {previewHtml ? (
+            <Card>
+              <CardContent className="pt-4">
+                <iframe
+                  srcDoc={previewHtml}
+                  style={{ width: '100%', height: '700px', border: '1px solid #ddd', borderRadius: '4px' }}
+                  title="LR Preview"
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="bg-gray-50">
+              <CardContent className="pt-6 text-center text-gray-500">
+                <p>Enter an L.R. number above to preview the document.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       ) : (
         <div className="space-y-4">
           <Card className="py-4 shadow-sm">
@@ -1485,18 +1560,18 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="lr-list-pod">POD</Label>
+                  <Label htmlFor="lr-list-pod">LR Status</Label>
                   <select
                     id="lr-list-pod"
                     value={listPod}
                     onChange={(e) => setListPod(e.target.value)}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
-                    <option value="">All POD</option>
+                    <option value="">All LR Status</option>
                     <option value="godown">In Godown</option>
                     <option value="transit">In Transit</option>
-                    <option value="pending">POD pending</option>
-                    <option value="received">POD received</option>
+                    <option value="pending">POD Pending</option>
+                    <option value="received">Delivered (POD received)</option>
                   </select>
                 </div>
               </div>
@@ -1534,15 +1609,15 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="lr-list-status">Freight Status</Label>
+                  <Label htmlFor="lr-list-status">Payment Type</Label>
                   <select
                     id="lr-list-status"
                     value={listStatus}
                     onChange={(e) => setListStatus(e.target.value)}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
-                    <option value="">All status</option>
-                    <option value="to_pay">To pay</option>
+                    <option value="">All payment types</option>
+                    <option value="to_pay">To Pay</option>
                     <option value="paid">Paid</option>
                     <option value="tbb">TBB</option>
                   </select>
@@ -1731,7 +1806,6 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                         <TableCell>
                           {freightTypeOptions.find((item) => item.value === entry.status)?.label || entry.status}
                         </TableCell>
-                        <TableCell>{entry.created_by || '-'}</TableCell>
                         <TableCell>
                           <span
                             className={`text-xs font-semibold ${
@@ -1745,6 +1819,7 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                             {lrOperationalStatus}
                           </span>
                         </TableCell>
+                        <TableCell>{entry.created_by || '-'}</TableCell>
                         <TableCell>
                           {entry.return_status === 'returned' ? (
                             <div className="text-xs font-semibold text-red-600">

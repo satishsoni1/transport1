@@ -26,6 +26,9 @@ interface Receipt {
   deduction_amount?: number;
   total_amount: number;
   receipt_type?: string;
+  mode?: string;
+  remarks?: string;
+  photo_url?: string;
 }
 
 export default function OnAccountReceiptPage() {
@@ -211,7 +214,17 @@ export default function OnAccountReceiptPage() {
             <div className="text-sm text-muted-foreground">No on account receipts found.</div>
           ) : onAccountReceipts.map((receipt) => (
             <div key={receipt.id} className="rounded-md border p-3 text-sm">
-              <b>{receipt.receipt_no}</b> | {receipt.party_name} | Received Rs {Number(receipt.received_amount ?? receipt.total_amount).toFixed(2)} | TDS Rs {Number(receipt.tds_amount || 0).toFixed(2)} | Deduct Rs {Number(receipt.deduction_amount || 0).toFixed(2)}
+              <div className="flex flex-wrap items-center gap-x-2">
+                <b>{receipt.receipt_no}</b>
+                <span>{receipt.party_name}</span>
+                <span>₹{Number(receipt.received_amount ?? receipt.total_amount).toFixed(2)}</span>
+                <span className="text-slate-500 text-xs">TDS ₹{Number(receipt.tds_amount || 0).toFixed(2)} | Deduct ₹{Number(receipt.deduction_amount || 0).toFixed(2)}</span>
+                {receipt.mode && <span className="capitalize text-muted-foreground">{receipt.mode.replace('_', ' ')}</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 mt-0.5">
+                {receipt.remarks && <span className="text-xs text-muted-foreground">{receipt.remarks}</span>}
+                {receipt.photo_url && <a href={receipt.photo_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">View Photo</a>}
+              </div>
             </div>
           ))}
         </CardContent>

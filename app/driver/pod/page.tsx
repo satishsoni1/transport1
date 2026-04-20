@@ -546,6 +546,7 @@ export default function DriverPodPage() {
                 If live camera does not open, take or choose a photo of the LR QR and scan it here.
               </div>
             </div>
+            <canvas ref={canvasRef} className="hidden" />
             {cameraOpen ? (
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-black">
                 <div className="relative aspect-[4/3] w-full overflow-hidden">
@@ -564,7 +565,6 @@ export default function DriverPodPage() {
                     Align LR QR inside the box
                   </div>
                 </div>
-                <canvas ref={canvasRef} className="hidden" />
               </div>
             ) : null}
             {cameraError ? (
@@ -670,29 +670,30 @@ export default function DriverPodPage() {
                 />
               ) : null}
               <div className="space-y-2">
-                <label htmlFor="pod_file" className="text-sm font-semibold text-slate-700">
-                  POD Image
-                </label>
-                <Input
-                  id="pod_file"
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={(e) => handleImageUpload(e.target.files?.[0] || null)}
-                  className="h-11 rounded-xl bg-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="pod_camera_file" className="text-sm font-semibold text-slate-700">
-                  POD Image From Camera
-                </label>
-                <Input
-                  id="pod_camera_file"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => handleImageUpload(e.target.files?.[0] || null)}
-                  className="h-11 rounded-xl bg-white"
-                />
+                <label className="text-sm font-semibold text-slate-700">POD Image</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label htmlFor="pod_file" className="mb-1 block text-xs text-slate-500">Gallery / File</label>
+                    <Input
+                      id="pod_file"
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => handleImageUpload(e.target.files?.[0] || null)}
+                      className="h-11 rounded-xl bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="pod_camera_file" className="mb-1 block text-xs text-slate-500">Camera</label>
+                    <Input
+                      id="pod_camera_file"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => handleImageUpload(e.target.files?.[0] || null)}
+                      className="h-11 rounded-xl bg-white"
+                    />
+                  </div>
+                </div>
               </div>
               {podImageUrl ? (
                 <img src={podImageUrl} alt="POD preview" className="h-48 w-full rounded-2xl border object-cover" />

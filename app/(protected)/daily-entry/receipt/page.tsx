@@ -628,14 +628,18 @@ export default function ReceiptPage() {
                     <TableCell className="font-medium">{receipt.receipt_no}</TableCell>
                     <TableCell>{new Date(receipt.receipt_date).toLocaleDateString()}</TableCell>
                     <TableCell>{receipt.party_name}</TableCell>
-                    <TableCell className="capitalize">
-                      {receipt.mode.replace('_', ' ')}
+                    <TableCell>
+                      <div className="capitalize">{receipt.mode.replace('_', ' ')}</div>
+                      {receipt.remarks && <div className="text-xs text-muted-foreground mt-0.5">{receipt.remarks}</div>}
                     </TableCell>
                     <TableCell>
-                      ₹{Number(receipt.received_amount ?? receipt.total_amount).toFixed(2)}
+                      <div>₹{Number(receipt.received_amount ?? receipt.total_amount).toFixed(2)}</div>
                       <div className="text-xs text-slate-500">
                         TDS ₹{Number(receipt.tds_amount || 0).toFixed(2)} | Deduct ₹{Number(receipt.deduction_amount || 0).toFixed(2)}
                       </div>
+                      {receipt.photo_url && (
+                        <a href={receipt.photo_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">View Photo</a>
+                      )}
                     </TableCell>
                     <TableCell>{receipt.created_by || '-'}</TableCell>
                     <TableCell>

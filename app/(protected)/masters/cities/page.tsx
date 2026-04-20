@@ -30,6 +30,9 @@ interface City {
   city_name: string;
   city_name_hi?: string;
   city_name_mr?: string;
+  taluka?: string;
+  district?: string;
+  distance_km?: number;
   consignor_id?: number | null;
   consignee_id?: number | null;
   consignor_name?: string;
@@ -51,6 +54,9 @@ export default function CitiesPage() {
     city_name: '',
     city_name_hi: '',
     city_name_mr: '',
+    taluka: '',
+    district: '',
+    distance_km: '0',
     consignor_id: '',
     consignee_id: '',
   });
@@ -68,6 +74,9 @@ export default function CitiesPage() {
       city_name: '',
       city_name_hi: '',
       city_name_mr: '',
+      taluka: '',
+      district: '',
+      distance_km: '0',
       consignor_id: '',
       consignee_id: '',
     });
@@ -93,6 +102,9 @@ export default function CitiesPage() {
             city_name: trimmed,
             city_name_hi: formData.city_name_hi.trim(),
             city_name_mr: formData.city_name_mr.trim(),
+            taluka: formData.taluka.trim(),
+            district: formData.district.trim(),
+            distance_km: Number(formData.distance_km) || 0,
             consignor_id: formData.consignor_id,
             consignee_id: formData.consignee_id,
           });
@@ -102,6 +114,9 @@ export default function CitiesPage() {
             city_name: trimmed,
             city_name_hi: formData.city_name_hi.trim(),
             city_name_mr: formData.city_name_mr.trim(),
+            taluka: formData.taluka.trim(),
+            district: formData.district.trim(),
+            distance_km: Number(formData.distance_km) || 0,
             consignor_id: formData.consignor_id,
             consignee_id: formData.consignee_id,
           });
@@ -122,6 +137,9 @@ export default function CitiesPage() {
       city_name: city.city_name || '',
       city_name_hi: city.city_name_hi || '',
       city_name_mr: city.city_name_mr || '',
+      taluka: city.taluka || '',
+      district: city.district || '',
+      distance_km: city.distance_km !== undefined ? String(city.distance_km) : '0',
       consignor_id: city.consignor_id ? String(city.consignor_id) : '',
       consignee_id: city.consignee_id ? String(city.consignee_id) : '',
     });
@@ -187,6 +205,20 @@ export default function CitiesPage() {
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="taluka">Taluka</Label>
+                  <Input id="taluka" value={formData.taluka} onChange={(e) => setFormData({ ...formData, taluka: e.target.value })} placeholder="Taluka" />
+                </div>
+                <div>
+                  <Label htmlFor="district">District</Label>
+                  <Input id="district" value={formData.district} onChange={(e) => setFormData({ ...formData, district: e.target.value })} placeholder="District" />
+                </div>
+                <div>
+                  <Label htmlFor="distance_km">Distance (KM)</Label>
+                  <Input id="distance_km" type="number" value={formData.distance_km} onChange={(e) => setFormData({ ...formData, distance_km: e.target.value })} placeholder="0" />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="consignor_id">Linked Consignor</Label>
@@ -239,6 +271,9 @@ export default function CitiesPage() {
               <TableHead>City Name</TableHead>
               <TableHead>Hindi</TableHead>
               <TableHead>Marathi</TableHead>
+              <TableHead>Taluka</TableHead>
+              <TableHead>District</TableHead>
+              <TableHead>Dist. KM</TableHead>
               <TableHead>Linked Party</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -246,7 +281,7 @@ export default function CitiesPage() {
           <TableBody>
             {cities.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-4">
+                <TableCell colSpan={8} className="text-center py-4">
                   No cities found
                 </TableCell>
               </TableRow>
@@ -256,6 +291,9 @@ export default function CitiesPage() {
                   <TableCell className="font-medium">{city.city_name}</TableCell>
                   <TableCell>{city.city_name_hi || '-'}</TableCell>
                   <TableCell>{city.city_name_mr || '-'}</TableCell>
+                  <TableCell>{city.taluka || '-'}</TableCell>
+                  <TableCell>{city.district || '-'}</TableCell>
+                  <TableCell>{city.distance_km ? `${city.distance_km} km` : '-'}</TableCell>
                   <TableCell>
                     {[city.consignor_name, city.consignee_name].filter(Boolean).join(' / ') || '-'}
                   </TableCell>

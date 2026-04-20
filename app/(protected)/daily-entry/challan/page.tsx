@@ -77,6 +77,14 @@ interface Consignor {
 interface City {
   id: number;
   city_name: string;
+  distance_km?: number;
+}
+
+interface RouteRow {
+  id: number;
+  route_name: string;
+  from_city: string;
+  to_city: string;
 }
 
 interface Driver {
@@ -228,6 +236,10 @@ export default function ChallanPage() {
     '/api/masters/cities',
     apiClient.get
   );
+  const { data: routes = [] } = useSWR<RouteRow[]>(
+    '/api/masters/routes',
+    apiClient.get
+  );
   const { data: drivers = [] } = useSWR<Driver[]>(
     '/api/masters/drivers',
     apiClient.get
@@ -287,74 +299,68 @@ export default function ChallanPage() {
     }));
   }, [drivers, vehicles, formData.truck_no]);
 
-  const addLRToChallan = useCallback(() => {
-    const lrNo = normalizeScanValue(newLRInput);
+  const lrNosInOtherChallans = useMemo(() => {
+    const nos = new Set<string>();
+    for (const ch of challans) {
+      if (ch.id === editingId) continue;
+      for (const item of (ch.lr_list || [])) {
+        if (item.lr_no) nos.add(item.lr_no);
+      }
+    }
+    return nos;
+  }, [challans, editingId]);
+
+  const addLRByNo = useCallback((lrNo: string) => {
     if (!lrNo) {
       toast.error('Please enter L.R. number');
-      return;
+      return false;
     }
-
     if (selectedLRs.some((item) => item.lr_no === lrNo)) {
       toast.error('This L.R. is already added');
-      return;
+      return false;
     }
-
     const lrEntry = lrEntries.find((item) => item.lr_no === lrNo);
     if (!lrEntry) {
       toast.error('L.R. not found');
-      return;
+      return false;
     }
-
+    const previousChallan = challans.find(
+      (challan) => challan.id !== editingId &&
+        (challan.lr_list || []).some((item) => item.lr_no === lrNo)
+    );
+    if (previousChallan) {
+      toast.error(`This L.R. is already used in challan ${previousChallan.challan_no}`);
+      return false;
+    }
     const consigneeName =
       consignees.find((item) => item.id === lrEntry.consignee_id)?.name ||
       `Consignee #${lrEntry.consignee_id}`;
     const { city: cityMr, consignee: consigneeMr } = cityConsigneeMarathiForLR(
-      lrEntry.lr_no,
-      lrEntry.to_city || '-',
-      consigneeName,
-      lrEntries,
-      consignees
+      lrEntry.lr_no, lrEntry.to_city || '-', consigneeName, lrEntries, consignees
     );
     const consignorName =
       consignors.find((item) => item.id === lrEntry.consignor_id)?.name ||
       `Consignor #${lrEntry.consignor_id}`;
     const packages = (lrEntry.goods_items || []).reduce(
-      (sum, item) => sum + (Number(item.qty) || 0),
-      0
+      (sum, item) => sum + (Number(item.qty) || 0), 0
     );
-
-    const previousChallan = challans.find(
-      (challan) =>
-        challan.id !== editingId &&
-        (challan.lr_list || []).some((item) => item.lr_no === lrNo)
-    );
-
-    if (previousChallan) {
-      toast.error(`This L.R. is already used in challan ${previousChallan.challan_no}`);
-      return;
-    }
-
     const newLR: ChallanLR = {
-      id: lrEntry.id,
-      lr_no: lrEntry.lr_no,
-      lr_date: lrEntry.lr_date,
-      city: cityMr,
-      consignee: consigneeMr,
-      consignor: consignorName,
-      invoice_no: lrEntry.invoice_no || '',
-      packages,
-      freight: Number(lrEntry.freight) || 0,
-      status: lrEntry.status,
-      remarks: lrEntry.remarks || '',
-      return_status: lrEntry.return_status || 'normal',
-      return_remark: lrEntry.return_remark || '',
-      previous_challan_no: '',
+      id: lrEntry.id, lr_no: lrEntry.lr_no, lr_date: lrEntry.lr_date,
+      city: cityMr, consignee: consigneeMr, consignor: consignorName,
+      invoice_no: lrEntry.invoice_no || '', packages,
+      freight: Number(lrEntry.freight) || 0, status: lrEntry.status,
+      remarks: lrEntry.remarks || '', return_status: lrEntry.return_status || 'normal',
+      return_remark: lrEntry.return_remark || '', previous_challan_no: '',
     };
-
-    setSelectedLRs([...selectedLRs, newLR]);
-    setNewLRInput('');
+    setSelectedLRs((prev) => [...prev, newLR]);
     toast.success('L.R. added to challan');
-  }, [newLRInput, selectedLRs, lrEntries, consignees, consignors, challans, editingId]);
+    return true;
+  }, [selectedLRs, lrEntries, consignees, consignors, challans, editingId]);
+
+  const addLRToChallan = useCallback(() => {
+    const lrNo = normalizeScanValue(newLRInput);
+    if (addLRByNo(lrNo)) setNewLRInput('');
+  }, [newLRInput, addLRByNo]);
 
   const scanQrImageFile = useCallback(async (file: File | null) => {
     if (!file) return;
@@ -379,14 +385,15 @@ export default function ChallanPage() {
       });
       URL.revokeObjectURL(imageUrl);
       if (!code?.data) throw new Error('QR code not found');
-      setNewLRInput(normalizeScanValue(code.data));
-      toast.success('LR QR scanned. Click Add L.R.');
+      const scannedNo = normalizeScanValue(code.data);
+      setNewLRInput(scannedNo);
+      addLRByNo(scannedNo);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to scan QR');
     } finally {
       setQrScanning(false);
     }
-  }, []);
+  }, [addLRByNo]);
 
   const removeLRFromChallan = useCallback(
     (index: number) => {
@@ -579,40 +586,59 @@ export default function ChallanPage() {
               <CardTitle>Challan Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="challan_route">Route (from Route Master)</Label>
+                <select
+                  id="challan_route"
+                  className="h-10 w-full rounded-md border px-3 py-2 text-sm"
+                  value=""
+                  onChange={(e) => {
+                    const route = routes.find((r) => r.id === Number(e.target.value));
+                    if (route) {
+                      setFormData((prev) => ({
+                        ...prev,
+                        from_city: route.from_city || prev.from_city,
+                        to_city: route.to_city || prev.to_city,
+                      }));
+                    }
+                  }}
+                >
+                  <option value="">-- Select route to auto-fill cities --</option>
+                  {routes.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.route_name || `${r.from_city} → ${r.to_city}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="from_city">From City *</Label>
-                  <Input
+                  <select
                     id="from_city"
-                    list="challan-from-city-options"
+                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
                     value={formData.from_city}
-                    onChange={(e) =>
-                      setFormData({ ...formData, from_city: e.target.value })
-                    }
-                    placeholder="Origin city"
-                  />
-                  <datalist id="challan-from-city-options">
+                    onChange={(e) => setFormData({ ...formData, from_city: e.target.value })}
+                  >
+                    <option value="">Select city</option>
                     {cities.map((city) => (
-                      <option key={city.id} value={city.city_name} />
+                      <option key={city.id} value={city.city_name}>{city.city_name}</option>
                     ))}
-                  </datalist>
+                  </select>
                 </div>
                 <div>
                   <Label htmlFor="to_city">To City *</Label>
-                  <Input
+                  <select
                     id="to_city"
-                    list="challan-to-city-options"
+                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
                     value={formData.to_city}
-                    onChange={(e) =>
-                      setFormData({ ...formData, to_city: e.target.value })
-                    }
-                    placeholder="Destination city"
-                  />
-                  <datalist id="challan-to-city-options">
+                    onChange={(e) => setFormData({ ...formData, to_city: e.target.value })}
+                  >
+                    <option value="">Select city</option>
                     {cities.map((city) => (
-                      <option key={city.id} value={city.city_name} />
+                      <option key={city.id} value={city.city_name}>{city.city_name}</option>
                     ))}
-                  </datalist>
+                  </select>
                 </div>
               </div>
             </CardContent>
@@ -849,9 +875,8 @@ export default function ChallanPage() {
                   {lrEntries
                     .filter(
                       (item) =>
-                        !selectedLRs.some(
-                          (selected) => selected.lr_no === item.lr_no
-                        )
+                        !selectedLRs.some((selected) => selected.lr_no === item.lr_no) &&
+                        !lrNosInOtherChallans.has(item.lr_no)
                     )
                     .map((item) => (
                       <option key={item.id} value={item.lr_no} />
@@ -882,6 +907,36 @@ export default function ChallanPage() {
                 </div>
               </div>
               <canvas ref={qrCanvasRef} className="hidden" />
+
+              {selectedLRs.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => {
+                      const cityDistMap = new Map(
+                        cities.map((c) => [c.city_name.trim().toUpperCase(), c.distance_km ?? 0])
+                      );
+                      setSelectedLRs((prev) =>
+                        [...prev].sort((a, b) => {
+                          const da = cityDistMap.get(
+                            (lrEntries.find((e) => e.lr_no === a.lr_no)?.to_city || a.city || '').trim().toUpperCase()
+                          ) ?? 0;
+                          const db = cityDistMap.get(
+                            (lrEntries.find((e) => e.lr_no === b.lr_no)?.to_city || b.city || '').trim().toUpperCase()
+                          ) ?? 0;
+                          return da - db;
+                        })
+                      );
+                    }}
+                  >
+                    Sort by Distance KM
+                  </Button>
+                  <span className="text-xs text-muted-foreground">Arrange LRs by destination city distance</span>
+                </div>
+              )}
 
               {selectedLRs.length > 0 && (
                 <>

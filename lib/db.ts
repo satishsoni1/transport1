@@ -247,6 +247,9 @@ export async function ensureSchema() {
   await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS city_name_mr TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS consignor_id INTEGER`;
   await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS consignee_id INTEGER`;
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS taluka TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS district TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION NOT NULL DEFAULT 0`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS drivers (
@@ -534,6 +537,7 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await sql`ALTER TABLE routes ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION NOT NULL DEFAULT 0`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS lr_entries (

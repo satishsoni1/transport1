@@ -26,6 +26,7 @@ interface RouteRow {
 interface City {
   id: number;
   city_name: string;
+  distance_km?: number;
 }
 
 interface Party {
@@ -124,16 +125,33 @@ export default function RoutesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="from_city">From City *</Label>
-                  <Input id="from_city" list="route-city-options" value={formData.from_city} onChange={(e) => setFormData({ ...formData, from_city: e.target.value })} />
+                  <select
+                    id="from_city"
+                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
+                    value={formData.from_city}
+                    onChange={(e) => setFormData({ ...formData, from_city: e.target.value })}
+                  >
+                    <option value="">Select city</option>
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.city_name}>{city.city_name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <Label htmlFor="to_city">To City *</Label>
-                  <Input id="to_city" list="route-city-options" value={formData.to_city} onChange={(e) => setFormData({ ...formData, to_city: e.target.value })} />
+                  <select
+                    id="to_city"
+                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
+                    value={formData.to_city}
+                    onChange={(e) => setFormData({ ...formData, to_city: e.target.value })}
+                  >
+                    <option value="">Select city</option>
+                    {cities.map((city) => (
+                      <option key={city.id} value={city.city_name}>{city.city_name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
-              <datalist id="route-city-options">
-                {cities.map((city) => <option key={city.id} value={city.city_name} />)}
-              </datalist>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="route_consignor">Linked Consignor</Label>
