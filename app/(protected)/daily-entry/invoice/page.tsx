@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, Printer, ImageUp, LoaderCircle } from 'lucide-react';
+import { Camera, Plus, ScanLine, Trash2, Edit2, Printer, ImageUp, LoaderCircle, X } from 'lucide-react';
 import useSWR from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 import {
@@ -106,10 +106,17 @@ function normalizeLrNo(value: string) {
 export default function InvoicePage() {
   const { user } = useAuth();
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const invoiceCameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const invoiceCameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const invoiceCameraStreamRef = useRef<MediaStream | null>(null);
+  const invoiceCameraFrameRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [consignorSearch, setConsignorSearch] = useState('');
   const [qrScanning, setQrScanning] = useState(false);
+  const [invoiceCameraOpen, setInvoiceCameraOpen] = useState(false);
+  const [invoiceCameraStarting, setInvoiceCameraStarting] = useState(false);
+  const [invoiceCameraError, setInvoiceCameraError] = useState('');
   const [lrDateFilter, setLrDateFilter] = useState({
     from_date: '',
     to_date: '',
@@ -328,6 +335,68 @@ export default function InvoicePage() {
       setQrScanning(false);
     }
   }, [availableLREntries, invoiceItems, buildInvoiceItemFromLR]);
+
+  const stopInvoiceCamera = useCallback(() => {
+    if (invoiceCameraFrameRef.current) { cancelAnimationFrame(invoiceCameraFrameRef.current); invoiceCameraFrameRef.current = null; }
+    if (invoiceCameraStreamRef.current) { invoiceCameraStreamRef.current.getTracks().forEach((t) => t.stop()); invoiceCameraStreamRef.current = null; }
+    if (invoiceCameraVideoRef.current) invoiceCameraVideoRef.current.srcObject = null;
+    setInvoiceCameraOpen(false);
+    setInvoiceCameraStarting(false);
+  }, []);
+
+  const startInvoiceCamera = useCallback(async () => {
+    if (!formData.consignor_id) { toast.error('Select consignor first'); return; }
+    if (!navigator.mediaDevices?.getUserMedia) { setInvoiceCameraError('Camera not available.'); return; }
+    setInvoiceCameraError('');
+    setInvoiceCameraStarting(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      invoiceCameraStreamRef.current = stream;
+      setInvoiceCameraOpen(true);
+      if (invoiceCameraVideoRef.current) {
+        invoiceCameraVideoRef.current.srcObject = stream;
+        await invoiceCameraVideoRef.current.play();
+      }
+      const scanFrame = async () => {
+        const video = invoiceCameraVideoRef.current;
+        const canvas = invoiceCameraCanvasRef.current;
+        if (!video || !canvas || video.readyState < 2) { invoiceCameraFrameRef.current = requestAnimationFrame(scanFrame); return; }
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { invoiceCameraFrameRef.current = requestAnimationFrame(scanFrame); return; }
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+          if (code?.data) {
+            stopInvoiceCamera();
+            const lrNo = normalizeLrNo(code.data);
+            const entry = availableLREntries.find((item) => item.lr_no === lrNo);
+            if (!entry) { toast.error(`L.R. ${lrNo} not found or not available`); return; }
+            if (invoiceItems.some((item) => item.lr_no === lrNo)) { toast.error('L.R. already added'); return; }
+            setInvoiceItems((prev) => [...prev, buildInvoiceItemFromLR(entry)]);
+            toast.success(`L.R. ${lrNo} added to invoice`);
+            return;
+          }
+        } catch { /* continue scanning */ }
+        invoiceCameraFrameRef.current = requestAnimationFrame(scanFrame);
+      };
+      invoiceCameraFrameRef.current = requestAnimationFrame(scanFrame);
+    } catch (err) {
+      stopInvoiceCamera();
+      setInvoiceCameraError(err instanceof Error ? err.message : 'Unable to start camera');
+    } finally {
+      setInvoiceCameraStarting(false);
+    }
+  }, [stopInvoiceCamera, formData.consignor_id, availableLREntries, invoiceItems, buildInvoiceItemFromLR]);
+
+  useEffect(() => {
+    return () => {
+      if (invoiceCameraFrameRef.current) cancelAnimationFrame(invoiceCameraFrameRef.current);
+      if (invoiceCameraStreamRef.current) invoiceCameraStreamRef.current.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
 
   const addFilteredLrs = useCallback(() => {
     if (!formData.consignor_id) {
@@ -698,8 +767,34 @@ export default function InvoicePage() {
                   {qrScanning ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
                   Scan LR QR
                 </div>
+                <Button
+                  type="button"
+                  variant={invoiceCameraOpen ? 'destructive' : 'outline'}
+                  className="gap-1 shrink-0"
+                  onClick={() => { if (invoiceCameraOpen) { stopInvoiceCamera(); } else { void startInvoiceCamera(); } }}
+                  disabled={invoiceCameraStarting}
+                >
+                  {invoiceCameraStarting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : invoiceCameraOpen ? <><X className="h-4 w-4" />Stop</> : <><Camera className="h-4 w-4" />Camera</>}
+                </Button>
                 <canvas ref={qrCanvasRef} className="hidden" />
+                <canvas ref={invoiceCameraCanvasRef} className="hidden" />
               </div>
+              {invoiceCameraOpen && (
+                <div className="mb-2 overflow-hidden rounded-lg border bg-black">
+                  <div className="relative aspect-video w-full max-w-sm">
+                    <video ref={invoiceCameraVideoRef} className="h-full w-full object-cover" autoPlay playsInline muted />
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div className="h-32 w-32 rounded-2xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]" />
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 bg-black/40 px-2 py-1 text-center text-xs text-white">
+                      <ScanLine className="mr-1 inline h-3 w-3" />Align LR QR inside the box
+                    </div>
+                  </div>
+                </div>
+              )}
+              {invoiceCameraError && (
+                <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{invoiceCameraError}</div>
+              )}
               <div className="grid grid-cols-6 gap-2 mb-4">
                 <Input
                   placeholder="L.R. No"

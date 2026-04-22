@@ -18,8 +18,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ImageUp, LoaderCircle, Plus, Trash2, Edit2, Printer } from 'lucide-react';
-import { useRef } from 'react';
+import { Camera, ImageUp, LoaderCircle, Plus, ScanLine, Trash2, Edit2, Printer, X } from 'lucide-react';
+import { useRef, useEffect } from 'react';
 import useSWR from 'swr';
 import {
   generateChallanPrintHTML,
@@ -215,6 +215,13 @@ export default function ChallanPage() {
   const [selectedLRs, setSelectedLRs] = useState<ChallanLR[]>([]);
   const [newLRInput, setNewLRInput] = useState('');
   const [qrScanning, setQrScanning] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraFrameRef = useRef<number | null>(null);
 
   const { data: challans = [], mutate } = useSWR<Challan[]>(
     '/api/daily-entry/challans',
@@ -394,6 +401,67 @@ export default function ChallanPage() {
       setQrScanning(false);
     }
   }, [addLRByNo]);
+
+  const stopCamera = useCallback(() => {
+    if (cameraFrameRef.current) { cancelAnimationFrame(cameraFrameRef.current); cameraFrameRef.current = null; }
+    if (cameraStreamRef.current) { cameraStreamRef.current.getTracks().forEach((t) => t.stop()); cameraStreamRef.current = null; }
+    if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
+    setCameraOpen(false);
+    setCameraStarting(false);
+  }, []);
+
+  const startChallanCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Camera not available. Use HTTPS/localhost.');
+      return;
+    }
+    setCameraError('');
+    setCameraStarting(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      cameraStreamRef.current = stream;
+      setCameraOpen(true);
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = stream;
+        await cameraVideoRef.current.play();
+      }
+      const scanFrame = async () => {
+        const video = cameraVideoRef.current;
+        const canvas = cameraCanvasRef.current;
+        if (!video || !canvas || video.readyState < 2) { cameraFrameRef.current = requestAnimationFrame(scanFrame); return; }
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { cameraFrameRef.current = requestAnimationFrame(scanFrame); return; }
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+          if (code?.data) {
+            stopCamera();
+            const lrNo = normalizeScanValue(code.data);
+            setNewLRInput(lrNo);
+            addLRByNo(lrNo);
+            return;
+          }
+        } catch { /* continue scanning */ }
+        cameraFrameRef.current = requestAnimationFrame(scanFrame);
+      };
+      cameraFrameRef.current = requestAnimationFrame(scanFrame);
+    } catch (err) {
+      stopCamera();
+      setCameraError(err instanceof Error ? err.message : 'Unable to start camera');
+    } finally {
+      setCameraStarting(false);
+    }
+  }, [stopCamera, addLRByNo]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraFrameRef.current) cancelAnimationFrame(cameraFrameRef.current);
+      if (cameraStreamRef.current) cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
 
   const removeLRFromChallan = useCallback(
     (index: number) => {
@@ -907,6 +975,35 @@ export default function ChallanPage() {
                 </div>
               </div>
               <canvas ref={qrCanvasRef} className="hidden" />
+              <canvas ref={cameraCanvasRef} className="hidden" />
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant={cameraOpen ? 'destructive' : 'outline'}
+                  className="gap-2"
+                  onClick={() => { if (cameraOpen) { stopCamera(); } else { void startChallanCamera(); } }}
+                  disabled={cameraStarting}
+                >
+                  {cameraStarting ? <><LoaderCircle className="h-4 w-4 animate-spin" />Starting...</> : cameraOpen ? <><X className="h-4 w-4" />Stop Camera</> : <><Camera className="h-4 w-4" />Scan LR via Camera</>}
+                </Button>
+              </div>
+              {cameraOpen && (
+                <div className="overflow-hidden rounded-lg border bg-black">
+                  <div className="relative aspect-video w-full max-w-sm">
+                    <video ref={cameraVideoRef} className="h-full w-full object-cover" autoPlay playsInline muted />
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div className="h-32 w-32 rounded-2xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]" />
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 bg-black/40 px-2 py-1 text-center text-xs text-white">
+                      <ScanLine className="mr-1 inline h-3 w-3" />Align LR QR inside the box
+                    </div>
+                  </div>
+                </div>
+              )}
+              {cameraError && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{cameraError}</div>
+              )}
 
               {selectedLRs.length > 1 && (
                 <div className="flex items-center gap-2">

@@ -524,6 +524,27 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS consignor_id INTEGER`;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS route_id INTEGER`;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS city_name TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS rate_10kg DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS rate_20kg DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS rate_30kg DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS rate_40kg DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS rate_50kg DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS rate_above_50kg DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'freight_rates_consignor_route_city_key'
+      ) THEN
+        ALTER TABLE freight_rates
+          ADD CONSTRAINT freight_rates_consignor_route_city_key
+          UNIQUE (consignor_id, route_id, city_name);
+      END IF;
+    END $$
+  `;
 
   await sql`
     CREATE TABLE IF NOT EXISTS routes (
@@ -538,6 +559,7 @@ export async function ensureSchema() {
     )
   `;
   await sql`ALTER TABLE routes ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE routes ADD COLUMN IF NOT EXISTS cities JSONB NOT NULL DEFAULT '[]'`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS lr_entries (

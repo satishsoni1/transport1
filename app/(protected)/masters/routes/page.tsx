@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
-import { Edit2, Plus, Trash2 } from 'lucide-react';
+import { Edit2, Plus, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 interface RouteRow {
   id: number;
   route_name: string;
+  cities: string[];
   from_city: string;
   to_city: string;
   consignor_id?: number | null;
@@ -26,12 +28,7 @@ interface RouteRow {
 interface City {
   id: number;
   city_name: string;
-  distance_km?: number;
-}
-
-interface Party {
-  id: number;
-  name: string;
+  district?: string;
 }
 
 export default function RoutesPage() {
@@ -40,36 +37,57 @@ export default function RoutesPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     route_name: '',
-    from_city: '',
-    to_city: '',
-    consignor_id: '',
-    consignee_id: '',
+    cities: [] as string[],
+    cityInput: '',
   });
 
   const { data: routes = [], mutate } = useSWR<RouteRow[]>('/api/masters/routes', apiClient.get);
   const { data: cities = [] } = useSWR<City[]>('/api/masters/cities', apiClient.get);
-  const { data: consignors = [] } = useSWR<Party[]>('/api/masters/consignors', apiClient.get);
-  const { data: consignees = [] } = useSWR<Party[]>('/api/masters/consignees', apiClient.get);
 
   const resetForm = () => {
     setEditingId(null);
-    setFormData({ route_name: '', from_city: '', to_city: '', consignor_id: '', consignee_id: '' });
+    setFormData({ route_name: '', cities: [], cityInput: '' });
+  };
+
+  const addCity = () => {
+    const city = formData.cityInput.trim();
+    if (!city) return;
+    if (formData.cities.includes(city)) {
+      toast.error('City already added');
+      return;
+    }
+    setFormData((prev) => ({ ...prev, cities: [...prev.cities, city], cityInput: '' }));
+  };
+
+  const removeCity = (index: number) => {
+    setFormData((prev) => ({ ...prev, cities: prev.cities.filter((_, i) => i !== index) }));
   };
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!formData.from_city || !formData.to_city) {
-        toast.error('From city and to city are required');
+      if (!formData.route_name.trim()) {
+        toast.error('Route name is required');
+        return;
+      }
+      if (formData.cities.length === 0) {
+        toast.error('Add at least one city to the route');
         return;
       }
 
       try {
+        const payload = {
+          route_name: formData.route_name.trim(),
+          cities: formData.cities,
+          from_city: formData.cities[0] || '',
+          to_city: formData.cities[formData.cities.length - 1] || '',
+        };
+
         if (editingId) {
-          await apiClient.put(`/api/masters/routes/${editingId}`, formData);
+          await apiClient.put(`/api/masters/routes/${editingId}`, payload);
           toast.success('Route updated successfully');
         } else {
-          await apiClient.post('/api/masters/routes', formData);
+          await apiClient.post('/api/masters/routes', payload);
           toast.success('Route added successfully');
         }
         mutate();
@@ -84,13 +102,8 @@ export default function RoutesPage() {
 
   const handleEdit = (route: RouteRow) => {
     setEditingId(route.id);
-    setFormData({
-      route_name: route.route_name || '',
-      from_city: route.from_city || '',
-      to_city: route.to_city || '',
-      consignor_id: route.consignor_id ? String(route.consignor_id) : '',
-      consignee_id: route.consignee_id ? String(route.consignee_id) : '',
-    });
+    const routeCities = Array.isArray(route.cities) ? route.cities : [];
+    setFormData({ route_name: route.route_name || '', cities: routeCities, cityInput: '' });
     setOpen(true);
   };
 
@@ -119,55 +132,52 @@ export default function RoutesPage() {
             <DialogHeader><DialogTitle>{editingId ? 'Edit Route' : 'Add Route'}</DialogTitle></DialogHeader>
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div>
-                <Label htmlFor="route_name">Route Name</Label>
-                <Input id="route_name" value={formData.route_name} onChange={(e) => setFormData({ ...formData, route_name: e.target.value })} placeholder="Optional route name" />
+                <Label htmlFor="route_name">Route Name *</Label>
+                <Input
+                  id="route_name"
+                  value={formData.route_name}
+                  onChange={(e) => setFormData({ ...formData, route_name: e.target.value })}
+                  placeholder="e.g. Marathwada"
+                />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="from_city">From City *</Label>
-                  <select
-                    id="from_city"
-                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
-                    value={formData.from_city}
-                    onChange={(e) => setFormData({ ...formData, from_city: e.target.value })}
-                  >
-                    <option value="">Select city</option>
+
+              <div>
+                <Label>Cities in this Route</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    list="route-city-options"
+                    value={formData.cityInput}
+                    onChange={(e) => setFormData({ ...formData, cityInput: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); addCity(); }
+                    }}
+                    placeholder="Type city name and press Enter or Add"
+                  />
+                  <datalist id="route-city-options">
                     {cities.map((city) => (
-                      <option key={city.id} value={city.city_name}>{city.city_name}</option>
+                      <option key={city.id} value={city.city_name} />
                     ))}
-                  </select>
+                  </datalist>
+                  <Button type="button" onClick={addCity} variant="outline">Add</Button>
                 </div>
-                <div>
-                  <Label htmlFor="to_city">To City *</Label>
-                  <select
-                    id="to_city"
-                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
-                    value={formData.to_city}
-                    onChange={(e) => setFormData({ ...formData, to_city: e.target.value })}
-                  >
-                    <option value="">Select city</option>
-                    {cities.map((city) => (
-                      <option key={city.id} value={city.city_name}>{city.city_name}</option>
+                {formData.cities.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {formData.cities.map((city, idx) => (
+                      <span key={idx} className="flex items-center gap-1 rounded-full border bg-slate-100 px-3 py-1 text-sm font-medium">
+                        <span className="text-xs text-slate-400 mr-1">{idx + 1}.</span>
+                        {city}
+                        <button type="button" onClick={() => removeCity(idx)} className="ml-1 text-slate-400 hover:text-red-500">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
                     ))}
-                  </select>
-                </div>
+                  </div>
+                )}
+                {formData.cities.length === 0 && (
+                  <p className="mt-2 text-sm text-slate-400">No cities added yet. Type a city name and click Add.</p>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="route_consignor">Linked Consignor</Label>
-                  <select id="route_consignor" className="h-10 w-full rounded-md border px-3 py-2 text-sm" value={formData.consignor_id} onChange={(e) => setFormData({ ...formData, consignor_id: e.target.value })}>
-                    <option value="">None</option>
-                    {consignors.map((party) => <option key={party.id} value={party.id}>{party.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="route_consignee">Linked Consignee</Label>
-                  <select id="route_consignee" className="h-10 w-full rounded-md border px-3 py-2 text-sm" value={formData.consignee_id} onChange={(e) => setFormData({ ...formData, consignee_id: e.target.value })}>
-                    <option value="">None</option>
-                    {consignees.map((party) => <option key={party.id} value={party.id}>{party.name}</option>)}
-                  </select>
-                </div>
-              </div>
+
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => { resetForm(); setOpen(false); }}>Cancel</Button>
                 <Button type="submit">{editingId ? 'Update' : 'Save'}</Button>
@@ -181,30 +191,35 @@ export default function RoutesPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Route</TableHead>
-              <TableHead>From</TableHead>
-              <TableHead>To</TableHead>
-              <TableHead>Linked Party</TableHead>
+              <TableHead>Route Name</TableHead>
+              <TableHead>Cities</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {routes.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="py-4 text-center">No routes found</TableCell></TableRow>
-            ) : routes.map((route) => (
-              <TableRow key={route.id}>
-                <TableCell className="font-medium">{route.route_name}</TableCell>
-                <TableCell>{route.from_city}</TableCell>
-                <TableCell>{route.to_city}</TableCell>
-                <TableCell>{[route.consignor_name, route.consignee_name].filter(Boolean).join(' / ') || '-'}</TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => handleEdit(route)}><Edit2 className="h-4 w-4" /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(route.id)}><Trash2 className="h-4 w-4" /></Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+              <TableRow><TableCell colSpan={3} className="py-4 text-center">No routes found</TableCell></TableRow>
+            ) : routes.map((route) => {
+              const routeCities = Array.isArray(route.cities) ? route.cities : [];
+              return (
+                <TableRow key={route.id}>
+                  <TableCell className="font-semibold">{route.route_name}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {routeCities.length > 0 ? routeCities.map((city, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">{city}</Badge>
+                      )) : <span className="text-slate-400 text-sm">-</span>}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => handleEdit(route)}><Edit2 className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete(route.id)}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

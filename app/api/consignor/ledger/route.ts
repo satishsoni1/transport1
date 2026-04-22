@@ -6,6 +6,8 @@ type ReceiptItem = {
   invoice_no?: string;
   invoice_amount?: number;
   amount_received?: number;
+  tds_amount?: number;
+  deduction_amount?: number;
 };
 
 export async function GET(request: Request) {
@@ -28,7 +30,7 @@ export async function GET(request: Request) {
     `;
 
     const { rows: receiptRows } = await sql`
-      SELECT id, receipt_no, receipt_date, mode, bank_name, cheque_no, cheque_date, remarks, total_amount, status, items
+      SELECT id, receipt_no, receipt_date, mode, bank_name, cheque_no, cheque_date, remarks, total_amount, tds_amount, deduction_amount, status, items
       FROM receipts
       WHERE consignor_id = ${consignor.id}
       ORDER BY receipt_date::date DESC, id DESC
@@ -129,6 +131,8 @@ export async function GET(request: Request) {
         receipts: receipts.map((receipt) => ({
           ...receipt,
           total_amount: Number(receipt.total_amount) || 0,
+          tds_amount: Number(receipt.tds_amount) || 0,
+          deduction_amount: Number(receipt.deduction_amount) || 0,
         })),
       },
       { status: 200 }

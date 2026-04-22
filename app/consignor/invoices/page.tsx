@@ -56,6 +56,7 @@ export default function ConsignorInvoicesPage() {
   const [dateTo, setDateTo] = useState('');
   const [invoices, setInvoices] = useState<ConsignorInvoice[]>([]);
   const [pendingPodCount, setPendingPodCount] = useState(0);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const loadInvoices = useCallback(async () => {
     const params = new URLSearchParams();
@@ -113,6 +114,12 @@ export default function ConsignorInvoicesPage() {
     [invoices]
   );
 
+  const fmt = (v?: string) => {
+    if (!v) return '-';
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString('en-IN');
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100">
@@ -125,131 +132,165 @@ export default function ConsignorInvoicesPage() {
     <ConsignorShell
       consignor={consignor}
       pendingPodLabel={`Pending POD: ${pendingPodCount}`}
-      title="Consignor Invoices"
+      title="Invoices"
       description="Check invoice amount, GST, remarks, and included LR lines."
     >
-      <div className="grid gap-3 md:grid-cols-3">
+      {/* Summary Cards */}
+      <div className="grid gap-3 sm:grid-cols-3">
         <Card className="gap-2 py-4 shadow-md">
           <CardHeader className="pb-0">
-            <CardDescription>Total Amount</CardDescription>
-            <CardTitle className="text-2xl font-black">
-              {invoiceSummary.total.toFixed(2)}
-            </CardTitle>
+            <CardDescription>Total Freight</CardDescription>
+            <CardTitle className="text-2xl font-black">{invoiceSummary.total.toFixed(2)}</CardTitle>
           </CardHeader>
         </Card>
         <Card className="gap-2 py-4 shadow-md">
           <CardHeader className="pb-0">
             <CardDescription>GST Amount</CardDescription>
-            <CardTitle className="text-2xl font-black">
-              {invoiceSummary.gst.toFixed(2)}
-            </CardTitle>
+            <CardTitle className="text-2xl font-black text-blue-700">{invoiceSummary.gst.toFixed(2)}</CardTitle>
           </CardHeader>
         </Card>
         <Card className="gap-2 py-4 shadow-md">
           <CardHeader className="pb-0">
             <CardDescription>Net Invoice</CardDescription>
-            <CardTitle className="text-2xl font-black">
-              {invoiceSummary.net.toFixed(2)}
-            </CardTitle>
+            <CardTitle className="text-2xl font-black text-emerald-700">{invoiceSummary.net.toFixed(2)}</CardTitle>
           </CardHeader>
         </Card>
       </div>
 
+      {/* Filters */}
       <Card className="gap-3 py-4 shadow-lg">
-        <CardHeader className="space-y-2 pb-0">
-          <div>
-            <CardTitle className="text-xl font-black tracking-tight">Filters</CardTitle>
-            <CardDescription className="mt-1 text-sm leading-5">
-              Search invoice by number, date, or status.
-            </CardDescription>
-          </div>
+        <CardHeader className="space-y-1 pb-0">
+          <CardTitle className="text-xl font-black tracking-tight">Filters</CardTitle>
+          <CardDescription className="text-sm">Search invoice by number, date, or status.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-3">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search invoice no / party"
-              className="h-11 rounded-xl bg-white"
-            />
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="h-11 rounded-xl border border-input bg-white px-3 text-sm"
-            >
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoice no / party" className="h-11 rounded-xl bg-white" />
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-11 rounded-xl border border-input bg-white px-3 text-sm">
               <option value="">All Status</option>
               <option value="draft">Draft</option>
               <option value="issued">Issued</option>
               <option value="paid">Paid</option>
             </select>
-            <Button type="button" className="h-11 rounded-xl" onClick={() => void loadInvoices()}>
-              Apply Filters
-            </Button>
+            <Button type="button" className="h-11 rounded-xl" onClick={() => void loadInvoices()}>Apply Filters</Button>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="h-11 rounded-xl bg-white"
-            />
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="h-11 rounded-xl bg-white"
-            />
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-11 rounded-xl bg-white" />
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-11 rounded-xl bg-white" />
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {invoices.length === 0 ? (
-          <Card className="md:col-span-2 xl:col-span-3">
-            <CardContent className="p-6 text-center text-sm text-slate-500">
-              No invoice records found for this consignor.
-            </CardContent>
-          </Card>
-        ) : (
-          invoices.map((invoice) => (
-            <Card key={invoice.id} className="gap-2 py-4 shadow-md">
-              <CardHeader className="pb-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-lg font-black">{invoice.invoice_no}</CardTitle>
-                    <CardDescription>
-                      {invoice.invoice_date
-                        ? new Date(invoice.invoice_date).toLocaleDateString('en-IN')
-                        : '-'}
-                    </CardDescription>
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-800">
-                    {invoice.status || '-'}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div><b>Party:</b> {invoice.party_name || '-'}</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><b>Freight:</b> {Number(invoice.total_amount || 0).toFixed(2)}</div>
-                  <div><b>GST:</b> {Number(invoice.gst_amount || 0).toFixed(2)}</div>
-                </div>
-                <div><b>Net Amount:</b> {Number(invoice.net_amount || 0).toFixed(2)}</div>
-                <div><b>LR Count:</b> {(invoice.items || []).length}</div>
-                {invoice.additional_charges?.length ? (
-                  <div>
-                    <b>Additional Charges:</b>{' '}
-                    {invoice.additional_charges
-                      .map((item) => item.charge_name || 'Charge')
-                      .join(', ')}
-                  </div>
-                ) : null}
-                {invoice.remarks ? <div><b>Remarks:</b> {invoice.remarks}</div> : null}
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+      {/* Invoice Table */}
+      <Card className="gap-3 py-4 shadow-md">
+        <CardHeader className="pb-0">
+          <CardTitle className="text-xl font-black">Invoice Records</CardTitle>
+          <CardDescription>Click any row to expand LR details and additional charges.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Invoice No</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Date</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Party</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-slate-600">Freight</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-blue-700">GST</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-emerald-700">Net Amt</th>
+                  <th className="border-b px-3 py-2 text-center font-semibold text-slate-600">LRs</th>
+                  <th className="border-b px-3 py-2 text-center font-semibold text-slate-600">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.length === 0 ? (
+                  <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-500">No invoice records found.</td></tr>
+                ) : invoices.map((inv) => (
+                  <>
+                    <tr
+                      key={inv.id}
+                      className="cursor-pointer border-b hover:bg-blue-50/40 transition-colors"
+                      onClick={() => setExpandedId(expandedId === inv.id ? null : inv.id)}
+                    >
+                      <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-900">{inv.invoice_no}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-slate-600">{fmt(inv.invoice_date)}</td>
+                      <td className="px-3 py-2 text-slate-700">{inv.party_name || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-slate-800">{Number(inv.total_amount || 0).toFixed(2)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-blue-700">{Number(inv.gst_amount || 0).toFixed(2)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-emerald-700">{Number(inv.net_amount || 0).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-center text-slate-600">{(inv.items || []).length}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{inv.status || '-'}</span>
+                      </td>
+                    </tr>
+                    {expandedId === inv.id && (
+                      <tr key={`${inv.id}-detail`} className="bg-slate-50">
+                        <td colSpan={8} className="px-4 py-3">
+                          <div className="space-y-3 text-sm">
+                            {inv.remarks && <div><span className="font-semibold text-slate-600">Remarks:</span> {inv.remarks}</div>}
+                            {(inv.items || []).length > 0 && (
+                              <div>
+                                <div className="mb-1 font-semibold text-slate-700">LR Lines</div>
+                                <div className="overflow-x-auto rounded border">
+                                  <table className="min-w-full text-xs">
+                                    <thead className="bg-slate-200">
+                                      <tr>
+                                        <th className="px-2 py-1 text-left">LR No</th>
+                                        <th className="px-2 py-1 text-left">Description</th>
+                                        <th className="px-2 py-1 text-right">Qty</th>
+                                        <th className="px-2 py-1 text-right">Amount</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {inv.items.map((item, idx) => (
+                                        <tr key={idx} className="border-t">
+                                          <td className="px-2 py-1">{item.lr_no || '-'}</td>
+                                          <td className="px-2 py-1">{item.description || '-'}</td>
+                                          <td className="px-2 py-1 text-right">{item.qty ?? '-'}</td>
+                                          <td className="px-2 py-1 text-right">{Number(item.amount || 0).toFixed(2)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                            {(inv.additional_charges || []).length > 0 && (
+                              <div>
+                                <div className="mb-1 font-semibold text-slate-700">Additional Charges</div>
+                                <div className="overflow-x-auto rounded border">
+                                  <table className="min-w-full text-xs">
+                                    <thead className="bg-slate-200">
+                                      <tr>
+                                        <th className="px-2 py-1 text-left">Charge</th>
+                                        <th className="px-2 py-1 text-left">Remark</th>
+                                        <th className="px-2 py-1 text-right">Amount</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {(inv.additional_charges || []).map((ch, idx) => (
+                                        <tr key={idx} className="border-t">
+                                          <td className="px-2 py-1">{ch.charge_name || '-'}</td>
+                                          <td className="px-2 py-1">{ch.remark || '-'}</td>
+                                          <td className="px-2 py-1 text-right">{Number(ch.amount || 0).toFixed(2)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </ConsignorShell>
   );
 }

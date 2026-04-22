@@ -33,17 +33,8 @@ interface City {
   taluka?: string;
   district?: string;
   distance_km?: number;
-  consignor_id?: number | null;
-  consignee_id?: number | null;
-  consignor_name?: string;
-  consignee_name?: string;
   status: 'active' | 'inactive';
   created_at: string;
-}
-
-interface Party {
-  id: number;
-  name: string;
 }
 
 export default function CitiesPage() {
@@ -57,16 +48,12 @@ export default function CitiesPage() {
     taluka: '',
     district: '',
     distance_km: '0',
-    consignor_id: '',
-    consignee_id: '',
   });
 
   const { data: cities = [], mutate } = useSWR<City[]>(
     '/api/masters/cities',
     apiClient.get
   );
-  const { data: consignors = [] } = useSWR<Party[]>('/api/masters/consignors', apiClient.get);
-  const { data: consignees = [] } = useSWR<Party[]>('/api/masters/consignees', apiClient.get);
 
   const resetForm = () => {
     setEditingId(null);
@@ -77,8 +64,6 @@ export default function CitiesPage() {
       taluka: '',
       district: '',
       distance_km: '0',
-      consignor_id: '',
-      consignee_id: '',
     });
   };
 
@@ -105,8 +90,6 @@ export default function CitiesPage() {
             taluka: formData.taluka.trim(),
             district: formData.district.trim(),
             distance_km: Number(formData.distance_km) || 0,
-            consignor_id: formData.consignor_id,
-            consignee_id: formData.consignee_id,
           });
           toast.success('City updated successfully');
         } else {
@@ -117,8 +100,6 @@ export default function CitiesPage() {
             taluka: formData.taluka.trim(),
             district: formData.district.trim(),
             distance_km: Number(formData.distance_km) || 0,
-            consignor_id: formData.consignor_id,
-            consignee_id: formData.consignee_id,
           });
           toast.success('City added successfully');
         }
@@ -140,8 +121,6 @@ export default function CitiesPage() {
       taluka: city.taluka || '',
       district: city.district || '',
       distance_km: city.distance_km !== undefined ? String(city.distance_km) : '0',
-      consignor_id: city.consignor_id ? String(city.consignor_id) : '',
-      consignee_id: city.consignee_id ? String(city.consignee_id) : '',
     });
     setOpen(true);
   };
@@ -219,36 +198,6 @@ export default function CitiesPage() {
                   <Input id="distance_km" type="number" value={formData.distance_km} onChange={(e) => setFormData({ ...formData, distance_km: e.target.value })} placeholder="0" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="consignor_id">Linked Consignor</Label>
-                  <select
-                    id="consignor_id"
-                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
-                    value={formData.consignor_id}
-                    onChange={(e) => setFormData({ ...formData, consignor_id: e.target.value })}
-                  >
-                    <option value="">None</option>
-                    {consignors.map((party) => (
-                      <option key={party.id} value={party.id}>{party.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="consignee_id">Linked Consignee</Label>
-                  <select
-                    id="consignee_id"
-                    className="h-10 w-full rounded-md border px-3 py-2 text-sm"
-                    value={formData.consignee_id}
-                    onChange={(e) => setFormData({ ...formData, consignee_id: e.target.value })}
-                  >
-                    <option value="">None</option>
-                    {consignees.map((party) => (
-                      <option key={party.id} value={party.id}>{party.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button
                   type="button"
@@ -274,14 +223,13 @@ export default function CitiesPage() {
               <TableHead>Taluka</TableHead>
               <TableHead>District</TableHead>
               <TableHead>Dist. KM</TableHead>
-              <TableHead>Linked Party</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {cities.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-4">
+                <TableCell colSpan={7} className="text-center py-4">
                   No cities found
                 </TableCell>
               </TableRow>
@@ -294,9 +242,6 @@ export default function CitiesPage() {
                   <TableCell>{city.taluka || '-'}</TableCell>
                   <TableCell>{city.district || '-'}</TableCell>
                   <TableCell>{city.distance_km ? `${city.distance_km} km` : '-'}</TableCell>
-                  <TableCell>
-                    {[city.consignor_name, city.consignee_name].filter(Boolean).join(' / ') || '-'}
-                  </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       <Button size="sm" variant="ghost" onClick={() => handleEdit(city)}>

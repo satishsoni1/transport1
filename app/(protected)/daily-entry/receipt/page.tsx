@@ -465,47 +465,59 @@ export default function ReceiptPage() {
               <CardTitle>Invoices to Receive Payment</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-6 gap-2 mb-4">
-                <Input
-                  placeholder="Invoice No"
-                  list="receipt-invoice-options"
-                  value={currentInvoiceNo}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setCurrentInvoiceNo(value);
-                    const selected = filteredInvoices.find(
-                      (inv) => inv.invoice_no === value.trim()
-                    );
-                    if (selected) {
-                      setCurrentAmountReceived(String(Number(selected.total_amount) || 0));
-                    }
-                  }}
-                />
-                <datalist id="receipt-invoice-options">
-                  {filteredInvoices.map((inv) => (
-                    <option key={inv.id} value={inv.invoice_no} />
-                  ))}
-                </datalist>
-                <Input
-                  placeholder="Amount Received"
-                  type="number"
-                  value={currentAmountReceived}
-                  onChange={(e) => setCurrentAmountReceived(e.target.value)}
-                />
-                <Input
-                  placeholder="TDS"
-                  type="number"
-                  value={currentTdsAmount}
-                  onChange={(e) => setCurrentTdsAmount(e.target.value)}
-                />
-                <Input
-                  placeholder="Deduction"
-                  type="number"
-                  value={currentDeductionAmount}
-                  onChange={(e) => setCurrentDeductionAmount(e.target.value)}
-                />
+              <div className="grid grid-cols-6 gap-2 mb-4 items-end">
+                <div className="col-span-1">
+                  <Label className="text-xs text-muted-foreground">Invoice No</Label>
+                  <Input
+                    placeholder="Invoice No"
+                    list="receipt-invoice-options"
+                    value={currentInvoiceNo}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setCurrentInvoiceNo(value);
+                      const selected = filteredInvoices.find(
+                        (inv) => inv.invoice_no === value.trim()
+                      );
+                      if (selected) {
+                        setCurrentAmountReceived(String(Number(selected.total_amount) || 0));
+                      }
+                    }}
+                  />
+                  <datalist id="receipt-invoice-options">
+                    {filteredInvoices.map((inv) => (
+                      <option key={inv.id} value={inv.invoice_no} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="col-span-1">
+                  <Label className="text-xs text-muted-foreground">Amount Received</Label>
+                  <Input
+                    placeholder="0"
+                    type="number"
+                    value={currentAmountReceived}
+                    onChange={(e) => setCurrentAmountReceived(e.target.value)}
+                  />
+                </div>
+                <div className="col-span-1">
+                  <Label className="text-xs font-semibold text-blue-700">TDS Amount</Label>
+                  <Input
+                    placeholder="0"
+                    type="number"
+                    value={currentTdsAmount}
+                    onChange={(e) => setCurrentTdsAmount(e.target.value)}
+                  />
+                </div>
+                <div className="col-span-1">
+                  <Label className="text-xs font-semibold text-orange-700">Other Deduction</Label>
+                  <Input
+                    placeholder="0"
+                    type="number"
+                    value={currentDeductionAmount}
+                    onChange={(e) => setCurrentDeductionAmount(e.target.value)}
+                  />
+                </div>
                 <Button type="button" onClick={addReceiptItem} className="col-span-2">
-                  Add
+                  Add Invoice
                 </Button>
               </div>
 
@@ -517,8 +529,8 @@ export default function ReceiptPage() {
                         <TableHead>Invoice No</TableHead>
                         <TableHead>Invoice Amount</TableHead>
                         <TableHead>Amount Received</TableHead>
-                        <TableHead>TDS</TableHead>
-                        <TableHead>Deduction</TableHead>
+                        <TableHead className="text-blue-700">TDS Amount</TableHead>
+                        <TableHead className="text-orange-700">Other Deduction</TableHead>
                         <TableHead>Balance</TableHead>
                         <TableHead>Action</TableHead>
                       </TableRow>

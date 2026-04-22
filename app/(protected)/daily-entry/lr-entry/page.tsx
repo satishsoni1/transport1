@@ -98,6 +98,7 @@ interface Consignee {
 interface City {
   id: number;
   city_name: string;
+  city_name_mr?: string;
 }
 
 interface GoodsTypeMaster {
@@ -739,8 +740,8 @@ export default function LREntryPage() {
         consignee_address: consignee?.address || '',
         consignee_city: consignee?.city || '',
         consignee_city_mr: consignee?.city_mr || transliterateToMarathi(consignee?.city || ''),
-        from_city_mr: transliterateToMarathi(entry.from_city || ''),
-        to_city_mr: consignee?.city_mr || transliterateToMarathi(entry.to_city || consignee?.city || ''),
+        from_city_mr: cities.find((c) => c.city_name === entry.from_city)?.city_name_mr || transliterateToMarathi(entry.from_city || ''),
+        to_city_mr: consignee?.city_mr || cities.find((c) => c.city_name === (entry.to_city || consignee?.city))?.city_name_mr || transliterateToMarathi(entry.to_city || consignee?.city || ''),
         consignee_mobile: consignee?.mobile || '',
         consignee_gst: consignee?.gst_no || '',
         freight_type: entry.status,
@@ -1140,13 +1141,15 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                         placeholder="City *"
                         list="lr-city-options"
                         value={newConsignee.city}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const cityName = e.target.value;
+                          const cityMaster = cities.find((c) => c.city_name === cityName);
                           setNewConsignee({
                             ...newConsignee,
-                            city: e.target.value,
-                            city_mr: transliterateToMarathi(e.target.value),
-                          })
-                        }
+                            city: cityName,
+                            city_mr: cityMaster?.city_name_mr || transliterateToMarathi(cityName),
+                          });
+                        }}
                       />
                       <Input placeholder="City in Marathi" value={newConsignee.city_mr} onChange={(e) => setNewConsignee({ ...newConsignee, city_mr: e.target.value })} />
                       <Input placeholder="Contact No" value={newConsignee.mobile} onChange={(e) => setNewConsignee({ ...newConsignee, mobile: e.target.value })} />

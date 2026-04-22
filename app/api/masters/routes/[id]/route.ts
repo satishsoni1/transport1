@@ -25,18 +25,21 @@ export async function PUT(
     }
 
     const existing = existingRows[0];
-    const routeName =
-      body.route_name === undefined
-        ? existing.route_name
-        : String(body.route_name || '').trim() ||
-          `${String(body.from_city ?? existing.from_city).trim()} - ${String(body.to_city ?? existing.to_city).trim()}`;
+    const routeName = body.route_name === undefined
+      ? existing.route_name
+      : String(body.route_name || '').trim();
+
+    const cities = Array.isArray(body.cities) ? body.cities : (existing.cities || []);
+    const fromCity = String(body.from_city !== undefined ? body.from_city : (existing.from_city || cities[0] || '')).trim();
+    const toCity = String(body.to_city !== undefined ? body.to_city : (existing.to_city || cities[cities.length - 1] || '')).trim();
 
     const { rows } = await sql`
       UPDATE routes
       SET
         route_name = ${routeName},
-        from_city = ${body.from_city ?? existing.from_city},
-        to_city = ${body.to_city ?? existing.to_city},
+        from_city = ${fromCity},
+        to_city = ${toCity},
+        cities = ${JSON.stringify(cities)},
         consignor_id = ${body.consignor_id === undefined || body.consignor_id === '' ? existing.consignor_id : Number(body.consignor_id)},
         consignee_id = ${body.consignee_id === undefined || body.consignee_id === '' ? existing.consignee_id : Number(body.consignee_id)},
         status = ${body.status ?? existing.status}

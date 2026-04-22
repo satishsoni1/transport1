@@ -28,22 +28,25 @@ export async function POST(request: Request) {
   try {
     await ensureSchema();
     const body = await request.json();
-    if (!body.from_city || !body.to_city) {
+    if (!body.route_name) {
       return NextResponse.json(
-        { success: false, error: 'From city and to city are required' },
+        { success: false, error: 'Route name is required' },
         { status: 400 }
       );
     }
 
-    const routeName =
-      String(body.route_name || '').trim() || `${String(body.from_city).trim()} - ${String(body.to_city).trim()}`;
+    const cities = Array.isArray(body.cities) ? body.cities : [];
+    const routeName = String(body.route_name || '').trim();
+    const fromCity = String(body.from_city || cities[0] || '').trim();
+    const toCity = String(body.to_city || cities[cities.length - 1] || '').trim();
 
     const { rows } = await sql`
-      INSERT INTO routes (route_name, from_city, to_city, consignor_id, consignee_id, status)
+      INSERT INTO routes (route_name, from_city, to_city, cities, consignor_id, consignee_id, status)
       VALUES (
         ${routeName},
-        ${String(body.from_city || '').trim()},
-        ${String(body.to_city || '').trim()},
+        ${fromCity},
+        ${toCity},
+        ${JSON.stringify(cities)},
         ${body.consignor_id ? Number(body.consignor_id) : null},
         ${body.consignee_id ? Number(body.consignee_id) : null},
         ${body.status || 'active'}
