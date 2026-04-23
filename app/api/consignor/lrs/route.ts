@@ -56,7 +56,15 @@ export async function GET(request: Request) {
         lr_entries.to_city,
         lr_entries.delivery_address,
         lr_entries.freight,
+        lr_entries.hamali,
+        lr_entries.lr_charge,
+        lr_entries.advance,
         lr_entries.balance,
+        lr_entries.eway_no,
+        lr_entries.truck_no,
+        lr_entries.driver_name,
+        lr_entries.driver_mobile,
+        lr_entries.goods_items,
         lr_entries.remarks,
         lr_entries.return_status,
         lr_entries.return_remark,
@@ -65,9 +73,23 @@ export async function GET(request: Request) {
         lr_entries.pod_received_at,
         lr_entries.pod_received_by_driver_name,
         lr_entries.status,
-        consignees.name AS consignee_name
+        consignees.name         AS consignee_name,
+        consignees.name_mr      AS consignee_name_mr,
+        consignees.address      AS consignee_address,
+        consignees.city         AS consignee_city,
+        consignees.city_mr      AS consignee_city_mr,
+        consignees.mobile       AS consignee_mobile,
+        consignees.gst_no       AS consignee_gst,
+        consignors.name         AS consignor_name,
+        consignors.name_mr      AS consignor_name_mr,
+        consignors.address      AS consignor_address,
+        consignors.city         AS consignor_city,
+        consignors.mobile       AS consignor_mobile,
+        consignors.gst_no       AS consignor_gst,
+        consignors.lr_print_instructions AS consignor_lr_instructions
       FROM lr_entries
-      LEFT JOIN consignees ON consignees.id = lr_entries.consignee_id
+      LEFT JOIN consignees  ON consignees.id  = lr_entries.consignee_id
+      LEFT JOIN consignors  ON consignors.id  = lr_entries.consignor_id
       WHERE lr_entries.consignor_id = ${consignor.id}
         AND (
           ${search} = ''
@@ -110,6 +132,7 @@ export async function GET(request: Request) {
       const ch = lrToChallan.get(String(row.lr_no || '').trim());
       return {
         ...row,
+        goods_items: parseJsonField<unknown[]>(row.goods_items, []),
         challan_no: ch?.challan_no ?? '-',
         challan_date: ch?.challan_date ?? null,
         vehicle_no: ch?.vehicle_no ?? '-',

@@ -409,6 +409,10 @@ export default function ChallanPage() {
     setCameraStarting(false);
   }, []);
 
+  // Keep addLRByNo in a ref so the scan loop always calls the latest version
+  const addLRByNoRef = useRef(addLRByNo);
+  useEffect(() => { addLRByNoRef.current = addLRByNo; }, [addLRByNo]);
+
   const startChallanCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraError('Camera not available. Use HTTPS/localhost.');
@@ -417,44 +421,71 @@ export default function ChallanPage() {
     setCameraError('');
     setCameraStarting(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
       cameraStreamRef.current = stream;
-      setCameraOpen(true);
-      if (cameraVideoRef.current) {
-        cameraVideoRef.current.srcObject = stream;
-        await cameraVideoRef.current.play();
-      }
-      const scanFrame = async () => {
-        const video = cameraVideoRef.current;
-        const canvas = cameraCanvasRef.current;
-        if (!video || !canvas || video.readyState < 2) { cameraFrameRef.current = requestAnimationFrame(scanFrame); return; }
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { cameraFrameRef.current = requestAnimationFrame(scanFrame); return; }
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        try {
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
-          if (code?.data) {
-            stopCamera();
-            const lrNo = normalizeScanValue(code.data);
-            setNewLRInput(lrNo);
-            addLRByNo(lrNo);
-            return;
-          }
-        } catch { /* continue scanning */ }
-        cameraFrameRef.current = requestAnimationFrame(scanFrame);
-      };
-      cameraFrameRef.current = requestAnimationFrame(scanFrame);
+      setCameraOpen(true); // video element mounts after this re-render → useEffect below attaches stream
     } catch (err) {
-      stopCamera();
       setCameraError(err instanceof Error ? err.message : 'Unable to start camera');
     } finally {
       setCameraStarting(false);
     }
-  }, [stopCamera, addLRByNo]);
+  }, []);
 
+  // After cameraOpen=true the video element is in the DOM — attach stream and start scan loop here
+  useEffect(() => {
+    if (!cameraOpen) return;
+    const video = cameraVideoRef.current;
+    const canvas = cameraCanvasRef.current;
+    const stream = cameraStreamRef.current;
+    if (!video || !canvas || !stream) return;
+
+    video.srcObject = stream;
+    void video.play().catch(() => {});
+
+    let frameId: number;
+    let stopped = false;
+
+    const scanFrame = () => {
+      if (stopped) return;
+      const v = cameraVideoRef.current;
+      const c = cameraCanvasRef.current;
+      if (!v || !c || v.readyState < 2 || !v.videoWidth || !v.videoHeight) {
+        frameId = requestAnimationFrame(scanFrame);
+        return;
+      }
+      const ctx = c.getContext('2d');
+      if (!ctx) { frameId = requestAnimationFrame(scanFrame); return; }
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+      try {
+        const imageData = ctx.getImageData(0, 0, c.width, c.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+        if (code?.data) {
+          const lrNo = normalizeScanValue(code.data);
+          stopCamera();
+          setNewLRInput(lrNo);
+          addLRByNoRef.current(lrNo);
+          return;
+        }
+      } catch { /* continue scanning */ }
+      frameId = requestAnimationFrame(scanFrame);
+    };
+
+    frameId = requestAnimationFrame(scanFrame);
+    cameraFrameRef.current = frameId;
+
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(frameId);
+      cameraFrameRef.current = null;
+    };
+  }, [cameraOpen, stopCamera]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (cameraFrameRef.current) cancelAnimationFrame(cameraFrameRef.current);
@@ -678,7 +709,7 @@ export default function ChallanPage() {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="from_city">From City *</Label>
                   <select
@@ -717,7 +748,7 @@ export default function ChallanPage() {
               <CardTitle>Vehicle & Driver Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="truck_no">Truck Number</Label>
                   <Input
@@ -794,7 +825,7 @@ export default function ChallanPage() {
                   </datalist>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="driver_mobile">Driver Mobile</Label>
                   <Input
@@ -824,7 +855,7 @@ export default function ChallanPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="driver_address">Driver Address</Label>
                   <Textarea
@@ -856,7 +887,7 @@ export default function ChallanPage() {
                 </div>
               </div>
               {selectedDriver ? (
-                <div className="grid grid-cols-2 gap-4 rounded-lg border bg-slate-50 p-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-lg border bg-slate-50 p-4">
                   <div className="space-y-1 text-sm">
                     <p><b>Vehicle No:</b> {selectedDriver.vehicle_no || '-'}</p>
                     <p><b>Valid:</b> {selectedDriver.license_valid_from || '-'} to {selectedDriver.license_valid_to || '-'}</p>
@@ -873,7 +904,7 @@ export default function ChallanPage() {
                   </div>
                 </div>
               ) : null}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="eway_no">E-Way Number</Label>
                   <Input
@@ -886,7 +917,7 @@ export default function ChallanPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 md:grid-cols-6">
                 <div>
                   <Label htmlFor="engine_reading">Start Reading</Label>
                   <Input id="engine_reading" type="number" value={formData.engine_reading} onChange={(e) => setFormData({ ...formData, engine_reading: e.target.value })} />

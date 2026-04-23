@@ -48,10 +48,14 @@ export function ConsignorShell({
                 Consignor Portal
               </div>
               <h1 className="text-2xl font-black tracking-tight text-slate-900">{title}</h1>
-              <p className="text-sm leading-5 text-slate-600">
-                {consignor?.name || 'Consignor'}
-                {pendingPodLabel ? ` | ${pendingPodLabel}` : ''} | {description}
-              </p>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm leading-5 text-slate-600">
+                <span className="font-medium text-slate-800">{consignor?.name || 'Consignor'}</span>
+                {pendingPodLabel && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{pendingPodLabel}</span>
+                )}
+                <span className="hidden sm:inline text-slate-400">|</span>
+                <span className="hidden sm:inline">{description}</span>
+              </div>
             </div>
             <Button type="button" variant="outline" size="sm" onClick={handleLogout}>
               Logout

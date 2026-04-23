@@ -189,17 +189,17 @@ export default function ConsignorInvoicesPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm">
+            <table className="min-w-[420px] w-full text-sm">
               <thead className="bg-slate-100">
                 <tr>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Invoice No</th>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Party</th>
-                  <th className="border-b px-3 py-2 text-right font-semibold text-slate-600">Freight</th>
-                  <th className="border-b px-3 py-2 text-right font-semibold text-blue-700">GST</th>
-                  <th className="border-b px-3 py-2 text-right font-semibold text-emerald-700">Net Amt</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap">Invoice No</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 hidden sm:table-cell whitespace-nowrap">Date</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 hidden md:table-cell">Party</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-slate-600 hidden sm:table-cell">Freight</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-blue-700 hidden sm:table-cell">GST</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-emerald-700 whitespace-nowrap">Net Amt</th>
                   <th className="border-b px-3 py-2 text-center font-semibold text-slate-600">LRs</th>
-                  <th className="border-b px-3 py-2 text-center font-semibold text-slate-600">Status</th>
+                  <th className="border-b px-3 py-2 text-center font-semibold text-slate-600 hidden sm:table-cell">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -213,13 +213,13 @@ export default function ConsignorInvoicesPage() {
                       onClick={() => setExpandedId(expandedId === inv.id ? null : inv.id)}
                     >
                       <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-900">{inv.invoice_no}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-slate-600">{fmt(inv.invoice_date)}</td>
-                      <td className="px-3 py-2 text-slate-700">{inv.party_name || '-'}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right text-slate-800">{Number(inv.total_amount || 0).toFixed(2)}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right text-blue-700">{Number(inv.gst_amount || 0).toFixed(2)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-slate-600 hidden sm:table-cell">{fmt(inv.invoice_date)}</td>
+                      <td className="px-3 py-2 text-slate-700 hidden md:table-cell">{inv.party_name || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-slate-800 hidden sm:table-cell">{Number(inv.total_amount || 0).toFixed(2)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-blue-700 hidden sm:table-cell">{Number(inv.gst_amount || 0).toFixed(2)}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-emerald-700">{Number(inv.net_amount || 0).toFixed(2)}</td>
                       <td className="px-3 py-2 text-center text-slate-600">{(inv.items || []).length}</td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-3 py-2 text-center hidden sm:table-cell">
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{inv.status || '-'}</span>
                       </td>
                     </tr>

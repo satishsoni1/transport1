@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,12 @@ import {
   getConsignorUser,
   type ConsignorSessionUser,
 } from '@/app/services/consignor-session';
+import {
+  generateLRPrintHTML,
+  printHTML,
+  downloadPDF,
+  type CompanyPrintData,
+} from '@/app/services/print-service';
 
 interface ConsignorLR {
   id: number;
@@ -23,7 +29,15 @@ interface ConsignorLR {
   to_city?: string;
   delivery_address?: string;
   freight?: number;
+  hamali?: number;
+  lr_charge?: number;
+  advance?: number;
   balance?: number;
+  eway_no?: string;
+  truck_no?: string;
+  driver_name?: string;
+  driver_mobile?: string;
+  goods_items?: unknown[];
   remarks?: string;
   return_status?: 'normal' | 'returned';
   return_remark?: string;
@@ -32,7 +46,23 @@ interface ConsignorLR {
   pod_received_at?: string;
   pod_received_by_driver_name?: string;
   status?: string;
+  // consignee
   consignee_name?: string;
+  consignee_name_mr?: string;
+  consignee_address?: string;
+  consignee_city?: string;
+  consignee_city_mr?: string;
+  consignee_mobile?: string;
+  consignee_gst?: string;
+  // consignor
+  consignor_name?: string;
+  consignor_name_mr?: string;
+  consignor_address?: string;
+  consignor_city?: string;
+  consignor_mobile?: string;
+  consignor_gst?: string;
+  consignor_lr_instructions?: string;
+  // challan
   challan_no?: string;
   challan_date?: string | null;
   vehicle_no?: string;
@@ -53,6 +83,7 @@ export default function ConsignorLrsPage() {
   const [lrs, setLrs] = useState<ConsignorLR[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [sessionVerified, setSessionVerified] = useState(false);
+  const settingsRef = useRef<CompanyPrintData | null>(null);
 
   const loadLrs = useCallback(async () => {
     const params = new URLSearchParams();
@@ -81,11 +112,13 @@ export default function ConsignorLrsPage() {
     let cancelled = false;
     const init = async () => {
       try {
-        const verify = await consignorFetch<{ consignor: ConsignorSessionUser }>(
-          '/api/consignor-auth/verify'
-        );
+        const [verify, appSettings] = await Promise.all([
+          consignorFetch<{ consignor: ConsignorSessionUser }>('/api/consignor-auth/verify'),
+          fetch('/api/admin/settings').then((r) => r.ok ? r.json() : null).catch(() => null),
+        ]);
         if (cancelled) return;
         setConsignor(verify.consignor);
+        settingsRef.current = appSettings;
         setSessionVerified(true);
       } catch {
         setSessionVerified(false);
@@ -106,6 +139,62 @@ export default function ConsignorLrsPage() {
   }, [loading, sessionVerified, loadLrs]);
 
   const pendingCount = useMemo(() => lrs.filter((item) => !item.pod_received).length, [lrs]);
+
+  const buildPrintPayload = useCallback((lr: ConsignorLR) => {
+    const settings = settingsRef.current;
+    return {
+      lr_no: lr.lr_no,
+      lr_date: lr.lr_date,
+      consignor: lr.consignor_name || '',
+      consignor_name_mr: lr.consignor_name_mr || '',
+      consignor_address: lr.consignor_address || '',
+      consignor_city: lr.consignor_city || '',
+      consignor_mobile: lr.consignor_mobile || '',
+      consignor_gst: lr.consignor_gst || '',
+      consignee: lr.consignee_name || '',
+      consignee_name_mr: lr.consignee_name_mr || '',
+      consignee_address: lr.consignee_address || '',
+      consignee_city: lr.consignee_city || '',
+      consignee_city_mr: lr.consignee_city_mr || '',
+      consignee_mobile: lr.consignee_mobile || '',
+      consignee_gst: lr.consignee_gst || '',
+      delivery_address: lr.delivery_address || '',
+      from_city: lr.from_city || '',
+      to_city: lr.to_city || '',
+      goods_items: lr.goods_items || [],
+      freight: Number(lr.freight) || 0,
+      hamali: Number(lr.hamali) || 0,
+      lr_charge: Number(lr.lr_charge) || 0,
+      advance: Number(lr.advance) || 0,
+      balance: Number(lr.balance) || 0,
+      invoice_no: lr.invoice_no || '',
+      remarks: lr.remarks || '',
+      return_remark: lr.return_remark || '',
+      truck_no: lr.truck_no || '',
+      driver_name: lr.driver_name || '',
+      driver_mobile: lr.driver_mobile || '',
+      eway_no: lr.eway_no || '',
+      freight_type: (lr.status as 'to_pay' | 'paid' | 'tbb') || 'to_pay',
+      format: settings?.lr_print_format || 'classic',
+      company: {
+        ...settings,
+        lr_print_instructions:
+          lr.consignor_lr_instructions || settings?.lr_print_instructions || '',
+      },
+    };
+  }, []);
+
+  const handlePrint = useCallback((lr: ConsignorLR, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const html = generateLRPrintHTML(buildPrintPayload(lr));
+    printHTML(html);
+  }, [buildPrintPayload]);
+
+  const handleDownload = useCallback(async (lr: ConsignorLR, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const html = generateLRPrintHTML(buildPrintPayload(lr));
+    await downloadPDF(html, `LR-${lr.lr_no}`);
+  }, [buildPrintPayload]);
 
   const fmt = (v?: string) => {
     if (!v) return '-';
@@ -178,20 +267,20 @@ export default function ConsignorLrsPage() {
       <Card className="gap-3 py-4 shadow-md">
         <CardHeader className="pb-0">
           <CardTitle className="text-xl font-black">LR Records</CardTitle>
-          <CardDescription>Click any row to expand full details.</CardDescription>
+          <CardDescription>Click any row to expand full details and print options.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm">
+            <table className="min-w-[480px] w-full text-sm">
               <thead className="bg-slate-100">
                 <tr>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">LR No</th>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Date</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap">LR No</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap hidden sm:table-cell">Date</th>
                   <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Consignee</th>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Route</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 hidden md:table-cell">Route</th>
                   <th className="border-b px-3 py-2 text-right font-semibold text-slate-600">Freight</th>
                   <th className="border-b px-3 py-2 text-center font-semibold text-slate-600">POD</th>
-                  <th className="border-b px-3 py-2 text-center font-semibold text-slate-600">Status</th>
+                  <th className="border-b px-3 py-2 text-center font-semibold text-slate-600 hidden sm:table-cell">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,47 +294,72 @@ export default function ConsignorLrsPage() {
                       onClick={() => setExpandedId(expandedId === lr.id ? null : lr.id)}
                     >
                       <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-900">{lr.lr_no}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-slate-600">{fmt(lr.lr_date)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-slate-600 hidden sm:table-cell">{fmt(lr.lr_date)}</td>
                       <td className="px-3 py-2 text-slate-700">{lr.consignee_name || '-'}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-slate-600">{lr.from_city || '-'} → {lr.to_city || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-slate-600 hidden md:table-cell">{lr.from_city || '-'} → {lr.to_city || '-'}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-slate-800">{Number(lr.freight || 0).toFixed(2)}</td>
                       <td className="px-3 py-2 text-center">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${lr.pod_received ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                          {lr.pod_received ? 'Received' : 'Pending'}
+                          {lr.pod_received ? 'Rcvd' : 'Pend'}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-3 py-2 text-center hidden sm:table-cell">
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{lr.status || '-'}</span>
                       </td>
                     </tr>
                     {expandedId === lr.id && (
                       <tr key={`${lr.id}-detail`} className="bg-slate-50">
                         <td colSpan={7} className="px-4 py-3">
-                          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 text-sm">
-                            <div><span className="font-semibold text-slate-600">Invoice No:</span> {lr.invoice_no || '-'}</div>
-                            <div><span className="font-semibold text-slate-600">Challan No:</span> {lr.challan_no || '-'}</div>
-                            <div><span className="font-semibold text-slate-600">Challan Date:</span> {fmt(lr.challan_date || undefined)}</div>
-                            <div><span className="font-semibold text-slate-600">Vehicle:</span> {lr.vehicle_no || '-'}</div>
-                            <div><span className="font-semibold text-slate-600">Driver:</span> {lr.challan_driver_name || '-'}</div>
-                            <div><span className="font-semibold text-slate-600">Driver Mobile:</span> {lr.challan_driver_mobile || '-'}</div>
-                            <div><span className="font-semibold text-slate-600">Delivery Address:</span> {lr.delivery_address || '-'}</div>
-                            <div><span className="font-semibold text-slate-600">Balance:</span> {Number(lr.balance || 0).toFixed(2)}</div>
-                            <div><span className="font-semibold text-slate-600">Return Status:</span> {lr.return_status || '-'}</div>
-                            {lr.return_remark && <div className="sm:col-span-2"><span className="font-semibold text-slate-600">Return Remark:</span> {lr.return_remark}</div>}
-                            {lr.remarks && <div className="sm:col-span-2"><span className="font-semibold text-slate-600">Remarks:</span> {lr.remarks}</div>}
-                            {lr.pod_received && (
-                              <>
-                                <div><span className="font-semibold text-slate-600">POD Date:</span> {lr.pod_received_at ? new Date(lr.pod_received_at).toLocaleString('en-IN') : '-'}</div>
-                                <div><span className="font-semibold text-slate-600">Received By:</span> {lr.pod_received_by_driver_name || '-'}</div>
-                              </>
-                            )}
-                            {lr.pod_image_url && (
-                              <div className="sm:col-span-3">
-                                <a href={lr.pod_image_url} target="_blank" rel="noreferrer" className="inline-block overflow-hidden rounded-lg border">
-                                  <img src={lr.pod_image_url} alt={`POD ${lr.lr_no}`} className="h-32 object-cover" />
-                                </a>
-                              </div>
-                            )}
+                          <div className="space-y-3">
+                            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 text-sm">
+                              <div><span className="font-semibold text-slate-600">Invoice No:</span> {lr.invoice_no || '-'}</div>
+                              <div><span className="font-semibold text-slate-600">Challan No:</span> {lr.challan_no || '-'}</div>
+                              <div><span className="font-semibold text-slate-600">Challan Date:</span> {fmt(lr.challan_date || undefined)}</div>
+                              <div><span className="font-semibold text-slate-600">Vehicle:</span> {lr.vehicle_no || '-'}</div>
+                              <div><span className="font-semibold text-slate-600">Driver:</span> {lr.challan_driver_name || '-'}</div>
+                              <div><span className="font-semibold text-slate-600">Driver Mobile:</span> {lr.challan_driver_mobile || '-'}</div>
+                              <div><span className="font-semibold text-slate-600">Delivery Address:</span> {lr.delivery_address || '-'}</div>
+                              <div><span className="font-semibold text-slate-600">Balance:</span> {Number(lr.balance || 0).toFixed(2)}</div>
+                              <div><span className="font-semibold text-slate-600">Return Status:</span> {lr.return_status || '-'}</div>
+                              {lr.return_remark && <div className="sm:col-span-2"><span className="font-semibold text-slate-600">Return Remark:</span> {lr.return_remark}</div>}
+                              {lr.remarks && <div className="sm:col-span-2"><span className="font-semibold text-slate-600">Remarks:</span> {lr.remarks}</div>}
+                              {lr.pod_received && (
+                                <>
+                                  <div><span className="font-semibold text-slate-600">POD Date:</span> {lr.pod_received_at ? new Date(lr.pod_received_at).toLocaleString('en-IN') : '-'}</div>
+                                  <div><span className="font-semibold text-slate-600">Received By:</span> {lr.pod_received_by_driver_name || '-'}</div>
+                                </>
+                              )}
+                              {lr.pod_image_url && (
+                                <div className="sm:col-span-3">
+                                  <a href={lr.pod_image_url} target="_blank" rel="noreferrer" className="inline-block overflow-hidden rounded-lg border">
+                                    <img src={lr.pod_image_url} alt={`POD ${lr.lr_no}`} className="h-32 object-cover" />
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                            {/* Print / Download buttons */}
+                            <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-200">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5"
+                                onClick={(e) => handlePrint(lr, e)}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                Print LR
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5"
+                                onClick={(e) => void handleDownload(lr, e)}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Download PDF
+                              </Button>
+                            </div>
                           </div>
                         </td>
                       </tr>

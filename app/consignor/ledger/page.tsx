@@ -248,17 +248,17 @@ export default function ConsignorLedgerPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm">
+            <table className="min-w-[660px] w-full text-sm">
               <thead className="bg-slate-100">
                 <tr>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Date</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap">Date</th>
                   <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Particular</th>
-                  <th className="border-b px-3 py-2 text-right font-semibold text-red-700">Invoice Amt</th>
-                  <th className="border-b px-3 py-2 text-right font-semibold text-green-700">Received Amt</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-red-700 whitespace-nowrap">Invoice Amt</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-green-700 whitespace-nowrap">Received</th>
                   <th className="border-b px-3 py-2 text-right font-semibold text-blue-700">TDS</th>
                   <th className="border-b px-3 py-2 text-right font-semibold text-orange-700">Deduct</th>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Remarks</th>
-                  <th className="border-b px-3 py-2 text-right font-semibold text-slate-600">Balance</th>
+                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 hidden sm:table-cell">Remarks</th>
+                  <th className="border-b px-3 py-2 text-right font-semibold text-slate-600 whitespace-nowrap">Balance</th>
                 </tr>
               </thead>
               <tbody>
@@ -284,7 +284,7 @@ export default function ConsignorLedgerPage() {
                     <td className="px-3 py-2 text-right font-medium text-orange-600">
                       {row.deduct_amt ? row.deduct_amt.toFixed(2) : ''}
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{row.remarks || '-'}</td>
+                    <td className="px-3 py-2 text-xs text-slate-500 hidden sm:table-cell">{row.remarks || '-'}</td>
                     <td className={`whitespace-nowrap px-3 py-2 text-right font-bold ${row.balance > 0 ? 'text-red-700' : row.balance < 0 ? 'text-green-700' : 'text-slate-500'}`}>
                       {Math.abs(row.balance).toFixed(2)}{' '}
                       <span className="text-xs">{row.balance > 0 ? 'Dr' : row.balance < 0 ? 'Cr' : ''}</span>
@@ -298,7 +298,7 @@ export default function ConsignorLedgerPage() {
                     <td className="px-3 py-2 text-right text-green-700">{totals.received_amt.toFixed(2)}</td>
                     <td className="px-3 py-2 text-right text-blue-700">{totals.tds_amt.toFixed(2)}</td>
                     <td className="px-3 py-2 text-right text-orange-700">{totals.deduct_amt.toFixed(2)}</td>
-                    <td className="px-3 py-2"></td>
+                    <td className="px-3 py-2 hidden sm:table-cell"></td>
                     <td className={`whitespace-nowrap px-3 py-2 text-right ${totals.closing_balance > 0 ? 'text-red-700' : 'text-green-700'}`}>
                       {Math.abs(totals.closing_balance).toFixed(2)}{' '}
                       <span className="text-xs">{totals.closing_balance > 0 ? 'Dr' : totals.closing_balance < 0 ? 'Cr' : ''}</span>

@@ -333,7 +333,7 @@ export default function ReceiptPage() {
               <CardTitle>Receipt Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="consignor_name">Consignor *</Label>
                   <Input
@@ -376,7 +376,7 @@ export default function ReceiptPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <Label htmlFor="receipt_date">Receipt Date *</Label>
                   <Input
@@ -421,7 +421,7 @@ export default function ReceiptPage() {
               </div>
 
               {formData.mode === 'cheque' && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <Label htmlFor="cheque_no">Cheque Number</Label>
                     <Input

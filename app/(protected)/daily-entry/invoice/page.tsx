@@ -166,6 +166,15 @@ export default function InvoicePage() {
     '/api/admin/settings',
     apiClient.get
   );
+  const { data: freightRateMap } = useSWR<Record<string, {
+    rate_10kg: number; rate_20kg: number; rate_30kg: number;
+    rate_40kg: number; rate_50kg: number; rate_above_50kg: number;
+  }>>(
+    formData.consignor_id
+      ? `/api/masters/freight-rates/lookup?consignor_id=${formData.consignor_id}`
+      : null,
+    apiClient.get
+  );
 
   useEffect(() => {
     if (editingId) return;
@@ -279,8 +288,30 @@ export default function InvoicePage() {
     );
     const firstDescription =
       entry.goods_items.find((item) => item.description)?.description || 'Goods from LR';
-    const rate = qty > 0 ? (Number(entry.freight) || 0) / qty : Number(entry.freight) || 0;
+    const lrFreight = Number(entry.freight) || 0;
 
+    // Try rate master: pick rate band based on total weight if available
+    let rate = qty > 0 ? lrFreight / qty : lrFreight;
+    if (freightRateMap && entry.to_city) {
+      const band = freightRateMap[entry.to_city.toLowerCase()];
+      if (band) {
+        const totalWeight = (entry.goods_items || []).reduce(
+          (s, item) => s + (Number((item as any).weight_kg) || 0), 0
+        );
+        const bandRate =
+          totalWeight <= 10 ? band.rate_10kg :
+          totalWeight <= 20 ? band.rate_20kg :
+          totalWeight <= 30 ? band.rate_30kg :
+          totalWeight <= 40 ? band.rate_40kg :
+          totalWeight <= 50 ? band.rate_50kg :
+          band.rate_above_50kg;
+        if (bandRate > 0) {
+          rate = bandRate;
+        }
+      }
+    }
+
+    const finalQty = qty || 1;
     return {
       lr_no: entry.lr_no,
       lr_date: entry.lr_date || '',
@@ -288,11 +319,11 @@ export default function InvoicePage() {
       invoice_no: entry.invoice_no || '',
       consignee: firstDescription,
       description: firstDescription,
-      qty: qty || 1,
+      qty: finalQty,
       rate,
-      amount: qty > 0 ? qty * rate : Number(entry.freight) || 0,
+      amount: finalQty * rate,
     };
-  }, []);
+  }, [freightRateMap]);
 
   const scanQrImageFile = useCallback(async (file: File | null) => {
     if (!file) return;
@@ -344,53 +375,88 @@ export default function InvoicePage() {
     setInvoiceCameraStarting(false);
   }, []);
 
+  // Keep the scan handler in a ref so the scan loop always uses the latest LR list
+  const addLRToInvoiceRef = useRef<(lrNo: string) => void>(() => {});
+  useEffect(() => {
+    addLRToInvoiceRef.current = (lrNo: string) => {
+      const entry = availableLREntries.find((item) => item.lr_no === lrNo);
+      if (!entry) { toast.error(`L.R. ${lrNo} not found or not available`); return; }
+      if (invoiceItems.some((item) => item.lr_no === lrNo)) { toast.error('L.R. already added'); return; }
+      setInvoiceItems((prev) => [...prev, buildInvoiceItemFromLR(entry)]);
+      toast.success(`L.R. ${lrNo} added to invoice`);
+    };
+  }, [availableLREntries, invoiceItems, buildInvoiceItemFromLR]);
+
   const startInvoiceCamera = useCallback(async () => {
     if (!formData.consignor_id) { toast.error('Select consignor first'); return; }
     if (!navigator.mediaDevices?.getUserMedia) { setInvoiceCameraError('Camera not available.'); return; }
     setInvoiceCameraError('');
     setInvoiceCameraStarting(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
       invoiceCameraStreamRef.current = stream;
-      setInvoiceCameraOpen(true);
-      if (invoiceCameraVideoRef.current) {
-        invoiceCameraVideoRef.current.srcObject = stream;
-        await invoiceCameraVideoRef.current.play();
-      }
-      const scanFrame = async () => {
-        const video = invoiceCameraVideoRef.current;
-        const canvas = invoiceCameraCanvasRef.current;
-        if (!video || !canvas || video.readyState < 2) { invoiceCameraFrameRef.current = requestAnimationFrame(scanFrame); return; }
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { invoiceCameraFrameRef.current = requestAnimationFrame(scanFrame); return; }
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        try {
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
-          if (code?.data) {
-            stopInvoiceCamera();
-            const lrNo = normalizeLrNo(code.data);
-            const entry = availableLREntries.find((item) => item.lr_no === lrNo);
-            if (!entry) { toast.error(`L.R. ${lrNo} not found or not available`); return; }
-            if (invoiceItems.some((item) => item.lr_no === lrNo)) { toast.error('L.R. already added'); return; }
-            setInvoiceItems((prev) => [...prev, buildInvoiceItemFromLR(entry)]);
-            toast.success(`L.R. ${lrNo} added to invoice`);
-            return;
-          }
-        } catch { /* continue scanning */ }
-        invoiceCameraFrameRef.current = requestAnimationFrame(scanFrame);
-      };
-      invoiceCameraFrameRef.current = requestAnimationFrame(scanFrame);
+      setInvoiceCameraOpen(true); // video element mounts after re-render → useEffect below attaches stream
     } catch (err) {
-      stopInvoiceCamera();
       setInvoiceCameraError(err instanceof Error ? err.message : 'Unable to start camera');
     } finally {
       setInvoiceCameraStarting(false);
     }
-  }, [stopInvoiceCamera, formData.consignor_id, availableLREntries, invoiceItems, buildInvoiceItemFromLR]);
+  }, [formData.consignor_id]);
 
+  // After invoiceCameraOpen=true the video element is in the DOM — attach stream and start scan loop
+  useEffect(() => {
+    if (!invoiceCameraOpen) return;
+    const video = invoiceCameraVideoRef.current;
+    const canvas = invoiceCameraCanvasRef.current;
+    const stream = invoiceCameraStreamRef.current;
+    if (!video || !canvas || !stream) return;
+
+    video.srcObject = stream;
+    void video.play().catch(() => {});
+
+    let frameId: number;
+    let stopped = false;
+
+    const scanFrame = () => {
+      if (stopped) return;
+      const v = invoiceCameraVideoRef.current;
+      const c = invoiceCameraCanvasRef.current;
+      if (!v || !c || v.readyState < 2 || !v.videoWidth || !v.videoHeight) {
+        frameId = requestAnimationFrame(scanFrame);
+        return;
+      }
+      const ctx = c.getContext('2d');
+      if (!ctx) { frameId = requestAnimationFrame(scanFrame); return; }
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+      try {
+        const imageData = ctx.getImageData(0, 0, c.width, c.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+        if (code?.data) {
+          const lrNo = normalizeLrNo(code.data);
+          stopInvoiceCamera();
+          addLRToInvoiceRef.current(lrNo);
+          return;
+        }
+      } catch { /* continue scanning */ }
+      frameId = requestAnimationFrame(scanFrame);
+    };
+
+    frameId = requestAnimationFrame(scanFrame);
+    invoiceCameraFrameRef.current = frameId;
+
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(frameId);
+      invoiceCameraFrameRef.current = null;
+    };
+  }, [invoiceCameraOpen, stopInvoiceCamera]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (invoiceCameraFrameRef.current) cancelAnimationFrame(invoiceCameraFrameRef.current);
@@ -608,7 +674,7 @@ export default function InvoicePage() {
               <CardTitle>Invoice Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="consignor_name">Consignor *</Label>
                   <Input
@@ -662,7 +728,7 @@ export default function InvoicePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="invoice_date">Invoice Date *</Label>
                   <Input
@@ -795,7 +861,7 @@ export default function InvoicePage() {
               {invoiceCameraError && (
                 <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{invoiceCameraError}</div>
               )}
-              <div className="grid grid-cols-6 gap-2 mb-4">
+              <div className="overflow-x-auto"><div className="min-w-[480px] grid grid-cols-6 gap-2 mb-4">
                 <Input
                   placeholder="L.R. No"
                   list="invoice-lr-options"
@@ -855,7 +921,7 @@ export default function InvoicePage() {
                 <Button type="button" onClick={addInvoiceItem} className="w-full">
                   Add
                 </Button>
-              </div>
+              </div></div>
 
               {invoiceItems.length > 0 && (
                 <>

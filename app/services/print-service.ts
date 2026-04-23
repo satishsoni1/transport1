@@ -331,6 +331,20 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         border-bottom: 1px solid #222;
         border-right: 1px solid #222;
         padding: 3px 5px;
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        gap: 4px;
+      }
+      .lr-sheet .lr-box .lr-info {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+      .lr-sheet .lr-box .lr-qr-side {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       .lr-sheet .party-section > :last-child {
         border-right: 0;
@@ -366,27 +380,21 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         margin-bottom: 5px;
       }
       .lr-sheet .lr-box .kv.lr-number-row {
-        grid-template-columns: 44px 8px 1fr 36px;
-        align-items: center;
-        column-gap: 4px;
+        grid-template-columns: 44px 8px 1fr;
       }
       .lr-sheet .lr-box .lr-number-value {
         font-size: 12px;
         font-weight: 800;
         letter-spacing: 0.2px;
       }
-      .lr-sheet .lr-box .lr-mini-qr {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
       .lr-sheet .lr-box .lr-mini-qr img {
-        width: 28px;
-        height: 28px;
+        width: 72px;
+        height: 72px;
         border: 1px solid #222;
         object-fit: contain;
-        padding: 1px;
+        padding: 2px;
         background: #fff;
+        display: block;
       }
       .lr-sheet .route-strip {
         display: grid;
@@ -664,9 +672,14 @@ export function generateLRPrintHTML(data: LRPrintData): string {
           <div class="party-mr">${escapeHtml(data.consignee_name_mr || '-')}</div>
         </div>
         <div class="lr-box">
-          <div class="kv lr-number-row"><span>LR.No.</span><span>:</span><span class="lr-number-value">${escapeHtml(data.lr_no)}</span><span class="lr-mini-qr"><img src="${lrQr}" alt="lr qr" /></span></div>
-          <div class="kv"><span>LR Date</span><span>:</span><span>${escapeHtml(new Date(data.lr_date).toLocaleDateString('en-IN'))}</span></div>
-          <div class="kv"><span>Invoice No</span><span>:</span><span>${escapeHtml(data.invoice_no || '-')}</span></div>
+          <div class="lr-info">
+            <div class="kv lr-number-row"><span>LR.No.</span><span>:</span><span class="lr-number-value">${escapeHtml(data.lr_no)}</span></div>
+            <div class="kv"><span>LR Date</span><span>:</span><span>${escapeHtml(new Date(data.lr_date).toLocaleDateString('en-IN'))}</span></div>
+            <div class="kv"><span>Invoice No</span><span>:</span><span>${escapeHtml(data.invoice_no || '-')}</span></div>
+          </div>
+          <div class="lr-qr-side">
+            <span class="lr-mini-qr"><img src="${lrQr}" alt="lr qr" /></span>
+          </div>
         </div>
       </div>
 
