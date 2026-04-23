@@ -1,7 +1,7 @@
 'use client';
 
 import jsQR from 'jsqr';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Camera, ImageUp, LoaderCircle, Plus, ScanLine, Trash2, Edit2, Printer, X } from 'lucide-react';
-import { useRef, useEffect } from 'react';
 import useSWR from 'swr';
 import {
   generateChallanPrintHTML,
