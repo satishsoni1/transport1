@@ -1,7 +1,7 @@
 'use client';
 
 import jsQR from 'jsqr';
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
