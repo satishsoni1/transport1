@@ -18,7 +18,15 @@ export async function GET(request: NextRequest) {
     await ensureSchema();
     
     // Get authenticated user's transport ID
-    const transportId = await requireTransportAuth(request);
+    let transportId: number;
+    try {
+      transportId = await requireTransportAuth(request);
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: String(error).replace('Error: ', '') },
+        { status: 401 }
+      );
+    }
     
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get('search') || '').trim();
@@ -145,7 +153,15 @@ export async function POST(request: NextRequest) {
     await ensureSchema();
     
     // Get authenticated user's transport ID
-    const transportId = await requireTransportAuth(request);
+    let transportId: number;
+    try {
+      transportId = await requireTransportAuth(request);
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: String(error).replace('Error: ', '') },
+        { status: 401 }
+      );
+    }
     
     const body = await request.json();
     const invoiceNo = String(body.invoice_no || '').trim();

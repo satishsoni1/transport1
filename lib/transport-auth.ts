@@ -1,12 +1,11 @@
 /**
  * Transport Isolation Utility
  * Provides helper functions for multi-tenant isolation in API routes
+ * Uses the existing app token verification system
  */
 
-import { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
+import { NextRequest, NextResponse } from 'next/server';
+import { readAppToken, verifyAppToken } from '@/lib/app-auth';
 
 export interface AuthenticatedUser {
   id: number;
@@ -22,30 +21,30 @@ export interface AuthenticatedUser {
 }
 
 /**
- * Extracts the authenticated user from the JWT token in the request
+ * Extracts the authenticated user from the app token in the request
  * Returns null if not authenticated or token is invalid
  */
 export async function getAuthenticatedUser(
   request: NextRequest
 ): Promise<AuthenticatedUser | null> {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const token = readAppToken(request as any);
     if (!token) return null;
 
-    const verified = await jwtVerify(token, JWT_SECRET);
-    const payload = verified.payload as any;
+    const user = await verifyAppToken(token);
+    if (!user) return null;
 
     return {
-      id: payload.id,
-      email: payload.email,
-      firstName: payload.firstName,
-      lastName: payload.lastName,
-      role: payload.role,
-      platformRole: payload.platformRole,
-      transportId: payload.transportId || null,
-      transportName: payload.transportName,
-      transportSlug: payload.transportSlug,
-      transportStatus: payload.transportStatus,
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      platformRole: user.platformRole as 'super_admin' | 'transport_admin',
+      transportId: user.transportId,
+      transportName: user.transportName,
+      transportSlug: user.transportSlug,
+      transportStatus: user.transportStatus,
     };
   } catch (error) {
     return null;

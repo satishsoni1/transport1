@@ -9,7 +9,15 @@ export async function GET(request: NextRequest) {
     await ensureSchema();
     
     // Get authenticated user's transport ID
-    const transportId = await requireTransportAuth(request);
+    let transportId: number;
+    try {
+      transportId = await requireTransportAuth(request);
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: String(error).replace('Error: ', '') },
+        { status: 401 }
+      );
+    }
     
     const { rows } = await sql`
       SELECT
@@ -34,7 +42,15 @@ export async function POST(request: NextRequest) {
     await ensureSchema();
     
     // Get authenticated user's transport ID
-    const transportId = await requireTransportAuth(request);
+    let transportId: number;
+    try {
+      transportId = await requireTransportAuth(request);
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: String(error).replace('Error: ', '') },
+        { status: 401 }
+      );
+    }
     
     const body = await request.json();
     const username = String(body.username || '').trim();
