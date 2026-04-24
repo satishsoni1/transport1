@@ -181,6 +181,12 @@ export async function POST(request: Request) {
       RETURNING id, email, first_name, last_name
     `;
 
+    // Initialize LR sequence for this transport
+    await sql`
+      INSERT INTO transport_lr_sequences (id, next_lr_number, lr_prefix)
+      VALUES (${transport.id}, 1, '')
+    `;
+
     await sql`
       INSERT INTO audit_logs (action, entity_type, entity_id, details, user_name)
       VALUES (

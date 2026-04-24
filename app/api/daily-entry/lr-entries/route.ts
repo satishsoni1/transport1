@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
+import { requireTransportAuth } from '@/lib/transport-auth';
 
 function toResponseRow(row: any) {
   return {
@@ -12,9 +13,13 @@ function toResponseRow(row: any) {
 const LR_STATUSES = new Set(['to_pay', 'paid', 'tbb']);
 const POD_FILTERS = new Set(['received', 'pending', 'godown', 'transit']);
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
+    
+    // Get authenticated user's transport ID
+    const transportId = await requireTransportAuth(request);
+    
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get('search') || '').trim();
     const dateFrom = String(searchParams.get('date_from') || '').trim();
@@ -44,7 +49,11 @@ export async function GET(request: Request) {
       hasPodFilter;
 
     if (!hasFilters) {
-      const { rows } = await sql`SELECT * FROM lr_entries ORDER BY id DESC`;
+      const { rows } = await sql`
+        SELECT * FROM lr_entries 
+        WHERE transport_id = ${transportId}
+        ORDER BY id DESC
+      `;
       return NextResponse.json(rows.map(toResponseRow), { status: 200 });
     }
 
@@ -56,7 +65,8 @@ export async function GET(request: Request) {
       LEFT JOIN consignors ON consignors.id = lr_entries.consignor_id
       LEFT JOIN consignees ON consignees.id = lr_entries.consignee_id
       WHERE
-        (
+        lr_entries.transport_id = ${transportId}
+        AND (
           ${search} = ''
           OR lr_entries.lr_no ILIKE ${likeSearch}
           OR lr_entries.invoice_no ILIKE ${likeSearch}
@@ -93,7 +103,8 @@ export async function GET(request: Request) {
             AND EXISTS (
               SELECT 1
               FROM challans
-              WHERE EXISTS (
+              WHERE challans.transport_id = ${transportId}
+              AND EXISTS (
                 SELECT 1
                 FROM jsonb_array_elements(challans.lr_list) AS lr_item
                 WHERE UPPER(BTRIM(COALESCE(lr_item->>'lr_no', ''))) = UPPER(BTRIM(lr_entries.lr_no))
@@ -106,7 +117,8 @@ export async function GET(request: Request) {
             AND NOT EXISTS (
               SELECT 1
               FROM challans
-              WHERE EXISTS (
+              WHERE challans.transport_id = ${transportId}
+              AND EXISTS (
                 SELECT 1
                 FROM jsonb_array_elements(challans.lr_list) AS lr_item
                 WHERE UPPER(BTRIM(COALESCE(lr_item->>'lr_no', ''))) = UPPER(BTRIM(lr_entries.lr_no))
@@ -128,9 +140,13 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
+    
+    // Get authenticated user's transport ID
+    const transportId = await requireTransportAuth(request);
+    
     const body = await request.json();
     const invoiceNo = String(body.invoice_no || '').trim();
 
@@ -159,7 +175,8 @@ export async function POST(request: Request) {
       const { rows: duplicateRows } = await sql`
         SELECT id
         FROM lr_entries
-        WHERE LOWER(BTRIM(invoice_no)) = LOWER(BTRIM(${invoiceNo}))
+        WHERE transport_id = ${transportId}
+        AND LOWER(BTRIM(invoice_no)) = LOWER(BTRIM(${invoiceNo}))
         LIMIT 1
       `;
       if (duplicateRows.length > 0) {
@@ -176,26 +193,31 @@ export async function POST(request: Request) {
     const advance = Number(body.advance) || 0;
     const balance = freight + hamali + lrCharge - advance;
 
-    const seq = await sql`SELECT nextval(pg_get_serial_sequence('lr_entries','id')) AS id`;
-    const id = Number(seq.rows[0].id);
-    const { rows: settingsRows } = await sql`
-      SELECT COALESCE(TRIM(lr_prefix), '') AS lr_prefix
-      FROM app_settings
-      WHERE id = 1
+    // Get next LR number using per-transport sequence
+    const { rows: lrNumberRows } = await sql`
+      SELECT get_next_lr_number_for_transport(${transportId}) AS lr_no
     `;
-    const lrPrefix = String(settingsRows[0]?.lr_prefix || '');
-    const lrNo = `${lrPrefix}${String(id).padStart(5, '0')}`;
+    const lrNo = String(lrNumberRows[0]?.lr_no || '');
+
+    // Generate a unique ID for internal use (still needed for referencing)
+    const { rows: idRows } = await sql`
+      SELECT COALESCE(MAX(id) + 1, 1) as next_id 
+      FROM lr_entries 
+      WHERE transport_id = ${transportId}
+    `;
+    const lrId = Number(idRows[0]?.next_id || 1);
 
     const { rows } = await sql`
       INSERT INTO lr_entries (
-        id, lr_no, lr_date, consignor_id, consignee_id, from_city, to_city, delivery_address,
+        id, lr_no, lr_date, transport_id, consignor_id, consignee_id, from_city, to_city, delivery_address,
         freight, hamali, lr_charge, advance, balance, invoice_no, invoice_date, truck_no,
         driver_name, driver_mobile, eway_no, remarks, return_status, return_remark, pod_received, goods_items, status, created_by
       )
       VALUES (
-        ${id},
+        ${lrId},
         ${lrNo},
         NOW(),
+        ${transportId},
         ${Number(body.consignor_id)},
         ${Number(body.consignee_id)},
         ${body.from_city || ''},

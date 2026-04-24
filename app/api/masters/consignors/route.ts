@@ -1,16 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema } from '@/lib/db';
 import { createHash } from 'crypto';
+import { requireTransportAuth } from '@/lib/transport-auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
+    
+    // Get authenticated user's transport ID
+    const transportId = await requireTransportAuth(request);
+    
     const { rows } = await sql`
       SELECT
         id, name, name_mr, username, address, city, gst_no, lr_print_instructions, contact_person, mobile,
         bank_name, account_no, default_payment_method, status, created_at
       FROM consignors
+      WHERE transport_id = ${transportId}
       ORDER BY id DESC
     `;
     return NextResponse.json(rows, { status: 200 });
@@ -23,9 +29,13 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
+    
+    // Get authenticated user's transport ID
+    const transportId = await requireTransportAuth(request);
+    
     const body = await request.json();
     const username = String(body.username || '').trim();
     const password = String(body.password || '').trim();
@@ -51,7 +61,8 @@ export async function POST(request: Request) {
       const { rows: duplicateRows } = await sql`
         SELECT id
         FROM consignors
-        WHERE LOWER(username) = LOWER(${username})
+        WHERE transport_id = ${transportId}
+        AND LOWER(username) = LOWER(${username})
         LIMIT 1
       `;
 
@@ -69,9 +80,10 @@ export async function POST(request: Request) {
 
     const { rows } = await sql`
       INSERT INTO consignors (
-        name, name_mr, username, password, password_hash, address, city, gst_no, lr_print_instructions, contact_person, mobile, bank_name, account_no, default_payment_method, status
+        transport_id, name, name_mr, username, password, password_hash, address, city, gst_no, lr_print_instructions, contact_person, mobile, bank_name, account_no, default_payment_method, status
       )
       VALUES (
+        ${transportId},
         ${body.name},
         ${body.name_mr || ''},
         ${username},

@@ -64,7 +64,16 @@ export async function ensureDefaultTransport() {
     RETURNING id
   `;
 
-  return Number(rows[0].id);
+  const transportId = Number(rows[0].id);
+
+  // Initialize LR sequence for this transport
+  await sql`
+    INSERT INTO transport_lr_sequences (id, next_lr_number, lr_prefix)
+    VALUES (${transportId}, 1, '')
+    ON CONFLICT (id) DO NOTHING
+  `;
+
+  return transportId;
 }
 
 export async function ensureSuperAdminUser() {
