@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -12,10 +13,11 @@ function toResponseRow(row: any) {
 }
 
 async function findConflictingChallanLr(
+  transportId: number,
   lrNos: string[],
   excludeId?: number
 ) {
-  const { rows } = await sql`SELECT id, challan_no, lr_list FROM challans`;
+  const { rows } = await sql`SELECT id, challan_no, lr_list FROM challans WHERE transport_id = ${transportId}`;
 
   for (const row of rows) {
     if (excludeId !== undefined && Number(row.id) === excludeId) continue;
@@ -33,11 +35,18 @@ async function findConflictingChallanLr(
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -48,7 +57,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { rows: existingRows } = await sql`SELECT * FROM challans WHERE id = ${id}`;
+    const { rows: existingRows } = await sql`SELECT * FROM challans WHERE id = ${id} AND transport_id = ${transportId}`;
     if (existingRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Challan not found' },
@@ -63,7 +72,7 @@ export async function PUT(
     const lrNos = safeList
       .map((item: any) => String(item?.lr_no || '').trim())
       .filter(Boolean);
-    const conflictingLr = await findConflictingChallanLr(lrNos, id);
+    const conflictingLr = await findConflictingChallanLr(transportId, lrNos, id);
     if (conflictingLr) {
       return NextResponse.json(
         {
@@ -118,7 +127,7 @@ export async function PUT(
         total_to_pay = ${totalToPay},
         total_paid = ${totalPaid},
         status = ${body.status ?? existing.status}
-      WHERE id = ${id}
+      WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;
     return NextResponse.json(toResponseRow(rows[0]), { status: 200 });
@@ -132,11 +141,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -146,7 +162,7 @@ export async function DELETE(
       );
     }
 
-    const { rows } = await sql`DELETE FROM challans WHERE id = ${id} RETURNING id`;
+    const { rows } = await sql`DELETE FROM challans WHERE id = ${id} AND transport_id = ${transportId} RETURNING id`;
     if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Challan not found' },

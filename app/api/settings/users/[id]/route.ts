@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 import bcrypt from 'bcryptjs';
 
 function parseId(rawId: string) {
@@ -8,11 +9,18 @@ function parseId(rawId: string) {
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -23,7 +31,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { rows: existingRows } = await sql`SELECT * FROM users WHERE id = ${id}`;
+    const { rows: existingRows } = await sql`SELECT * FROM users WHERE id = ${id} AND transport_id = ${transportId}`;
     if (existingRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'User not found' },
@@ -34,9 +42,10 @@ export async function PUT(
     const existing = existingRows[0];
     const email = body.email ?? existing.email;
     const username = body.username ?? existing.username;
+
     if (email !== existing.email) {
       const { rows: dupRows } = await sql`
-        SELECT id FROM users WHERE LOWER(email) = LOWER(${email}) AND id <> ${id}
+        SELECT id FROM users WHERE transport_id = ${transportId} AND LOWER(email) = LOWER(${email}) AND id <> ${id}
       `;
       if (dupRows.length > 0) {
         return NextResponse.json(
@@ -47,7 +56,7 @@ export async function PUT(
     }
     if (username !== existing.username) {
       const { rows: dupRows } = await sql`
-        SELECT id FROM users WHERE LOWER(username) = LOWER(${username}) AND id <> ${id}
+        SELECT id FROM users WHERE transport_id = ${transportId} AND LOWER(username) = LOWER(${username}) AND id <> ${id}
       `;
       if (dupRows.length > 0) {
         return NextResponse.json(
@@ -70,19 +79,13 @@ export async function PUT(
         last_name = ${body.last_name ?? existing.last_name},
         role = ${body.role ?? existing.role},
         status = ${body.status ?? existing.status}
-      WHERE id = ${id}
+      WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING id, email, username, first_name, last_name, role, status, created_at
     `;
 
     await sql`
       INSERT INTO audit_logs (action, entity_type, entity_id, details, user_name)
-      VALUES (
-        'UPDATE',
-        'app_user',
-        ${String(id)},
-        ${`Updated user ${rows[0].email}`},
-        'system'
-      )
+      VALUES ('UPDATE', 'app_user', ${String(id)}, ${`Updated user ${rows[0].email}`}, 'system')
     `;
 
     return NextResponse.json(rows[0], { status: 200 });
@@ -96,11 +99,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -110,7 +120,7 @@ export async function DELETE(
       );
     }
 
-    const { rows } = await sql`DELETE FROM users WHERE id = ${id} RETURNING id`;
+    const { rows } = await sql`DELETE FROM users WHERE id = ${id} AND transport_id = ${transportId} RETURNING id`;
     if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'User not found' },

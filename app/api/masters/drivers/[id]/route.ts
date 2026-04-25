@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
 import { hashDriverPassword } from '@/lib/driver-auth';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -8,11 +9,18 @@ function parseId(rawId: string) {
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -23,7 +31,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { rows: existingRows } = await sql`SELECT * FROM drivers WHERE id = ${id}`;
+    const { rows: existingRows } = await sql`SELECT * FROM drivers WHERE id = ${id} AND transport_id = ${transportId}`;
     if (existingRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Driver not found' },
@@ -51,13 +59,10 @@ export async function PUT(
 
     if (nextUsername) {
       const { rows: duplicateRows } = await sql`
-        SELECT id
-        FROM drivers
-        WHERE id <> ${id}
-          AND LOWER(username) = LOWER(${nextUsername})
+        SELECT id FROM drivers
+        WHERE id <> ${id} AND transport_id = ${transportId} AND LOWER(username) = LOWER(${nextUsername})
         LIMIT 1
       `;
-
       if (duplicateRows.length > 0) {
         return NextResponse.json(
           { success: false, error: 'Driver username already exists' },
@@ -90,7 +95,7 @@ export async function PUT(
         passport_photo_url = ${body.passport_photo_url ?? existing.passport_photo_url},
         thumb_image_url = ${body.thumb_image_url ?? existing.thumb_image_url},
         status = ${body.status ?? existing.status}
-      WHERE id = ${id}
+      WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;
     return NextResponse.json(rows[0], { status: 200 });
@@ -104,11 +109,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -118,7 +130,7 @@ export async function DELETE(
       );
     }
 
-    const { rows } = await sql`DELETE FROM drivers WHERE id = ${id} RETURNING id`;
+    const { rows } = await sql`DELETE FROM drivers WHERE id = ${id} AND transport_id = ${transportId} RETURNING id`;
     if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Driver not found' },

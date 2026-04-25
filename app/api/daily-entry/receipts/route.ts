@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function toResponseRow(row: any) {
   return {
@@ -9,23 +10,37 @@ function toResponseRow(row: any) {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM receipts ORDER BY id DESC`;
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
+    const { rows } = await sql`SELECT * FROM receipts WHERE transport_id = ${transportId} ORDER BY id DESC`;
     return NextResponse.json(rows.map(toResponseRow), { status: 200 });
   } catch (error) {
     console.error('Error fetching receipts', error);
     return NextResponse.json(
-      { success: false, error: 'Database error. Configure DATABASE_URL for Neon (or POSTGRES_URL).' },
+      { success: false, error: 'Database error. Configure DATABASE_URL.' },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const body = await request.json();
     const items = Array.isArray(body.items) ? body.items : [];
 
@@ -36,17 +51,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const seq = await sql`SELECT nextval(pg_get_serial_sequence('receipts','id')) AS id`;
-    const id = Number(seq.rows[0].id);
-    const receiptNo = `RCP${String(id).padStart(5, '0')}`;
+    // Per-transport atomic receipt numbering
+    const { rows: seqRows } = await sql`SELECT get_next_doc_number(${transportId}, 'receipt') AS seq`;
+    const seq = Number(seqRows[0].seq);
+    const receiptNo = `RCP${String(seq).padStart(5, '0')}`;
 
     const { rows } = await sql`
       INSERT INTO receipts (
-        id, receipt_no, receipt_date, party_name, consignor_id, mode, cheque_no, cheque_date,
+        transport_id, receipt_no, receipt_date, party_name, consignor_id, mode, cheque_no, cheque_date,
         bank_name, remarks, items, total_amount, tds_amount, deduction_amount, received_amount, photo_url, receipt_type, status, created_by
       )
       VALUES (
-        ${id},
+        ${transportId},
         ${receiptNo},
         ${body.receipt_date},
         ${body.party_name},

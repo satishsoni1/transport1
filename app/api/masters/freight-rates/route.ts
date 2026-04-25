@@ -1,24 +1,39 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM freight_rates ORDER BY id DESC`;
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
+    const { rows } = await sql`SELECT * FROM freight_rates WHERE transport_id = ${transportId} ORDER BY id DESC`;
     return NextResponse.json(rows, { status: 200 });
   } catch (error) {
     console.error('Error fetching freight rates', error);
     return NextResponse.json(
-      { success: false, error: 'Database error. Configure DATABASE_URL for Neon (or POSTGRES_URL).' },
+      { success: false, error: 'Database error. Configure DATABASE_URL.' },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const body = await request.json();
 
     if (
@@ -46,8 +61,9 @@ export async function POST(request: Request) {
     }
 
     const { rows } = await sql`
-      INSERT INTO freight_rates (from_city, to_city, rate_per_kg, min_rate, vehicle_type, status)
+      INSERT INTO freight_rates (transport_id, from_city, to_city, rate_per_kg, min_rate, vehicle_type, status)
       VALUES (
+        ${transportId},
         ${body.from_city},
         ${body.to_city},
         ${ratePerKg},

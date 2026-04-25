@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function toResponseRow(row: any) {
   return {
@@ -11,10 +12,11 @@ function toResponseRow(row: any) {
 }
 
 async function findConflictingInvoiceLr(
+  transportId: number,
   lrNos: string[],
   excludeId?: number
 ) {
-  const { rows } = await sql`SELECT id, invoice_no, items FROM invoices`;
+  const { rows } = await sql`SELECT id, invoice_no, items FROM invoices WHERE transport_id = ${transportId}`;
 
   for (const row of rows) {
     if (excludeId !== undefined && Number(row.id) === excludeId) continue;
@@ -31,23 +33,37 @@ async function findConflictingInvoiceLr(
   return null;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM invoices ORDER BY id DESC`;
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
+    const { rows } = await sql`SELECT * FROM invoices WHERE transport_id = ${transportId} ORDER BY id DESC`;
     return NextResponse.json(rows.map(toResponseRow), { status: 200 });
   } catch (error) {
     console.error('Error fetching invoices', error);
     return NextResponse.json(
-      { success: false, error: 'Database error. Configure DATABASE_URL for Neon (or POSTGRES_URL).' },
+      { success: false, error: 'Database error. Configure DATABASE_URL.' },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const body = await request.json();
     const items = Array.isArray(body.items) ? body.items : [];
     const additionalCharges = Array.isArray(body.additional_charges) ? body.additional_charges : [];
@@ -62,7 +78,7 @@ export async function POST(request: Request) {
     const lrNos = items
       .map((item: any) => String(item?.lr_no || '').trim())
       .filter(Boolean);
-    const conflictingLr = await findConflictingInvoiceLr(lrNos);
+    const conflictingLr = await findConflictingInvoiceLr(transportId, lrNos);
     if (conflictingLr) {
       return NextResponse.json(
         {
@@ -73,23 +89,25 @@ export async function POST(request: Request) {
       );
     }
 
-    const seq = await sql`SELECT nextval(pg_get_serial_sequence('invoices','id')) AS id`;
-    const id = Number(seq.rows[0].id);
+    // Per-transport atomic invoice numbering
+    const { rows: seqRows } = await sql`SELECT get_next_doc_number(${transportId}, 'invoice') AS seq`;
+    const seq = Number(seqRows[0].seq);
     const { rows: settingsRows } = await sql`
       SELECT COALESCE(NULLIF(TRIM(invoice_prefix), ''), 'INV') AS invoice_prefix
       FROM app_settings
-      WHERE id = 1
+      WHERE transport_id = ${transportId}
+      LIMIT 1
     `;
     const invoicePrefix = String(settingsRows[0]?.invoice_prefix || 'INV');
-    const invoiceNo = `${invoicePrefix}${String(id).padStart(5, '0')}`;
+    const invoiceNo = `${invoicePrefix}${String(seq).padStart(5, '0')}`;
 
     const { rows } = await sql`
       INSERT INTO invoices (
-        id, invoice_no, invoice_date, party_name, consignor_id, gst_percentage, remarks,
+        transport_id, invoice_no, invoice_date, party_name, consignor_id, gst_percentage, remarks,
         items, additional_charges, total_amount, gst_amount, net_amount, status, created_by
       )
       VALUES (
-        ${id},
+        ${transportId},
         ${invoiceNo},
         ${body.invoice_date},
         ${body.party_name},

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, KeyRound, Eye, EyeOff } from 'lucide-react';
 
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 type TransportRow = {
   id: number;
@@ -38,6 +39,7 @@ type TransportRow = {
   subscription_start_date: string | null;
   subscription_end_date: string | null;
   subscription_warning_days: number;
+  admin_user_id?: number;
   admin_email?: string;
   admin_first_name?: string;
   admin_last_name?: string;
@@ -45,6 +47,17 @@ type TransportRow = {
     status: 'active' | 'near_expiry' | 'expired';
     daysRemaining: number | null;
   };
+};
+
+type UserRow = {
+  id: number;
+  email: string;
+  username: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  platform_role: string;
+  status: string;
 };
 
 const EMPTY_FORM = {
@@ -59,6 +72,204 @@ const EMPTY_FORM = {
   subscription_end_date: '',
   subscription_warning_days: '7',
 };
+
+function ResetPasswordDialog({
+  transportId,
+  user,
+  onDone,
+}: {
+  transportId: number;
+  user: UserRow;
+  onDone: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await apiClient.put(`/api/admin/transports/${transportId}/users`, {
+        user_id: user.id,
+        new_password: password,
+      });
+      toast.success(`Password reset for ${user.email}`);
+      setPassword('');
+      setOpen(false);
+      onDone();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reset password');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7 gap-1 text-xs">
+          <KeyRound className="h-3 w-3" />
+          Reset
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Reset Password</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-slate-600">{user.email}</p>
+        <form onSubmit={handleReset} className="space-y-4">
+          <div>
+            <Label htmlFor="new_password">New Password</Label>
+            <div className="relative">
+              <Input
+                id="new_password"
+                type={showPw ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={6}
+                required
+                autoFocus
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400"
+                onClick={() => setShowPw((p) => !p)}
+              >
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Reset Password'}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TransportUsersRow({ transport }: { transport: TransportRow }) {
+  const [expanded, setExpanded] = useState(false);
+  const { data: users = [], mutate } = useSWR<UserRow[]>(
+    expanded ? `/api/admin/transports/${transport.id}/users` : null,
+    apiClient.get
+  );
+
+  const subStatus = transport.subscription?.status;
+
+  return (
+    <>
+      <TableRow
+        className="cursor-pointer hover:bg-slate-50"
+        onClick={() => setExpanded((e) => !e)}
+      >
+        <TableCell>
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 text-slate-400 inline mr-1" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-slate-400 inline mr-1" />
+          )}
+          <span className="font-medium">{transport.company_name}</span>
+          <div className="ml-5 text-xs text-slate-500">{transport.slug}</div>
+        </TableCell>
+        <TableCell>
+          <div className="font-mono text-sm">{transport.admin_email || '-'}</div>
+          <div className="text-xs text-slate-500">
+            {[transport.admin_first_name, transport.admin_last_name].filter(Boolean).join(' ')}
+          </div>
+        </TableCell>
+        <TableCell>{transport.contact_phone || '-'}</TableCell>
+        <TableCell>{transport.subscription_plan}</TableCell>
+        <TableCell>
+          <div className="text-xs">
+            {transport.subscription_start_date || '-'} → {transport.subscription_end_date || 'no expiry'}
+          </div>
+          <div className="text-xs text-slate-500">
+            {transport.subscription?.daysRemaining === null
+              ? 'No expiry set'
+              : `${transport.subscription?.daysRemaining ?? '-'} day(s)`}
+          </div>
+        </TableCell>
+        <TableCell>
+          <Badge
+            variant={
+              subStatus === 'expired' ? 'destructive' :
+              subStatus === 'near_expiry' ? 'outline' :
+              'secondary'
+            }
+            className={
+              subStatus === 'active' ? 'border-emerald-300 text-emerald-700 bg-emerald-50' :
+              subStatus === 'near_expiry' ? 'border-amber-300 text-amber-700 bg-amber-50' : ''
+            }
+          >
+            {subStatus || transport.status}
+          </Badge>
+        </TableCell>
+      </TableRow>
+
+      {expanded && (
+        <TableRow>
+          <TableCell colSpan={6} className="bg-slate-50 p-0">
+            <div className="px-6 py-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Login Accounts — {transport.company_name}
+              </p>
+              {users.length === 0 ? (
+                <p className="text-sm text-slate-500">No users found.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-slate-500">
+                      <th className="pb-1 pr-4 font-medium">Email</th>
+                      <th className="pb-1 pr-4 font-medium">Username</th>
+                      <th className="pb-1 pr-4 font-medium">Name</th>
+                      <th className="pb-1 pr-4 font-medium">Role</th>
+                      <th className="pb-1 pr-4 font-medium">Status</th>
+                      <th className="pb-1 font-medium">Password</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => (
+                      <tr key={u.id} className="border-t border-slate-200">
+                        <td className="py-1.5 pr-4 font-mono text-xs">{u.email}</td>
+                        <td className="py-1.5 pr-4 font-mono text-xs">{u.username || '-'}</td>
+                        <td className="py-1.5 pr-4">
+                          {[u.first_name, u.last_name].filter(Boolean).join(' ')}
+                        </td>
+                        <td className="py-1.5 pr-4">
+                          <span className="text-xs">
+                            {u.platform_role === 'transport_admin' ? (
+                              <span className="font-semibold text-blue-700">Admin</span>
+                            ) : u.role}
+                          </span>
+                        </td>
+                        <td className="py-1.5 pr-4">
+                          <span className={u.status === 'active' ? 'text-emerald-600 text-xs' : 'text-red-500 text-xs'}>
+                            {u.status}
+                          </span>
+                        </td>
+                        <td className="py-1.5">
+                          <ResetPasswordDialog
+                            transportId={transport.id}
+                            user={u}
+                            onDone={mutate}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
 
 export default function AdminTransportsPage() {
   const { user } = useAuth();
@@ -118,7 +329,7 @@ export default function AdminTransportsPage() {
         <div>
           <h1 className="text-3xl font-bold">Transport Accounts</h1>
           <p className="text-sm text-slate-600">
-            Create transport logins and monitor subscription status.
+            Click any row to expand login accounts. Use Reset to change passwords.
           </p>
         </div>
 
@@ -165,7 +376,8 @@ export default function AdminTransportsPage() {
                 <Label htmlFor="admin_password">Admin Password</Label>
                 <Input
                   id="admin_password"
-                  type="password"
+                  type="text"
+                  placeholder="Set initial password"
                   value={formData.admin_password}
                   onChange={(e) => setFormData((prev) => ({ ...prev, admin_password: e.target.value }))}
                   required
@@ -254,12 +466,13 @@ export default function AdminTransportsPage() {
         <CardHeader>
           <CardTitle>Transport Logins</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Transport</TableHead>
-                <TableHead>Admin Login</TableHead>
+                <TableHead>Admin Email</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Subscription</TableHead>
                 <TableHead>Status</TableHead>
@@ -268,48 +481,15 @@ export default function AdminTransportsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5}>Loading transport accounts...</TableCell>
+                  <TableCell colSpan={6}>Loading transport accounts...</TableCell>
                 </TableRow>
               ) : transports.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5}>No transport accounts found.</TableCell>
+                  <TableCell colSpan={6}>No transport accounts found.</TableCell>
                 </TableRow>
               ) : (
                 transports.map((item) => (
-                  <TableRow key={`${item.id}-${item.admin_email || 'admin'}`}>
-                    <TableCell>
-                      <div className="font-medium">{item.company_name}</div>
-                      <div className="text-xs text-slate-500">{item.slug}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div>{item.admin_email || '-'}</div>
-                      <div className="text-xs text-slate-500">
-                        {[item.admin_first_name, item.admin_last_name].filter(Boolean).join(' ')}
-                      </div>
-                    </TableCell>
-                    <TableCell>{item.subscription_plan}</TableCell>
-                    <TableCell>
-                      <div>{item.subscription_start_date || '-'} to {item.subscription_end_date || '-'}</div>
-                      <div className="text-xs text-slate-500">
-                        {item.subscription?.daysRemaining === null
-                          ? 'No expiry set'
-                          : `${item.subscription?.daysRemaining ?? '-'} day(s) remaining`}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          item.subscription?.status === 'expired'
-                            ? 'font-semibold text-red-600'
-                            : item.subscription?.status === 'near_expiry'
-                              ? 'font-semibold text-amber-600'
-                              : 'font-semibold text-emerald-600'
-                        }
-                      >
-                        {item.subscription?.status || item.status}
-                      </span>
-                    </TableCell>
-                  </TableRow>
+                  <TransportUsersRow key={item.id} transport={item} />
                 ))
               )}
             </TableBody>

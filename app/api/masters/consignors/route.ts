@@ -2,22 +2,18 @@ import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema } from '@/lib/db';
 import { createHash } from 'crypto';
-import { requireTransportAuth } from '@/lib/transport-auth';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
     
     // Get authenticated user's transport ID
-    let transportId: number;
-    try {
-      transportId = await requireTransportAuth(request);
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: String(error).replace('Error: ', '') },
-        { status: 401 }
-      );
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
+    const { transportId } = auth;
     
     const { rows } = await sql`
       SELECT
@@ -42,15 +38,11 @@ export async function POST(request: NextRequest) {
     await ensureSchema();
     
     // Get authenticated user's transport ID
-    let transportId: number;
-    try {
-      transportId = await requireTransportAuth(request);
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: String(error).replace('Error: ', '') },
-        { status: 401 }
-      );
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
+    const { transportId } = auth;
     
     const body = await request.json();
     const username = String(body.username || '').trim();

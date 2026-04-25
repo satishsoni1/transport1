@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -15,11 +16,18 @@ function toResponseRow(row: any) {
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -32,7 +40,10 @@ export async function PUT(
     const body = await request.json();
     const invoiceNo =
       body.invoice_no === undefined ? undefined : String(body.invoice_no || '').trim();
-    const { rows: existingRows } = await sql`SELECT * FROM lr_entries WHERE id = ${id}`;
+
+    const { rows: existingRows } = await sql`
+      SELECT * FROM lr_entries WHERE id = ${id} AND transport_id = ${transportId}
+    `;
     if (existingRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'LR entry not found' },
@@ -76,6 +87,7 @@ export async function PUT(
         SELECT id
         FROM lr_entries
         WHERE id <> ${id}
+          AND transport_id = ${transportId}
           AND LOWER(BTRIM(invoice_no)) = LOWER(BTRIM(${invoiceNo}))
         LIMIT 1
       `;
@@ -112,7 +124,7 @@ export async function PUT(
         pod_received = ${body.pod_received ?? existing.pod_received},
         goods_items = ${JSON.stringify(goodsItems)}::jsonb,
         status = ${statusValue}
-      WHERE id = ${id}
+      WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;
     return NextResponse.json(toResponseRow(rows[0]), { status: 200 });
@@ -126,11 +138,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -140,7 +159,9 @@ export async function DELETE(
       );
     }
 
-    const { rows } = await sql`DELETE FROM lr_entries WHERE id = ${id} RETURNING id`;
+    const { rows } = await sql`
+      DELETE FROM lr_entries WHERE id = ${id} AND transport_id = ${transportId} RETURNING id
+    `;
     if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'LR entry not found' },

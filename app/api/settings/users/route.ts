@@ -1,30 +1,45 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 import bcrypt from 'bcryptjs';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { rows } = await sql`
       SELECT id, email, username, first_name, last_name, role, status, created_at
       FROM users
+      WHERE transport_id = ${transportId}
       ORDER BY created_at DESC
     `;
     return NextResponse.json(rows, { status: 200 });
   } catch (error) {
     console.error('Error fetching users', error);
     return NextResponse.json(
-      { success: false, error: 'Database error. Configure DATABASE_URL for Neon (or POSTGRES_URL).' },
+      { success: false, error: 'Database error. Configure DATABASE_URL.' },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
-    const body = await request.json();
 
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
+    const body = await request.json();
     const username = String(body.username || '').trim();
     const password = String(body.password || '').trim();
 
@@ -37,12 +52,12 @@ export async function POST(request: Request) {
 
     const { rows: existingRows } = await sql`
       SELECT id FROM users
-      WHERE LOWER(email) = LOWER(${body.email})
-         OR LOWER(username) = LOWER(${username})
+      WHERE transport_id = ${transportId}
+        AND (LOWER(email) = LOWER(${body.email}) OR LOWER(username) = LOWER(${username}))
     `;
     if (existingRows.length > 0) {
       return NextResponse.json(
-        { success: false, error: 'User with this email already exists' },
+        { success: false, error: 'User with this email or username already exists' },
         { status: 409 }
       );
     }
@@ -50,8 +65,9 @@ export async function POST(request: Request) {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const { rows } = await sql`
-      INSERT INTO users (email, username, password_hash, first_name, last_name, role, status)
+      INSERT INTO users (transport_id, email, username, password_hash, first_name, last_name, role, status)
       VALUES (
+        ${transportId},
         ${String(body.email).trim()},
         ${username},
         ${passwordHash},
@@ -65,13 +81,7 @@ export async function POST(request: Request) {
 
     await sql`
       INSERT INTO audit_logs (action, entity_type, entity_id, details, user_name)
-      VALUES (
-        'CREATE',
-        'app_user',
-        ${String(rows[0].id)},
-        ${`Created user ${rows[0].email}`},
-        'system'
-      )
+      VALUES ('CREATE', 'app_user', ${String(rows[0].id)}, ${`Created user ${rows[0].email}`}, 'system')
     `;
 
     return NextResponse.json(rows[0], { status: 201 });

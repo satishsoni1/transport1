@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
-import { requireTransportAuth } from '@/lib/transport-auth';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function toResponseRow(row: any) {
   return {
@@ -18,15 +18,11 @@ export async function GET(request: NextRequest) {
     await ensureSchema();
     
     // Get authenticated user's transport ID
-    let transportId: number;
-    try {
-      transportId = await requireTransportAuth(request);
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: String(error).replace('Error: ', '') },
-        { status: 401 }
-      );
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
+    const { transportId } = auth;
     
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get('search') || '').trim();
@@ -153,15 +149,11 @@ export async function POST(request: NextRequest) {
     await ensureSchema();
     
     // Get authenticated user's transport ID
-    let transportId: number;
-    try {
-      transportId = await requireTransportAuth(request);
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: String(error).replace('Error: ', '') },
-        { status: 401 }
-      );
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
+    const { transportId } = auth;
     
     const body = await request.json();
     const invoiceNo = String(body.invoice_no || '').trim();
@@ -209,28 +201,19 @@ export async function POST(request: NextRequest) {
     const advance = Number(body.advance) || 0;
     const balance = freight + hamali + lrCharge - advance;
 
-    // Get next LR number using per-transport sequence
+    // Get next LR number using per-transport sequence (atomic, no race conditions)
     const { rows: lrNumberRows } = await sql`
       SELECT get_next_lr_number_for_transport(${transportId}) AS lr_no
     `;
     const lrNo = String(lrNumberRows[0]?.lr_no || '');
 
-    // Generate a unique ID for internal use (still needed for referencing)
-    const { rows: idRows } = await sql`
-      SELECT COALESCE(MAX(id) + 1, 1) as next_id 
-      FROM lr_entries 
-      WHERE transport_id = ${transportId}
-    `;
-    const lrId = Number(idRows[0]?.next_id || 1);
-
     const { rows } = await sql`
       INSERT INTO lr_entries (
-        id, lr_no, lr_date, transport_id, consignor_id, consignee_id, from_city, to_city, delivery_address,
+        lr_no, lr_date, transport_id, consignor_id, consignee_id, from_city, to_city, delivery_address,
         freight, hamali, lr_charge, advance, balance, invoice_no, invoice_date, truck_no,
         driver_name, driver_mobile, eway_no, remarks, return_status, return_remark, pod_received, goods_items, status, created_by
       )
       VALUES (
-        ${lrId},
         ${lrNo},
         NOW(),
         ${transportId},

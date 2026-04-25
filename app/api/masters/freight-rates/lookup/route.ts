@@ -1,9 +1,17 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { ensureSchema, sql } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { searchParams } = new URL(request.url);
     const consignorId = Number(searchParams.get('consignor_id') || 0);
     const cityName = String(searchParams.get('city_name') || '').trim();
@@ -16,7 +24,8 @@ export async function GET(request: Request) {
       const { rows } = await sql`
         SELECT city_name, rate_10kg, rate_20kg, rate_30kg, rate_40kg, rate_50kg, rate_above_50kg
         FROM freight_rates
-        WHERE consignor_id = ${consignorId}
+        WHERE transport_id = ${transportId}
+          AND consignor_id = ${consignorId}
           AND LOWER(city_name) = LOWER(${cityName})
         LIMIT 1
       `;
@@ -31,11 +40,11 @@ export async function GET(request: Request) {
       }, { status: 200 });
     }
 
-    // No city_name → return all rates for this consignor keyed by city
     const { rows: allRows } = await sql`
       SELECT city_name, rate_10kg, rate_20kg, rate_30kg, rate_40kg, rate_50kg, rate_above_50kg
       FROM freight_rates
-      WHERE consignor_id = ${consignorId}
+      WHERE transport_id = ${transportId}
+        AND consignor_id = ${consignorId}
         AND city_name <> ''
     `;
     const map: Record<string, { rate_10kg: number; rate_20kg: number; rate_30kg: number; rate_40kg: number; rate_50kg: number; rate_above_50kg: number }> = {};

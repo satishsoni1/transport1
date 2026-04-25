@@ -404,6 +404,8 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS gst_no TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS name_mr TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS city_mr TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
+  await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS name_mr TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT ''`;
@@ -435,6 +437,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS current_financial_year_id INTEGER`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata'`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
 
   await sql`
     INSERT INTO app_settings (
@@ -600,6 +603,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received_by_driver_id INTEGER`;
   await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS pod_received_by_driver_name TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS challans (
@@ -636,6 +640,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS hamali DOUBLE PRECISION NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS advance DOUBLE PRECISION NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (
@@ -658,6 +663,7 @@ export async function ensureSchema() {
   `;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS additional_charges JSONB NOT NULL DEFAULT '[]'::jsonb`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS receipts (
@@ -689,6 +695,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS receipt_type TEXT NOT NULL DEFAULT 'invoice'`;
   await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS financial_years (
@@ -721,6 +728,86 @@ export async function ensureSchema() {
       status TEXT NOT NULL DEFAULT 'draft',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `;
+
+  await sql`ALTER TABLE monthly_bills ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
+
+  // Per-tenant transport_id for operational master tables
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
+  await sql`ALTER TABLE banks ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
+  await sql`ALTER TABLE routes ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
+  await sql`ALTER TABLE freight_rates ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
+
+  // Per-transport LR sequence tracking
+  await sql`
+    CREATE TABLE IF NOT EXISTS transport_lr_sequences (
+      id INTEGER PRIMARY KEY,
+      next_lr_number INTEGER NOT NULL DEFAULT 1,
+      lr_prefix VARCHAR(20) NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  // Atomic function to get the next LR number for a given transport
+  await sql`
+    CREATE OR REPLACE FUNCTION get_next_lr_number_for_transport(p_transport_id INTEGER)
+    RETURNS VARCHAR AS $$
+    DECLARE
+      v_next_number INTEGER;
+      v_lr_prefix   VARCHAR(20);
+    BEGIN
+      UPDATE transport_lr_sequences
+      SET next_lr_number = next_lr_number + 1,
+          updated_at = NOW()
+      WHERE id = p_transport_id
+      RETURNING next_lr_number - 1, lr_prefix INTO v_next_number, v_lr_prefix;
+
+      IF v_next_number IS NULL THEN
+        INSERT INTO transport_lr_sequences (id, next_lr_number, lr_prefix, updated_at)
+        VALUES (p_transport_id, 2, '', NOW())
+        ON CONFLICT (id) DO UPDATE
+          SET next_lr_number = transport_lr_sequences.next_lr_number + 1,
+              updated_at = NOW()
+        RETURNING next_lr_number - 1, lr_prefix INTO v_next_number, v_lr_prefix;
+      END IF;
+
+      RETURN COALESCE(v_lr_prefix, '') || LPAD(v_next_number::VARCHAR, 5, '0');
+    END;
+    $$ LANGUAGE plpgsql
+  `;
+
+  // Per-transport document number sequences (invoices, receipts, challans, monthly bills)
+  await sql`
+    CREATE TABLE IF NOT EXISTS transport_doc_sequences (
+      transport_id INTEGER NOT NULL,
+      doc_type TEXT NOT NULL,
+      next_number BIGINT NOT NULL DEFAULT 1,
+      PRIMARY KEY (transport_id, doc_type)
+    )
+  `;
+
+  await sql`
+    CREATE OR REPLACE FUNCTION get_next_doc_number(p_transport_id INTEGER, p_doc_type TEXT)
+    RETURNS BIGINT AS $$
+    DECLARE v_next BIGINT;
+    BEGIN
+      INSERT INTO transport_doc_sequences (transport_id, doc_type, next_number)
+      VALUES (p_transport_id, p_doc_type, 2)
+      ON CONFLICT (transport_id, doc_type) DO UPDATE
+        SET next_number = transport_doc_sequences.next_number + 1
+      RETURNING next_number - 1 INTO v_next;
+      RETURN v_next;
+    END;
+    $$ LANGUAGE plpgsql
+  `;
+
+  // Unique index so each transport has exactly one settings row
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_app_settings_transport_id
+    ON app_settings(transport_id)
+    WHERE transport_id IS NOT NULL
   `;
 
   schemaReady = true;

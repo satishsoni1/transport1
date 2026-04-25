@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -8,11 +9,18 @@ function parseId(rawId: string) {
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -23,7 +31,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { rows: existingRows } = await sql`SELECT * FROM freight_rates WHERE id = ${id}`;
+    const { rows: existingRows } = await sql`SELECT * FROM freight_rates WHERE id = ${id} AND transport_id = ${transportId}`;
     if (existingRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Freight rate not found' },
@@ -50,7 +58,7 @@ export async function PUT(
         rate_per_kg = ${ratePerKg},
         min_rate = ${minRate},
         vehicle_type = ${body.vehicle_type ?? existing.vehicle_type}
-      WHERE id = ${id}
+      WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;
     return NextResponse.json(rows[0], { status: 200 });
@@ -64,11 +72,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -78,7 +93,7 @@ export async function DELETE(
       );
     }
 
-    const { rows } = await sql`DELETE FROM freight_rates WHERE id = ${id} RETURNING id`;
+    const { rows } = await sql`DELETE FROM freight_rates WHERE id = ${id} AND transport_id = ${transportId} RETURNING id`;
     if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Freight rate not found' },

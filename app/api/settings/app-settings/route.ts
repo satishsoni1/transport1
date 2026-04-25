@@ -14,16 +14,12 @@ const SETTING_COLUMN_MAP: Record<string, string> = {
 export async function GET() {
   try {
     await ensureSchema();
+    // Only return the global platform row (transport_id IS NULL).
+    // Per-transport branding is never exposed to unauthenticated callers.
     const { rows } = await sql`
-      SELECT
-        company_name,
-        company_tagline,
-        app_title,
-        support_email,
-        company_email,
-        company_phone
+      SELECT company_name, company_tagline, app_title, support_email, company_email, company_phone
       FROM app_settings
-      WHERE id = 1
+      WHERE transport_id IS NULL
       LIMIT 1
     `;
 
@@ -82,7 +78,7 @@ export async function POST(request: Request) {
         company_email = CASE WHEN ${column} = 'company_email' THEN ${nextValue} ELSE company_email END,
         company_phone = CASE WHEN ${column} = 'company_phone' THEN ${nextValue} ELSE company_phone END,
         updated_at = NOW()
-      WHERE id = 1
+      WHERE transport_id IS NULL
       RETURNING company_name, company_tagline, app_title, support_email, company_email, company_phone
     `;
 

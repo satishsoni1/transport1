@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema } from '@/lib/db';
 import { createHash } from 'crypto';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -9,11 +10,18 @@ function parseId(rawId: string) {
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -24,7 +32,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { rows: existingRows } = await sql`SELECT * FROM consignors WHERE id = ${id}`;
+    const { rows: existingRows } = await sql`SELECT * FROM consignors WHERE id = ${id} AND transport_id = ${transportId}`;
     if (existingRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Consignor not found' },
@@ -46,11 +54,10 @@ export async function PUT(
       const { rows: duplicateRows } = await sql`
         SELECT id
         FROM consignors
-        WHERE id <> ${id}
+        WHERE id <> ${id} AND transport_id = ${transportId}
           AND LOWER(username) = LOWER(${nextUsername})
         LIMIT 1
       `;
-
       if (duplicateRows.length > 0) {
         return NextResponse.json(
           { success: false, error: 'Consignor username already exists' },
@@ -87,7 +94,7 @@ export async function PUT(
         account_no = ${body.account_no ?? existing.account_no},
         default_payment_method = ${defaultPaymentMethod},
         status = ${body.status ?? existing.status}
-      WHERE id = ${id}
+      WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING id, name, name_mr, username, address, city, gst_no, lr_print_instructions, contact_person, mobile, bank_name, account_no, default_payment_method, status, created_at
     `;
     return NextResponse.json(rows[0], { status: 200 });
@@ -101,11 +108,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -115,7 +129,7 @@ export async function DELETE(
       );
     }
 
-    const { rows } = await sql`DELETE FROM consignors WHERE id = ${id} RETURNING id`;
+    const { rows } = await sql`DELETE FROM consignors WHERE id = ${id} AND transport_id = ${transportId} RETURNING id`;
     if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Consignor not found' },

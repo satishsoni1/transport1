@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql, ensureSchema, parseJsonField } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -11,11 +12,18 @@ function toResponseRow(row: any) {
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -26,7 +34,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { rows: existingRows } = await sql`SELECT * FROM monthly_bills WHERE id = ${id}`;
+    const { rows: existingRows } = await sql`SELECT * FROM monthly_bills WHERE id = ${id} AND transport_id = ${transportId}`;
     if (existingRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Monthly bill not found' },
@@ -53,7 +61,7 @@ export async function PUT(
         tds_amount = ${body.tds_amount === undefined ? existing.tds_amount : Number(body.tds_amount) || 0},
         net_amount = ${body.net_amount === undefined ? existing.net_amount : Number(body.net_amount) || 0},
         status = ${body.status ?? existing.status}
-      WHERE id = ${id}
+      WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;
     return NextResponse.json(toResponseRow(rows[0]), { status: 200 });
@@ -67,11 +75,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -81,7 +96,7 @@ export async function DELETE(
       );
     }
 
-    const { rows } = await sql`DELETE FROM monthly_bills WHERE id = ${id} RETURNING id`;
+    const { rows } = await sql`DELETE FROM monthly_bills WHERE id = ${id} AND transport_id = ${transportId} RETURNING id`;
     if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Monthly bill not found' },

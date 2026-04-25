@@ -1,16 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function toResponseRow(row: any) {
   return { ...row, lr_list: parseJsonField(row.lr_list, []) };
 }
 
 async function findConflictingChallanLr(
+  transportId: number,
   lrNos: string[],
   excludeId?: number
 ) {
-  const { rows } = await sql`SELECT id, challan_no, lr_list FROM challans`;
+  const { rows } = await sql`SELECT id, challan_no, lr_list FROM challans WHERE transport_id = ${transportId}`;
 
   for (const row of rows) {
     if (excludeId !== undefined && Number(row.id) === excludeId) continue;
@@ -27,23 +29,39 @@ async function findConflictingChallanLr(
   return null;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM challans ORDER BY id DESC`;
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
+    const { rows } = await sql`
+      SELECT * FROM challans WHERE transport_id = ${transportId} ORDER BY id DESC
+    `;
     return NextResponse.json(rows.map(toResponseRow), { status: 200 });
   } catch (error) {
     console.error('Error fetching challans', error);
     return NextResponse.json(
-      { success: false, error: 'Database error. Configure DATABASE_URL for Neon (or POSTGRES_URL).' },
+      { success: false, error: 'Database error. Configure DATABASE_URL.' },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const body = await request.json();
 
     if (!body.from_city || !body.to_city) {
@@ -64,7 +82,7 @@ export async function POST(request: Request) {
     const lrNos = lrList
       .map((item: any) => String(item?.lr_no || '').trim())
       .filter(Boolean);
-    const conflictingLr = await findConflictingChallanLr(lrNos);
+    const conflictingLr = await findConflictingChallanLr(transportId, lrNos);
     if (conflictingLr) {
       return NextResponse.json(
         {
@@ -92,18 +110,18 @@ export async function POST(request: Request) {
         ? shortReading * ratePerKm
         : Number(body.reading_total) || 0;
 
-    const seq = await sql`SELECT nextval(pg_get_serial_sequence('challans','id')) AS id`;
-    const id = Number(seq.rows[0].id);
-    const challanNo = `CH${String(id).padStart(5, '0')}`;
+    // Per-transport atomic challan number
+    const { rows: seqRows } = await sql`SELECT get_next_doc_number(${transportId}, 'challan') AS seq`;
+    const challanNo = `CH${String(Number(seqRows[0].seq)).padStart(5, '0')}`;
 
     const { rows } = await sql`
       INSERT INTO challans (
-        id, challan_no, challan_date, from_city, to_city, truck_no, driver_name, driver_mobile,
+        transport_id, challan_no, challan_date, from_city, to_city, truck_no, driver_name, driver_mobile,
         owner_name, eway_no, remarks, engine_reading, short_reading, rate_per_km, reading_total,
         hamali, advance, lr_list, total_freight, total_to_pay, total_paid, status, created_by
       )
       VALUES (
-        ${id},
+        ${transportId},
         ${challanNo},
         NOW(),
         ${body.from_city},

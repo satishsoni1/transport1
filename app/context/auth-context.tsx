@@ -31,7 +31,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   updateSession: (session: { token: string; user: User }) => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
   register: (email: string, password: string, firstName: string, lastName: string, role: string) => Promise<void>;
 }
@@ -104,13 +104,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('auth_user', JSON.stringify(nextUser));
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     const data = await apiClient.post<{ token: string; user: User }, { email: string; password: string }>(
       '/api/auth/login',
       { email, password }
     );
-
     updateSession(data);
+    return data.user;
   };
 
   const logout = () => {

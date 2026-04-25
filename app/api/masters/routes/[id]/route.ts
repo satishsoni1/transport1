@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { ensureSchema, sql } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -7,11 +8,18 @@ function parseId(rawId: string) {
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
@@ -19,7 +27,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { rows: existingRows } = await sql`SELECT * FROM routes WHERE id = ${id}`;
+    const { rows: existingRows } = await sql`SELECT * FROM routes WHERE id = ${id} AND transport_id = ${transportId}`;
     if (!existingRows.length) {
       return NextResponse.json({ success: false, error: 'Route not found' }, { status: 404 });
     }
@@ -43,7 +51,7 @@ export async function PUT(
         consignor_id = ${body.consignor_id === undefined || body.consignor_id === '' ? existing.consignor_id : Number(body.consignor_id)},
         consignee_id = ${body.consignee_id === undefined || body.consignee_id === '' ? existing.consignee_id : Number(body.consignee_id)},
         status = ${body.status ?? existing.status}
-      WHERE id = ${id}
+      WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;
     return NextResponse.json(rows[0], { status: 200 });
@@ -54,18 +62,25 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { id: rawId } = await context.params;
     const id = parseId(rawId);
     if (id === null) {
       return NextResponse.json({ success: false, error: 'Invalid route id' }, { status: 400 });
     }
 
-    const { rows } = await sql`DELETE FROM routes WHERE id = ${id} RETURNING id`;
+    const { rows } = await sql`DELETE FROM routes WHERE id = ${id} AND transport_id = ${transportId} RETURNING id`;
     if (!rows.length) {
       return NextResponse.json({ success: false, error: 'Route not found' }, { status: 404 });
     }

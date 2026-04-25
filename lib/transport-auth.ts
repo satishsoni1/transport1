@@ -42,9 +42,9 @@ export async function getAuthenticatedUser(
       role: user.role,
       platformRole: user.platformRole as 'super_admin' | 'transport_admin',
       transportId: user.transportId,
-      transportName: user.transportName,
-      transportSlug: user.transportSlug,
-      transportStatus: user.transportStatus,
+      transportName: user.transportName ?? undefined,
+      transportSlug: user.transportSlug ?? undefined,
+      transportStatus: user.transportStatus ?? undefined,
     };
   } catch (error) {
     return null;
@@ -52,8 +52,8 @@ export async function getAuthenticatedUser(
 }
 
 /**
- * Ensures user is authenticated and is a transport admin
- * Returns the transport ID or throws an error
+ * Ensures user is authenticated and is a transport admin.
+ * Returns the transport ID or throws an error.
  */
 export async function requireTransportAuth(request: NextRequest): Promise<number> {
   const user = await getAuthenticatedUser(request);
@@ -67,6 +67,27 @@ export async function requireTransportAuth(request: NextRequest): Promise<number
   }
 
   return user.transportId;
+}
+
+/**
+ * Returns { ok, transportId } or { ok: false, error, status }.
+ * status 401 = no valid token, 403 = authenticated but wrong role.
+ * 403 does NOT trigger the client-side auto-logout.
+ */
+export async function resolveTransportAuth(
+  request: NextRequest
+): Promise<{ ok: true; transportId: number } | { ok: false; error: string; status: 401 | 403 }> {
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    return { ok: false, error: 'Login required', status: 401 };
+  }
+
+  if (user.platformRole !== 'transport_admin' || !user.transportId) {
+    return { ok: false, error: 'Access denied: transport admin account required', status: 403 };
+  }
+
+  return { ok: true, transportId: user.transportId };
 }
 
 /**

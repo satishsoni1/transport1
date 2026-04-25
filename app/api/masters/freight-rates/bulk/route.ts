@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { ensureSchema, sql } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 interface RatePayload {
   city_name: string;
@@ -11,9 +12,16 @@ interface RatePayload {
   rate_above_50kg?: number;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const body = await request.json();
     const consignorId = Number(body.consignor_id);
     const routeId = Number(body.route_id);
@@ -38,9 +46,9 @@ export async function POST(request: Request) {
 
       await sql`
         INSERT INTO freight_rates
-          (consignor_id, route_id, city_name, rate_10kg, rate_20kg, rate_30kg, rate_40kg, rate_50kg, rate_above_50kg, from_city, to_city, rate_per_kg, min_rate)
+          (transport_id, consignor_id, route_id, city_name, rate_10kg, rate_20kg, rate_30kg, rate_40kg, rate_50kg, rate_above_50kg, from_city, to_city, rate_per_kg, min_rate)
         VALUES
-          (${consignorId}, ${routeId}, ${cityName}, ${r10}, ${r20}, ${r30}, ${r40}, ${r50}, ${rAbove}, ${cityName}, ${cityName}, 0, 0)
+          (${transportId}, ${consignorId}, ${routeId}, ${cityName}, ${r10}, ${r20}, ${r30}, ${r40}, ${r50}, ${rAbove}, ${cityName}, ${cityName}, 0, 0)
         ON CONFLICT ON CONSTRAINT freight_rates_consignor_route_city_key
         DO UPDATE SET
           rate_10kg = EXCLUDED.rate_10kg,
@@ -48,7 +56,8 @@ export async function POST(request: Request) {
           rate_30kg = EXCLUDED.rate_30kg,
           rate_40kg = EXCLUDED.rate_40kg,
           rate_50kg = EXCLUDED.rate_50kg,
-          rate_above_50kg = EXCLUDED.rate_above_50kg
+          rate_above_50kg = EXCLUDED.rate_above_50kg,
+          transport_id = EXCLUDED.transport_id
       `;
     }
 
@@ -62,9 +71,16 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { searchParams } = new URL(request.url);
     const consignorId = Number(searchParams.get('consignor_id') || 0);
     const routeId = Number(searchParams.get('route_id') || 0);
@@ -76,7 +92,7 @@ export async function GET(request: Request) {
     const { rows } = await sql`
       SELECT city_name, rate_10kg, rate_20kg, rate_30kg, rate_40kg, rate_50kg, rate_above_50kg
       FROM freight_rates
-      WHERE consignor_id = ${consignorId} AND route_id = ${routeId}
+      WHERE transport_id = ${transportId} AND consignor_id = ${consignorId} AND route_id = ${routeId}
     `;
     return NextResponse.json(rows, { status: 200 });
   } catch (error) {

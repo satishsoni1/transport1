@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function normalizeVehicleNo(value: unknown) {
   return String(value || '')
@@ -8,28 +9,38 @@ function normalizeVehicleNo(value: unknown) {
     .toUpperCase();
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM vehicles ORDER BY vehicle_no ASC`;
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
+    const { rows } = await sql`SELECT * FROM vehicles WHERE transport_id = ${transportId} ORDER BY vehicle_no ASC`;
     return NextResponse.json(rows, { status: 200 });
   } catch (error) {
     console.error('Error fetching vehicles', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Database error. Configure DATABASE_URL for Neon (or POSTGRES_URL).',
-      },
+      { success: false, error: 'Database error. Configure DATABASE_URL.' },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
-    const body = await request.json();
 
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
+    const body = await request.json();
     const vehicleNo = normalizeVehicleNo(body.vehicle_no);
     if (!vehicleNo) {
       return NextResponse.json(
@@ -39,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     const { rows: existingRows } = await sql`
-      SELECT id FROM vehicles WHERE LOWER(vehicle_no) = LOWER(${vehicleNo})
+      SELECT id FROM vehicles WHERE transport_id = ${transportId} AND LOWER(vehicle_no) = LOWER(${vehicleNo})
     `;
     if (existingRows.length > 0) {
       return NextResponse.json(
@@ -49,8 +60,9 @@ export async function POST(request: Request) {
     }
 
     const { rows } = await sql`
-      INSERT INTO vehicles (vehicle_no, owner_name, vehicle_type, status)
+      INSERT INTO vehicles (transport_id, vehicle_no, owner_name, vehicle_type, status)
       VALUES (
+        ${transportId},
         ${vehicleNo},
         ${String(body.owner_name || '').trim()},
         ${String(body.vehicle_type || '').trim()},

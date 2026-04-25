@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { ensureSchema, parseJsonField, sql } from '@/lib/db';
+import { resolveTransportAuth } from '@/lib/transport-auth';
 
 function normalizeDate(value?: string | null) {
   if (!value) return '';
@@ -7,9 +8,16 @@ function normalizeDate(value?: string | null) {
   return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString();
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
+
+    const auth = await resolveTransportAuth(request);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+    const { transportId } = auth;
+
     const { searchParams } = new URL(request.url);
     const lrNo = String(searchParams.get('lr_no') || '').trim();
 
@@ -23,7 +31,8 @@ export async function GET(request: Request) {
     const { rows: lrRows } = await sql`
       SELECT *
       FROM lr_entries
-      WHERE UPPER(BTRIM(lr_no)) = UPPER(BTRIM(${lrNo}))
+      WHERE transport_id = ${transportId}
+        AND UPPER(BTRIM(lr_no)) = UPPER(BTRIM(${lrNo}))
       LIMIT 1
     `;
 
@@ -40,12 +49,12 @@ export async function GET(request: Request) {
     };
 
     const [consignorRes, consigneeRes, challanRes, invoiceRes, receiptRows] = await Promise.all([
-      sql`SELECT * FROM consignors WHERE id = ${lr.consignor_id} LIMIT 1`,
-      sql`SELECT * FROM consignees WHERE id = ${lr.consignee_id} LIMIT 1`,
+      sql`SELECT * FROM consignors WHERE id = ${lr.consignor_id} AND transport_id = ${transportId} LIMIT 1`,
+      sql`SELECT * FROM consignees WHERE id = ${lr.consignee_id} AND transport_id = ${transportId} LIMIT 1`,
       sql`
         SELECT *
         FROM challans
-        WHERE EXISTS (
+        WHERE transport_id = ${transportId} AND EXISTS (
           SELECT 1
           FROM jsonb_array_elements(challans.lr_list) AS lr_item
           WHERE UPPER(BTRIM(COALESCE(lr_item->>'lr_no', ''))) = UPPER(BTRIM(${lr.lr_no}))
@@ -56,7 +65,7 @@ export async function GET(request: Request) {
       sql`
         SELECT *
         FROM invoices
-        WHERE EXISTS (
+        WHERE transport_id = ${transportId} AND EXISTS (
           SELECT 1
           FROM jsonb_array_elements(invoices.items) AS invoice_item
           WHERE UPPER(BTRIM(COALESCE(invoice_item->>'lr_no', ''))) = UPPER(BTRIM(${lr.lr_no}))
@@ -64,7 +73,7 @@ export async function GET(request: Request) {
         ORDER BY id DESC
         LIMIT 1
       `,
-      sql`SELECT * FROM receipts ORDER BY id DESC`,
+      sql`SELECT * FROM receipts WHERE transport_id = ${transportId} ORDER BY id DESC`,
     ]);
 
     const consignor = consignorRes.rows[0] || null;
@@ -120,16 +129,10 @@ export async function GET(request: Request) {
         consignor,
         consignee,
         challan: challan
-          ? {
-              ...challan,
-              challan_date: normalizeDate(challan.challan_date),
-            }
+          ? { ...challan, challan_date: normalizeDate(challan.challan_date) }
           : null,
         invoice: invoice
-          ? {
-              ...invoice,
-              invoice_date: normalizeDate(invoice.invoice_date),
-            }
+          ? { ...invoice, invoice_date: normalizeDate(invoice.invoice_date) }
           : null,
         receipt: matchedReceipt
           ? {
