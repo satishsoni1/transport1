@@ -263,12 +263,9 @@ export function generateLRPrintHTML(data: LRPrintData): string {
         min-height: calc(148mm - 10mm);
         height: auto;
         padding: 2mm;
-        width: calc(100% - 12mm);
-        margin: 0 auto;
-      }
-      .sheet.lr-sheet{
-        border:0px;
-        border-bottom: 1.4px dotted #222;
+        width: 100%;
+        margin: 0;
+        border: 0;
       }
       .lr-sheet .header {
         display: grid;
@@ -321,11 +318,20 @@ export function generateLRPrintHTML(data: LRPrintData): string {
       }
       .lr-sheet .party-section {
         display: grid;
-        grid-template-columns: 1fr 1fr 0.66fr;
+        grid-template-columns: 1fr 1fr 0.90fr;
         border-left: 1px solid #222;
         border-right: 1px solid #222;
       }
-      .lr-sheet .party-box,
+      .lr-sheet .party-box{
+        min-height: 80px;
+        border-bottom: 1px solid #222;
+        border-right: 1px solid #222;
+        padding: 3px 5px;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+      }
       .lr-sheet .lr-box {
         min-height: 80px;
         border-bottom: 1px solid #222;
@@ -1476,48 +1482,47 @@ export function printHTML(html: string): void {
         <body>
           <div class="lr-a4-copies">
             ${bodyInner}
+            <hr class="lr-divider" />
             ${bodyInner}
           </div>
         </body>
       `;
 
       outputHtml = html
-        .replace(/@page\s*\{[^}]*\}/, '@page { size: A4 portrait; margin: 4mm; }')
+        .replace(/@page\s*\{[^}]*\}/, '@page { size: A4 portrait; margin: 5mm; }')
         .replace(
           '</style>',
           `
           body {
             margin: 0;
+            padding: 0;
             background: #fff;
           }
           .lr-a4-copies {
             display: flex;
             flex-direction: column;
-            gap: 2mm;
-            padding: 2mm 0 1mm;
+            width: 100%;
+            box-sizing: border-box;
           }
-          .lr-a4-copies::before {
-            content: '';
-            order: 2;
-            display: block;
-            margin: 0 auto;
-            width: calc(100% - 14mm);
-            border-top: 1px solid #222;
+          .lr-a4-copies .lr-divider {
+            width: 100%;
+            border: 0;
+            border-top: 1.2px dashed #555;
+            margin: 1.5mm 0;
           }
-          .lr-a4-copies .sheet.lr-sheet:first-child { order: 1; }
-          .lr-a4-copies .sheet.lr-sheet:last-child { order: 3; }
           .lr-a4-copies .sheet.lr-sheet {
             box-sizing: border-box;
+            width: 100%;
             min-height: 0;
             height: auto;
-            max-height: none;
+            max-height: 135mm;
             overflow: hidden;
             break-inside: avoid;
             page-break-inside: avoid;
-            width: calc(100% - 14mm);
-            margin: 0 auto;
-            transform: scale(0.97);
-            transform-origin: top center;
+            margin: 0;
+            padding: 2mm;
+            border: 0;
+            border-bottom: none;
           }
           </style>`
         )
