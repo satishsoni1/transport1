@@ -102,7 +102,7 @@ export async function PUT(request: NextRequest) {
           ${body.timezone ?? existing.timezone ?? 'Asia/Kolkata'},
           NOW()
         )
-        ON CONFLICT (transport_id) DO UPDATE SET
+        ON CONFLICT (transport_id) WHERE transport_id IS NOT NULL DO UPDATE SET
           company_name = EXCLUDED.company_name,
           company_tagline = EXCLUDED.company_tagline,
           app_title = EXCLUDED.app_title,
