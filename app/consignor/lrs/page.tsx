@@ -5,6 +5,17 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { ChevronLeft, ChevronRight, Download, FileImage, Printer } from 'lucide-react';
 import { ConsignorShell } from '@/app/consignor/_components/consignor-shell';
 import {
   clearConsignorSession,
@@ -17,8 +28,19 @@ import {
   generateLRPrintHTML,
   printHTML,
   downloadPDF,
+  printImageDocument,
+  printPodImagesBatch,
   type CompanyPrintData,
 } from '@/app/services/print-service';
+
+interface GoodsItem {
+  qty: number;
+  type: string;
+  nature: string;
+  weight_kg: number;
+  rate: number;
+  amount: number;
+}
 
 interface ConsignorLR {
   id: number;
@@ -37,7 +59,7 @@ interface ConsignorLR {
   truck_no?: string;
   driver_name?: string;
   driver_mobile?: string;
-  goods_items?: unknown[];
+  goods_items?: GoodsItem[];
   remarks?: string;
   return_status?: 'normal' | 'returned';
   return_remark?: string;
@@ -70,45 +92,64 @@ interface ConsignorLR {
   challan_driver_mobile?: string;
 }
 
+const freightTypeOptions = [
+  { value: 'to_pay', label: 'To Pay' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'tbb', label: 'TBB' },
+];
+
+const selectClass =
+  'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
+
 export default function ConsignorLrsPage() {
   const router = useRouter();
   const [consignor, setConsignor] = useState<ConsignorSessionUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [city, setCity] = useState('');
-  const [status, setStatus] = useState('');
-  const [pod, setPod] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [lrs, setLrs] = useState<ConsignorLR[]>([]);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [sessionVerified, setSessionVerified] = useState(false);
   const settingsRef = useRef<CompanyPrintData | null>(null);
+
+  const [lrs, setLrs] = useState<ConsignorLR[]>([]);
+
+  // Server-side filter state
+  const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
+  // Client-side filter state
+  const [filterLrStatus, setFilterLrStatus] = useState('');
+  const [filterConsignee, setFilterConsignee] = useState('');
+
+  // Batch selection
+  const [lrPrintSelection, setLrPrintSelection] = useState<Set<number>>(new Set());
+  const [podPrintSelection, setPodPrintSelection] = useState<Set<number>>(new Set());
+
+  // Scroll sync
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const [tableWidth, setTableWidth] = useState<number>(0);
 
   const loadLrs = useCallback(async () => {
     const params = new URLSearchParams();
     if (search.trim()) params.set('search', search.trim());
-    if (city.trim()) params.set('city', city.trim());
-    if (status) params.set('status', status);
-    if (pod) params.set('pod', pod);
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
-
+    if (filterStatus) params.set('status', filterStatus);
     const data = await consignorFetch<ConsignorLR[]>(
       `/api/consignor/lrs${params.toString() ? `?${params.toString()}` : ''}`
     );
     setLrs(data);
-  }, [search, city, status, pod, dateFrom, dateTo]);
+    setLrPrintSelection(new Set());
+    setPodPrintSelection(new Set());
+  }, [search, dateFrom, dateTo, filterStatus]);
 
   useEffect(() => {
     if (!getConsignorToken()) {
       router.replace('/consignor/login');
       return;
     }
-
     const saved = getConsignorUser();
     if (saved) setConsignor(saved);
-
     let cancelled = false;
     const init = async () => {
       try {
@@ -128,7 +169,6 @@ export default function ConsignorLrsPage() {
         if (!cancelled) setLoading(false);
       }
     };
-
     void init();
     return () => { cancelled = true; };
   }, [router]);
@@ -138,7 +178,94 @@ export default function ConsignorLrsPage() {
     void loadLrs();
   }, [loading, sessionVerified, loadLrs]);
 
-  const pendingCount = useMemo(() => lrs.filter((item) => !item.pod_received).length, [lrs]);
+  // Scroll sync
+  useEffect(() => {
+    const tableContainer = tableScrollRef.current;
+    if (!tableContainer) return;
+    const updateWidth = () => setTableWidth(tableContainer.scrollWidth);
+    updateWidth();
+    const tableEl = tableContainer.querySelector('table');
+    if (!tableEl) return;
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(tableEl);
+    return () => observer.disconnect();
+  }, [lrs]);
+
+  const handleTopScroll = useCallback(() => {
+    if (tableScrollRef.current && topScrollRef.current) {
+      tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  }, []);
+
+  const handleTableScroll = useCallback(() => {
+    if (topScrollRef.current && tableScrollRef.current) {
+      topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+    }
+  }, []);
+
+  const scrollTable = useCallback((dir: 'left' | 'right') => {
+    tableScrollRef.current?.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
+  }, []);
+
+  const uniqueConsignees = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const lr of lrs) {
+      if (lr.consignee_name && !seen.has(lr.consignee_name)) {
+        seen.add(lr.consignee_name);
+        result.push(lr.consignee_name);
+      }
+    }
+    return result.sort();
+  }, [lrs]);
+
+  const filteredLrs = useMemo(() => {
+    return lrs.filter((lr) => {
+      if (filterConsignee && lr.consignee_name !== filterConsignee) return false;
+      if (filterLrStatus) {
+        const hasChallan = lr.challan_no && lr.challan_no !== '-';
+        const delivered = lr.pod_received;
+        if (filterLrStatus === 'godown' && (hasChallan || delivered)) return false;
+        if (filterLrStatus === 'transit' && (!hasChallan || delivered)) return false;
+        if (filterLrStatus === 'pending' && delivered) return false;
+        if (filterLrStatus === 'received' && !delivered) return false;
+      }
+      return true;
+    });
+  }, [lrs, filterConsignee, filterLrStatus]);
+
+  const listPrintablePodRows = useMemo(
+    () => filteredLrs.filter((e) => e.pod_image_url?.trim()),
+    [filteredLrs]
+  );
+
+  const pendingCount = useMemo(() => lrs.filter((lr) => !lr.pod_received).length, [lrs]);
+
+  const toggleLrSelect = useCallback((id: number, checked: boolean) => {
+    setLrPrintSelection((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const togglePodSelect = useCallback((id: number, checked: boolean) => {
+    setPodPrintSelection((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const selectAllLrs = useCallback((checked: boolean) => {
+    if (checked) setLrPrintSelection(new Set(filteredLrs.map((e) => e.id)));
+    else setLrPrintSelection(new Set());
+  }, [filteredLrs]);
+
+  const selectAllPods = useCallback((checked: boolean) => {
+    if (checked) setPodPrintSelection(new Set(listPrintablePodRows.map((e) => e.id)));
+    else setPodPrintSelection(new Set());
+  }, [listPrintablePodRows]);
 
   const buildPrintPayload = useCallback((lr: ConsignorLR) => {
     const settings = settingsRef.current;
@@ -184,19 +311,42 @@ export default function ConsignorLrsPage() {
     };
   }, []);
 
-  const handlePrint = useCallback((lr: ConsignorLR, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handlePrint = useCallback((lr: ConsignorLR) => {
     const html = generateLRPrintHTML(buildPrintPayload(lr));
     printHTML(html);
   }, [buildPrintPayload]);
 
-  const handleDownload = useCallback(async (lr: ConsignorLR, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDownload = useCallback(async (lr: ConsignorLR) => {
     const html = generateLRPrintHTML(buildPrintPayload(lr));
     await downloadPDF(html, `LR-${lr.lr_no}`);
   }, [buildPrintPayload]);
 
-  const fmt = (v?: string) => {
+  const printSelectedLrs = useCallback(() => {
+    const selected = filteredLrs.filter((e) => lrPrintSelection.has(e.id));
+    for (const lr of selected) {
+      printHTML(generateLRPrintHTML(buildPrintPayload(lr)));
+    }
+  }, [filteredLrs, lrPrintSelection, buildPrintPayload]);
+
+  const printSelectedPods = useCallback(() => {
+    const items = filteredLrs
+      .filter((e) => podPrintSelection.has(e.id) && e.pod_image_url?.trim())
+      .map((e) => ({ title: `POD ${e.lr_no}`, imageUrl: e.pod_image_url! }));
+    if (items.length === 0) return;
+    if (items.length === 1) printImageDocument(items[0].title, items[0].imageUrl);
+    else printPodImagesBatch(items);
+  }, [filteredLrs, podPrintSelection]);
+
+  const clearFilters = useCallback(() => {
+    setSearch('');
+    setDateFrom('');
+    setDateTo('');
+    setFilterStatus('');
+    setFilterLrStatus('');
+    setFilterConsignee('');
+  }, []);
+
+  const fmt = (v?: string | null) => {
     if (!v) return '-';
     const d = new Date(v);
     return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString('en-IN');
@@ -234,143 +384,323 @@ export default function ConsignorLrsPage() {
       </div>
 
       {/* Filters */}
-      <Card className="gap-3 py-4 shadow-lg">
-        <CardHeader className="space-y-1 pb-0">
-          <CardTitle className="text-xl font-black tracking-tight">Filters</CardTitle>
-          <CardDescription className="text-sm">Search by LR, invoice, city, POD status, or date range.</CardDescription>
+      <Card className="py-4 shadow-sm">
+        <CardHeader className="space-y-1 pb-2">
+          <CardTitle className="text-lg">List filters</CardTitle>
+          <CardDescription>
+            Filter by date range, consignee, payment type, LR status, or free-text search.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-3">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search LR / Invoice / Consignee" className="h-11 rounded-xl bg-white" />
-            <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Filter by city" className="h-11 rounded-xl bg-white" />
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-11 rounded-xl border border-input bg-white px-3 text-sm">
-              <option value="">All Status</option>
-              <option value="to_pay">To Pay</option>
-              <option value="paid">Paid</option>
-              <option value="tbb">TBB</option>
-            </select>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="lr-search">Search</Label>
+              <Input
+                id="lr-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="LR no, invoice, consignee…"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lr-from">From date</Label>
+              <Input
+                id="lr-from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lr-to">To date</Label>
+              <Input
+                id="lr-to"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lr-lrstatus">LR Status</Label>
+              <select
+                id="lr-lrstatus"
+                value={filterLrStatus}
+                onChange={(e) => setFilterLrStatus(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">All LR Status</option>
+                <option value="godown">In Godown</option>
+                <option value="transit">In Transit</option>
+                <option value="pending">POD Pending</option>
+                <option value="received">Delivered (POD received)</option>
+              </select>
+            </div>
           </div>
-          <div className="grid gap-3 md:grid-cols-4">
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-11 rounded-xl bg-white" />
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-11 rounded-xl bg-white" />
-            <select value={pod} onChange={(e) => setPod(e.target.value)} className="h-11 rounded-xl border border-input bg-white px-3 text-sm">
-              <option value="">All POD</option>
-              <option value="pending">POD Pending</option>
-              <option value="received">POD Received</option>
-            </select>
-            <Button type="button" className="h-11 rounded-xl" onClick={() => void loadLrs()}>Apply Filters</Button>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="lr-consignee">Consignee</Label>
+              <select
+                id="lr-consignee"
+                value={filterConsignee}
+                onChange={(e) => setFilterConsignee(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">All consignees</option>
+                {uniqueConsignees.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lr-status">Payment Type</Label>
+              <select
+                id="lr-status"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">All payment types</option>
+                <option value="to_pay">To Pay</option>
+                <option value="paid">Paid</option>
+                <option value="tbb">TBB</option>
+              </select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>&nbsp;</Label>
+              <div className="flex gap-2">
+                <Button type="button" className="flex-1" onClick={() => void loadLrs()}>
+                  Apply
+                </Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* LR Table */}
-      <Card className="gap-3 py-4 shadow-md">
-        <CardHeader className="pb-0">
-          <CardTitle className="text-xl font-black">LR Records</CardTitle>
-          <CardDescription>Click any row to expand full details and print options.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-[480px] w-full text-sm">
-              <thead className="bg-slate-100">
-                <tr>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap">LR No</th>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap hidden sm:table-cell">Date</th>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600">Consignee</th>
-                  <th className="border-b px-3 py-2 text-left font-semibold text-slate-600 hidden md:table-cell">Route</th>
-                  <th className="border-b px-3 py-2 text-right font-semibold text-slate-600">Freight</th>
-                  <th className="border-b px-3 py-2 text-center font-semibold text-slate-600">POD</th>
-                  <th className="border-b px-3 py-2 text-center font-semibold text-slate-600 hidden sm:table-cell">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lrs.length === 0 ? (
-                  <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">No LR records found.</td></tr>
-                ) : lrs.map((lr) => (
-                  <>
-                    <tr
-                      key={lr.id}
-                      className="cursor-pointer border-b hover:bg-blue-50/40 transition-colors"
-                      onClick={() => setExpandedId(expandedId === lr.id ? null : lr.id)}
-                    >
-                      <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-900">{lr.lr_no}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-slate-600 hidden sm:table-cell">{fmt(lr.lr_date)}</td>
-                      <td className="px-3 py-2 text-slate-700">{lr.consignee_name || '-'}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-slate-600 hidden md:table-cell">{lr.from_city || '-'} → {lr.to_city || '-'}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-slate-800">{Number(lr.freight || 0).toFixed(2)}</td>
-                      <td className="px-3 py-2 text-center">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${lr.pod_received ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                          {lr.pod_received ? 'Rcvd' : 'Pend'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-center hidden sm:table-cell">
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{lr.status || '-'}</span>
-                      </td>
-                    </tr>
-                    {expandedId === lr.id && (
-                      <tr key={`${lr.id}-detail`} className="bg-slate-50">
-                        <td colSpan={7} className="px-4 py-3">
-                          <div className="space-y-3">
-                            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 text-sm">
-                              <div><span className="font-semibold text-slate-600">Invoice No:</span> {lr.invoice_no || '-'}</div>
-                              <div><span className="font-semibold text-slate-600">Challan No:</span> {lr.challan_no || '-'}</div>
-                              <div><span className="font-semibold text-slate-600">Challan Date:</span> {fmt(lr.challan_date || undefined)}</div>
-                              <div><span className="font-semibold text-slate-600">Vehicle:</span> {lr.vehicle_no || '-'}</div>
-                              <div><span className="font-semibold text-slate-600">Driver:</span> {lr.challan_driver_name || '-'}</div>
-                              <div><span className="font-semibold text-slate-600">Driver Mobile:</span> {lr.challan_driver_mobile || '-'}</div>
-                              <div><span className="font-semibold text-slate-600">Delivery Address:</span> {lr.delivery_address || '-'}</div>
-                              <div><span className="font-semibold text-slate-600">Balance:</span> {Number(lr.balance || 0).toFixed(2)}</div>
-                              <div><span className="font-semibold text-slate-600">Return Status:</span> {lr.return_status || '-'}</div>
-                              {lr.return_remark && <div className="sm:col-span-2"><span className="font-semibold text-slate-600">Return Remark:</span> {lr.return_remark}</div>}
-                              {lr.remarks && <div className="sm:col-span-2"><span className="font-semibold text-slate-600">Remarks:</span> {lr.remarks}</div>}
-                              {lr.pod_received && (
-                                <>
-                                  <div><span className="font-semibold text-slate-600">POD Date:</span> {lr.pod_received_at ? new Date(lr.pod_received_at).toLocaleString('en-IN') : '-'}</div>
-                                  <div><span className="font-semibold text-slate-600">Received By:</span> {lr.pod_received_by_driver_name || '-'}</div>
-                                </>
-                              )}
-                              {lr.pod_image_url && (
-                                <div className="sm:col-span-3">
-                                  <a href={lr.pod_image_url} target="_blank" rel="noreferrer" className="inline-block overflow-hidden rounded-lg border">
-                                    <img src={lr.pod_image_url} alt={`POD ${lr.lr_no}`} className="h-32 object-cover" />
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-                            {/* Print / Download buttons */}
-                            <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-200">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="gap-1.5"
-                                onClick={(e) => handlePrint(lr, e)}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                                Print LR
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="gap-1.5"
-                                onClick={(e) => void handleDownload(lr, e)}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                Download PDF
-                              </Button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                ))}
-              </tbody>
-            </table>
+      {/* Batch print bar */}
+      {filteredLrs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="lr-select-all"
+              checked={filteredLrs.length > 0 && filteredLrs.every((r) => lrPrintSelection.has(r.id))}
+              onCheckedChange={(v) => selectAllLrs(v === true)}
+            />
+            <Label htmlFor="lr-select-all" className="cursor-pointer text-sm font-medium">
+              Select LRs ({filteredLrs.length})
+            </Label>
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={lrPrintSelection.size === 0}
+            onClick={printSelectedLrs}
+          >
+            Print selected LRs ({lrPrintSelection.size})
+          </Button>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="pod-select-all"
+              checked={
+                listPrintablePodRows.length > 0 &&
+                listPrintablePodRows.every((r) => podPrintSelection.has(r.id))
+              }
+              onCheckedChange={(v) => selectAllPods(v === true)}
+            />
+            <Label htmlFor="pod-select-all" className="cursor-pointer text-sm font-medium">
+              Select PODs ({listPrintablePodRows.length} with image)
+            </Label>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={podPrintSelection.size === 0}
+            onClick={printSelectedPods}
+          >
+            Print selected PODs ({podPrintSelection.size})
+          </Button>
+        </div>
+      )}
+
+      {/* Scroll buttons */}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => scrollTable('left')}>
+          <ChevronLeft className="mr-1 h-4 w-4" /> Left
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => scrollTable('right')}>
+          Right <ChevronRight className="ml-1 h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Dummy top scrollbar */}
+      <div
+        ref={topScrollRef}
+        className="overflow-x-auto rounded-t-lg border-x border-t bg-white [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-track]:bg-slate-100"
+        style={{ scrollbarWidth: 'auto', scrollbarColor: '#94a3b8 #f1f5f9' }}
+        onScroll={handleTopScroll}
+      >
+        <div style={{ width: `${tableWidth}px` }} className="h-[1px] pt-[1px]" />
+      </div>
+
+      {/* LR Table */}
+      <div
+        ref={tableScrollRef}
+        className="overflow-x-auto rounded-b-lg border bg-white [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-track]:bg-slate-100 [&>div]:overflow-visible"
+        style={{ scrollbarWidth: 'auto', scrollbarColor: '#94a3b8 #f1f5f9' }}
+        onScroll={handleTableScroll}
+      >
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10 pr-0">POD</TableHead>
+              <TableHead className="w-10 pr-0">Print</TableHead>
+              <TableHead>L.R. No</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Consignee</TableHead>
+              <TableHead>Ch. No</TableHead>
+              <TableHead>Ch. Date</TableHead>
+              <TableHead>Vehicle</TableHead>
+              <TableHead>Driver</TableHead>
+              <TableHead>Driver Mob</TableHead>
+              <TableHead>Qty</TableHead>
+              <TableHead>Freight</TableHead>
+              <TableHead>Payment</TableHead>
+              <TableHead>LR Status</TableHead>
+              <TableHead>Remark</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredLrs.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={16} className="py-4 text-center text-slate-500">
+                  No L.R. entries found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredLrs.map((lr) => {
+                const hasChallan = lr.challan_no && lr.challan_no !== '-';
+                const lrOpStatus = lr.pod_received
+                  ? 'Delivered'
+                  : hasChallan
+                    ? 'In Transit'
+                    : 'In Godown';
+                const totalQty = (lr.goods_items || []).reduce(
+                  (sum, item) => sum + (Number(item.qty) || 0),
+                  0
+                );
+                const consigneeName = lr.consignee_name || '-';
+
+                return (
+                  <TableRow key={lr.id}>
+                    <TableCell className="pr-0">
+                      {lr.pod_image_url ? (
+                        <Checkbox
+                          checked={podPrintSelection.has(lr.id)}
+                          onCheckedChange={(v) => togglePodSelect(lr.id, v === true)}
+                          aria-label={`Select POD ${lr.lr_no}`}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="pr-0">
+                      <Checkbox
+                        checked={lrPrintSelection.has(lr.id)}
+                        onCheckedChange={(v) => toggleLrSelect(lr.id, v === true)}
+                        aria-label={`Select LR ${lr.lr_no}`}
+                      />
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap font-medium">{lr.lr_no}</TableCell>
+                    <TableCell className="whitespace-nowrap">{fmt(lr.lr_date)}</TableCell>
+                    <TableCell title={consigneeName}>
+                      {consigneeName.length > 15 ? `${consigneeName.slice(0, 15)}…` : consigneeName}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{lr.challan_no || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{fmt(lr.challan_date)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{lr.vehicle_no || '-'}</TableCell>
+                    <TableCell>{lr.challan_driver_name || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{lr.challan_driver_mobile || '-'}</TableCell>
+                    <TableCell>{totalQty}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      ₹{Number(lr.freight || 0).toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      {freightTypeOptions.find((o) => o.value === lr.status)?.label || lr.status || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`text-xs font-semibold ${
+                          lrOpStatus === 'Delivered'
+                            ? 'text-emerald-600'
+                            : lrOpStatus === 'In Transit'
+                              ? 'text-blue-600'
+                              : 'text-amber-600'
+                        }`}
+                      >
+                        {lrOpStatus}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {lr.return_status === 'returned' ? (
+                        <div className="text-xs font-semibold text-red-600">
+                          Returned: {lr.return_remark || '-'}
+                        </div>
+                      ) : lr.remarks ? (
+                        <div className="text-xs font-semibold text-red-600">{lr.remarks}</div>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1" style={{ width: '130px' }}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1"
+                          onClick={() => handlePrint(lr)}
+                          title="Print LR"
+                        >
+                          <Printer className="h-4 w-4" />
+                          <span className="text-xs">Print</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void handleDownload(lr)}
+                          title="Download PDF"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={!lr.pod_received || !lr.pod_image_url}
+                          onClick={() =>
+                            printImageDocument(`POD ${lr.lr_no}`, lr.pod_image_url || '')
+                          }
+                          title={
+                            lr.pod_received && lr.pod_image_url
+                              ? 'Print POD image'
+                              : 'POD image not available'
+                          }
+                        >
+                          <FileImage className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </ConsignorShell>
   );
 }
