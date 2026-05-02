@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     const likeSearch = `%${search}%`;
 
     const { rows } = await sql`
-      SELECT lr_entries.*
+      SELECT lr_entries.*, consignees.name AS consignee_name
       FROM lr_entries
       LEFT JOIN consignors ON consignors.id = lr_entries.consignor_id
       LEFT JOIN consignees ON consignees.id = lr_entries.consignee_id

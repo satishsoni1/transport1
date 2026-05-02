@@ -54,6 +54,7 @@ interface LREntryApi {
   lr_no: string;
   lr_date: string;
   consignor_id: number;
+  consignee_name?: string;
   to_city?: string;
   invoice_no?: string;
   freight: number;
@@ -287,7 +288,9 @@ export default function InvoicePage() {
       0
     );
     const firstDescription =
-      entry.goods_items.find((item) => item.description)?.description || 'Goods from LR';
+      entry.consignee_name ||
+      entry.goods_items.find((item) => item.description)?.description ||
+      'Goods from LR';
     const lrFreight = Number(entry.freight) || 0;
 
     // Try rate master: pick rate band based on total weight if available
@@ -946,6 +949,7 @@ export default function InvoicePage() {
                           <TableCell>₹{item.amount.toFixed(2)}</TableCell>
                           <TableCell>
                             <Button
+                              type="button"
                               size="sm"
                               variant="ghost"
                               onClick={() => removeInvoiceItem(idx)}
@@ -1006,6 +1010,7 @@ export default function InvoicePage() {
                 <Input
                   placeholder="Charge Name"
                   value={currentCharge.charge_name}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAdditionalCharge(); } }}
                   onChange={(e) =>
                     setCurrentCharge((prev) => ({ ...prev, charge_name: e.target.value }))
                   }
@@ -1013,6 +1018,7 @@ export default function InvoicePage() {
                 <Input
                   placeholder="Remark"
                   value={currentCharge.remark}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAdditionalCharge(); } }}
                   onChange={(e) =>
                     setCurrentCharge((prev) => ({ ...prev, remark: e.target.value }))
                   }
@@ -1021,6 +1027,7 @@ export default function InvoicePage() {
                   placeholder="Amount"
                   type="number"
                   value={currentCharge.amount}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAdditionalCharge(); } }}
                   onChange={(e) =>
                     setCurrentCharge((prev) => ({
                       ...prev,
@@ -1051,6 +1058,7 @@ export default function InvoicePage() {
                         <TableCell>₹{charge.amount.toFixed(2)}</TableCell>
                         <TableCell>
                           <Button
+                            type="button"
                             size="sm"
                             variant="ghost"
                             onClick={() => removeAdditionalCharge(idx)}

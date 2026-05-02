@@ -1357,8 +1357,8 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
           <div class="meta-item"><span class="label">Driver</span><span>:</span><span>${escapeHtml(data.driver_name || '-')}</span></div>
           <div class="meta-item"><span class="label">CH.No.</span><span>:</span><span>${escapeHtml(data.challan_no || '-')}</span></div>
           <div class="meta-item"><span class="label">Owner</span><span>:</span><span>${escapeHtml(data.owner_name || '-')}</span></div>
-          <div class="meta-item"><span class="label">From</span><span>:</span><span>${escapeHtml(data.from_city || '-')}</span></div>
           <div class="meta-item"><span class="label">Mob No.</span><span>:</span><span>${escapeHtml(data.driver_mobile || '-')}</span></div>
+          <div class="meta-item"><span class="label">From</span><span>:</span><span>${escapeHtml(data.from_city || '-')}</span></div>
           <div class="meta-item"><span class="label">MV.No.</span><span>:</span><span>${escapeHtml(data.truck_no || '-')}</span></div>
           <div class="meta-item"><span class="label">To</span><span>:</span><span>${escapeHtml(data.to_city || '-')}</span></div>
           <div class="meta-item"><span class="label">Date</span><span>:</span><span>${escapeHtml(new Date(data.challan_date).toLocaleDateString('en-IN'))}</span></div>
@@ -1473,6 +1473,20 @@ export function exportToCSV(data: any[], filename: string): void {
 
 export function printHTML(html: string, copies: 1 | 2 = 2): void {
   let outputHtml = html;
+
+  if (copies === 1 && html.includes('<title>LR ') && html.includes('sheet lr-sheet')) {
+    // Single copy: switch to A4 and let the sheet fill the page naturally so it
+    // doesn't overflow onto a second page the way A5 sizing can on some printers.
+    outputHtml = html
+      .replace(/@page\s*\{[^}]*\}/, '@page { size: A4 portrait; margin: 8mm; }')
+      .replace('</style>', `
+          .sheet.lr-sheet {
+            min-height: 0 !important;
+            height: auto;
+            max-height: none !important;
+          }
+          </style>`);
+  }
 
   if (copies >= 2 && html.includes('<title>LR ') && html.includes('sheet lr-sheet')) {
     const bodyMatch = html.match(/<body>([\s\S]*)<\/body>/i);

@@ -130,7 +130,11 @@ export default function ConsignorLedgerPage() {
       for (const item of receipt.items || []) {
         const invNo = String(item.invoice_no || '').trim();
         if (!invNo) continue;
-        map.set(invNo, (map.get(invNo) || 0) + (Number(item.amount_received) || 0));
+        const effective =
+          (Number(item.amount_received) || 0) +
+          (Number(item.tds_amount) || 0) +
+          (Number(item.deduction_amount) || 0);
+        map.set(invNo, (map.get(invNo) || 0) + effective);
       }
     }
     return map;
@@ -146,7 +150,11 @@ export default function ConsignorLedgerPage() {
   );
 
   const totalInvoiced = useMemo(() => invoiceLedger.reduce((s, i) => s + i.net_amount, 0), [invoiceLedger]);
-  const totalReceived = useMemo(() => filteredReceipts.reduce((s, r) => s + (Number(r.received_amount ?? r.total_amount) || 0), 0), [filteredReceipts]);
+  const totalReceived = useMemo(() => filteredReceipts.reduce((s, r) =>
+    s + (Number(r.received_amount ?? r.total_amount) || 0)
+      + (Number(r.tds_amount) || 0)
+      + (Number(r.deduction_amount) || 0),
+    0), [filteredReceipts]);
   const totalBalance = totalInvoiced - totalReceived;
   const totalLRFreight = useMemo(() => filteredLRs.reduce((s, lr) => s + (Number(lr.freight) || 0), 0), [filteredLRs]);
 

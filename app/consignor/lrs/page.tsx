@@ -155,7 +155,7 @@ export default function ConsignorLrsPage() {
       try {
         const [verify, appSettings] = await Promise.all([
           consignorFetch<{ consignor: ConsignorSessionUser }>('/api/consignor-auth/verify'),
-          fetch('/api/admin/settings').then((r) => r.ok ? r.json() : null).catch(() => null),
+          consignorFetch('/api/consignor/settings').catch(() => null),
         ]);
         if (cancelled) return;
         setConsignor(verify.consignor);
@@ -323,9 +323,12 @@ export default function ConsignorLrsPage() {
 
   const printSelectedLrs = useCallback(() => {
     const selected = filteredLrs.filter((e) => lrPrintSelection.has(e.id));
-    for (const lr of selected) {
-      printHTML(generateLRPrintHTML(buildPrintPayload(lr)));
-    }
+    selected.forEach((lr, index) => {
+      window.setTimeout(
+        () => printHTML(generateLRPrintHTML(buildPrintPayload(lr))),
+        index * 500
+      );
+    });
   }, [filteredLrs, lrPrintSelection, buildPrintPayload]);
 
   const printSelectedPods = useCallback(() => {
