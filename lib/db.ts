@@ -321,11 +321,17 @@ export async function ensureSchema() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
-  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_transport_id_fkey`;
   await sql`
-    ALTER TABLE users
-    ADD CONSTRAINT users_transport_id_fkey
-    FOREIGN KEY (transport_id) REFERENCES transports(id) ON DELETE SET NULL
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'users_transport_id_fkey'
+      ) THEN
+        ALTER TABLE users
+          ADD CONSTRAINT users_transport_id_fkey
+          FOREIGN KEY (transport_id) REFERENCES transports(id) ON DELETE SET NULL;
+      END IF;
+    END $$
   `;
 
   await sql`
@@ -438,6 +444,7 @@ export async function ensureSchema() {
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata'`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS transport_id INTEGER`;
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS lr_copies TEXT NOT NULL DEFAULT 'double'`;
 
   await sql`
     INSERT INTO app_settings (
@@ -750,28 +757,40 @@ export async function ensureSchema() {
     )
   `;
 
-  // Atomic function to get the next LR number for a given transport
+  // Atomic function to get the next LR number for a given transport.
+  // Always syncs the sequence to be ahead of the highest existing lr_no so that
+  // out-of-sync sequences (e.g. after manual inserts or sequence resets) never
+  // produce a duplicate key error.
   await sql`
     CREATE OR REPLACE FUNCTION get_next_lr_number_for_transport(p_transport_id INTEGER)
     RETURNS VARCHAR AS $$
     DECLARE
-      v_next_number INTEGER;
-      v_lr_prefix   VARCHAR(20);
+      v_next_number  INTEGER;
+      v_lr_prefix    VARCHAR(20);
+      v_max_existing INTEGER;
     BEGIN
+      -- lr_no has a GLOBAL unique constraint, so check the max across all rows
+      -- (legacy rows may have transport_id = NULL and must still be counted).
+      SELECT COALESCE(
+        MAX(NULLIF(regexp_replace(lr_no, '[^0-9]', '', 'g'), '')::INTEGER),
+        0
+      )
+      INTO v_max_existing
+      FROM lr_entries;
+
+      -- Ensure the sequence row exists (insert only if missing)
+      INSERT INTO transport_lr_sequences (id, next_lr_number, lr_prefix, updated_at)
+      VALUES (p_transport_id, v_max_existing + 1, '', NOW())
+      ON CONFLICT (id) DO NOTHING;
+
+      -- Atomically advance to GREATEST(current, max_existing + 1), then increment.
+      -- Row-level locking means concurrent calls serialize here, so no two callers
+      -- can receive the same number even under load.
       UPDATE transport_lr_sequences
-      SET next_lr_number = next_lr_number + 1,
+      SET next_lr_number = GREATEST(next_lr_number, v_max_existing + 1) + 1,
           updated_at = NOW()
       WHERE id = p_transport_id
       RETURNING next_lr_number - 1, lr_prefix INTO v_next_number, v_lr_prefix;
-
-      IF v_next_number IS NULL THEN
-        INSERT INTO transport_lr_sequences (id, next_lr_number, lr_prefix, updated_at)
-        VALUES (p_transport_id, 2, '', NOW())
-        ON CONFLICT (id) DO UPDATE
-          SET next_lr_number = transport_lr_sequences.next_lr_number + 1,
-              updated_at = NOW()
-        RETURNING next_lr_number - 1, lr_prefix INTO v_next_number, v_lr_prefix;
-      END IF;
 
       RETURN COALESCE(v_lr_prefix, '') || LPAD(v_next_number::VARCHAR, 5, '0');
     END;

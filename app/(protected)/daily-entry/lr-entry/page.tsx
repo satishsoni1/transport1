@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Download, Trash2, Edit2, Printer, FileImage,ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Trash2, Edit2, Printer, FileImage, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 
@@ -125,6 +125,7 @@ interface AdminSettings {
   invoice_print_format?: 'classic' | 'compact' | 'detailed';
   lr_print_instructions?: string;
   default_lr_charge?: number;
+  lr_copies?: 'single' | 'double';
 }
 
 const emptyNewConsignor = {
@@ -235,6 +236,7 @@ export default function LREntryPage() {
   const [lrPrintSelection, setLrPrintSelection] = useState<Set<number>>(new Set());
   const [previewLrSearch, setPreviewLrSearch] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: challansForList = [] } = useSWR<
     Array<{
@@ -677,6 +679,19 @@ export default function LREntryPage() {
       return;
     }
     try {
+      const cityExists = cities.some(
+        (c) => c.city_name.toLowerCase() === newConsignee.city.trim().toLowerCase()
+      );
+      if (!cityExists && newConsignee.city.trim()) {
+        try {
+          await apiClient.post('/api/masters/cities', {
+            city_name: newConsignee.city.trim(),
+            city_name_mr: newConsignee.city_mr?.trim() || transliterateToMarathi(newConsignee.city.trim()),
+          });
+        } catch {
+          // City may already exist due to race condition
+        }
+      }
       const created = await apiClient.post<Consignee>('/api/masters/consignees', newConsignee);
       await Promise.all([
         globalMutate('/api/masters/consignees'),
@@ -691,7 +706,7 @@ export default function LREntryPage() {
     } catch {
       toast.error('Failed to create consignee');
     }
-  }, [newConsignee]);
+  }, [newConsignee, cities]);
 
   const handleEdit = useCallback(
     (entry: LREntry) => {
@@ -784,9 +799,10 @@ export default function LREntryPage() {
   const handlePrint = useCallback(
     (entry: LREntry) => {
       const html = generateLRPrintHTML(buildPrintPayload(entry));
-      printHTML(html);
+      const copies = settings?.lr_copies === 'single' ? 1 : 2;
+      printHTML(html, copies);
     },
-    [buildPrintPayload]
+    [buildPrintPayload, settings?.lr_copies]
   );
 
   const handleDownload = useCallback(
@@ -849,6 +865,7 @@ export default function LREntryPage() {
         return;
       }
       setInvoiceError('');
+      setIsSubmitting(true);
 
       const payload = {
         consignor_id: parseInt(formData.consignor_id, 10),
@@ -902,6 +919,8 @@ export default function LREntryPage() {
           setInvoiceError(message);
         }
         toast.error(message);
+      } finally {
+        setIsSubmitting(false);
       }
     },
     [
@@ -1508,7 +1527,13 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
           </Card>
 
           <div className="flex gap-2">
-            <Button type="submit" className="flex-1">{editingId ? 'Update L.R.' : 'Create L.R.'}</Button>
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{editingId ? 'Updating…' : 'Saving…'}</>
+              ) : (
+                editingId ? 'Update L.R.' : 'Create L.R.'
+              )}
+            </Button>
             <Button type="button" variant="outline" onClick={() => { setActiveTab('list'); setEditingId(null); }}>
               Back to LR Details
             </Button>

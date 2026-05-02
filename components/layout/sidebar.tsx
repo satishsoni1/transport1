@@ -61,8 +61,11 @@ const navItems: NavItem[] = [
   },
   {
     label: 'Reports',
-    href: '/reports',
     icon: <BarChart3 size={18} />,
+    submenu: [
+      { label: 'Reports & Analytics', href: '/reports', icon: <BarChart3 size={16} /> },
+      { label: 'Consignor Ledger', href: '/reports/consignor-ledger', icon: <FileText size={16} /> },
+    ],
   },
   {
     label: 'Print & Export',

@@ -34,6 +34,7 @@ interface AdminSettings {
   default_gst_rate: number;
   financial_year_start: string;
   timezone: string;
+  lr_copies: 'single' | 'double';
   updated_at: string;
 }
 
@@ -67,6 +68,7 @@ export default function AdminSettingsPage() {
     default_gst_rate: '18',
     financial_year_start: '04-01',
     timezone: 'Asia/Kolkata',
+    lr_copies: 'double',
   });
 
   useEffect(() => {
@@ -93,6 +95,7 @@ export default function AdminSettingsPage() {
       default_gst_rate: String(data.default_gst_rate ?? 18),
       financial_year_start: data.financial_year_start || '04-01',
       timezone: data.timezone || 'Asia/Kolkata',
+      lr_copies: data.lr_copies || 'double',
     });
   }, [data]);
 
@@ -345,6 +348,20 @@ export default function AdminSettingsPage() {
               <option value="classic">Classic</option>
               <option value="compact">Compact</option>
               <option value="detailed">Detailed</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="lr_copies">LR Print Copies</Label>
+            <select
+              id="lr_copies"
+              className="w-full border rounded-md px-3 py-2 text-sm"
+              value={formData.lr_copies}
+              onChange={(e) =>
+                setFormData({ ...formData, lr_copies: e.target.value as 'single' | 'double' })
+              }
+            >
+              <option value="double">Double (2 copies on A4)</option>
+              <option value="single">Single (1 copy on A5)</option>
             </select>
           </div>
           <div className="col-span-2">

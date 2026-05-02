@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         transporter_name_font: 'Arial', lr_prefix: '', invoice_prefix: '',
         lr_print_format: 'classic', invoice_print_format: 'classic',
         lr_print_instructions: '', default_lr_charge: 0, default_gst_rate: 18,
-        financial_year_start: '04-01', timezone: 'Asia/Kolkata',
+        financial_year_start: '04-01', timezone: 'Asia/Kolkata', lr_copies: 'double',
       }, { status: 200 });
     }
 
@@ -94,6 +94,7 @@ export async function PUT(request: NextRequest) {
             default_gst_rate = ${body.default_gst_rate === undefined ? (existing.default_gst_rate ?? 18) : Number(body.default_gst_rate) || 0},
             financial_year_start = ${body.financial_year_start ?? existing.financial_year_start ?? '04-01'},
             timezone = ${body.timezone ?? existing.timezone ?? 'Asia/Kolkata'},
+            lr_copies = ${body.lr_copies ?? existing.lr_copies ?? 'double'},
             updated_at = NOW()
           WHERE transport_id = ${transportId}
           RETURNING *
@@ -105,7 +106,7 @@ export async function PUT(request: NextRequest) {
             company_phone, address, gst_no, logo_url, signature_url, transporter_qr_url,
             transporter_name_font, lr_prefix, invoice_prefix, lr_print_format, invoice_print_format,
             lr_print_instructions, default_lr_charge, default_gst_rate, financial_year_start,
-            timezone, updated_at
+            timezone, lr_copies, updated_at
           )
           VALUES (
             ${transportId},
@@ -130,6 +131,7 @@ export async function PUT(request: NextRequest) {
             ${body.default_gst_rate === undefined ? (existing.default_gst_rate ?? 18) : Number(body.default_gst_rate) || 0},
             ${body.financial_year_start ?? existing.financial_year_start ?? '04-01'},
             ${body.timezone ?? existing.timezone ?? 'Asia/Kolkata'},
+            ${body.lr_copies ?? existing.lr_copies ?? 'double'},
             NOW()
           )
           RETURNING *
@@ -172,6 +174,7 @@ export async function PUT(request: NextRequest) {
         default_gst_rate = ${body.default_gst_rate === undefined ? existing.default_gst_rate : Number(body.default_gst_rate) || 0},
         financial_year_start = ${body.financial_year_start ?? existing.financial_year_start},
         timezone = ${body.timezone ?? existing.timezone},
+        lr_copies = ${body.lr_copies ?? existing.lr_copies ?? 'double'},
         updated_at = NOW()
       WHERE transport_id IS NULL
       RETURNING *

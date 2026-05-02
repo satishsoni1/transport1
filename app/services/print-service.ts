@@ -1471,10 +1471,10 @@ export function exportToCSV(data: any[], filename: string): void {
   document.body.removeChild(link);
 }
 
-export function printHTML(html: string): void {
+export function printHTML(html: string, copies: 1 | 2 = 2): void {
   let outputHtml = html;
 
-  if (html.includes('<title>LR ') && html.includes('sheet lr-sheet')) {
+  if (copies >= 2 && html.includes('<title>LR ') && html.includes('sheet lr-sheet')) {
     const bodyMatch = html.match(/<body>([\s\S]*)<\/body>/i);
     if (bodyMatch) {
       const bodyInner = bodyMatch[1];

@@ -201,11 +201,28 @@ export async function POST(request: NextRequest) {
     const advance = Number(body.advance) || 0;
     const balance = freight + hamali + lrCharge - advance;
 
-    // Get next LR number using per-transport sequence (atomic, no race conditions)
-    const { rows: lrNumberRows } = await sql`
-      SELECT get_next_lr_number_for_transport(${transportId}) AS lr_no
+    // Get next LR number. lr_no has a GLOBAL unique constraint (all transports share one
+    // namespace), so we check the global max across every row — including legacy rows
+    // where transport_id is NULL. The upsert on the sequence row serialises concurrent
+    // requests so two callers always get different numbers.
+    const { rows: lrSeqRows } = await sql`
+      WITH max_lr AS (
+        SELECT COALESCE(
+          MAX(NULLIF(regexp_replace(lr_no, '[^0-9]', '', 'g'), '')::INTEGER),
+          0
+        ) AS n
+        FROM lr_entries
+      )
+      INSERT INTO transport_lr_sequences (id, next_lr_number, lr_prefix, updated_at)
+      VALUES (${transportId}, (SELECT n + 2 FROM max_lr), '', NOW())
+      ON CONFLICT (id) DO UPDATE
+        SET next_lr_number = GREATEST(transport_lr_sequences.next_lr_number, (SELECT n + 1 FROM max_lr)) + 1,
+            updated_at     = NOW()
+      RETURNING next_lr_number - 1 AS seq_no, COALESCE(lr_prefix, '') AS prefix
     `;
-    const lrNo = String(lrNumberRows[0]?.lr_no || '');
+    const seqNo    = Number(lrSeqRows[0]?.seq_no) || 1;
+    const lrPrefix = String(lrSeqRows[0]?.prefix || '');
+    const lrNo     = lrPrefix + String(seqNo).padStart(5, '0');
 
     const { rows } = await sql`
       INSERT INTO lr_entries (

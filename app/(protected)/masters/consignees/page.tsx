@@ -32,6 +32,7 @@ interface Consignee {
   name_mr?: string;
   address: string;
   city: string;
+  city_mr?: string;
   gst_no: string;
   contact_person: string;
   mobile: string;
@@ -42,6 +43,7 @@ interface Consignee {
 interface City {
   id: number;
   city_name: string;
+  city_name_mr?: string;
 }
 
 export default function ConsigneesPage() {
@@ -53,6 +55,7 @@ export default function ConsigneesPage() {
     name_mr: '',
     address: '',
     city: '',
+    city_mr: '',
     gst_no: '',
     contact_person: '',
     mobile: '',
@@ -75,6 +78,7 @@ export default function ConsigneesPage() {
         name_mr: '',
         address: '',
         city: '',
+        city_mr: '',
         gst_no: '',
         contact_person: '',
         mobile: '',
@@ -111,11 +115,14 @@ export default function ConsigneesPage() {
 
   const handleEdit = (consignee: Consignee) => {
     setEditingId(consignee.id);
+    const cityMr = consignee.city_mr ||
+      cities.find((c) => c.city_name === consignee.city)?.city_name_mr || '';
     setFormData({
       name: consignee.name,
       name_mr: consignee.name_mr || '',
       address: consignee.address,
       city: consignee.city,
+      city_mr: cityMr,
       gst_no: consignee.gst_no,
       contact_person: consignee.contact_person,
       mobile: consignee.mobile,
@@ -176,9 +183,15 @@ export default function ConsigneesPage() {
                     id="city"
                     list="consignee-city-options"
                     value={formData.city}
-                    onChange={(e) =>
-                      setFormData({ ...formData, city: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const cityName = e.target.value;
+                      const cityMaster = cities.find((c) => c.city_name === cityName);
+                      setFormData({
+                        ...formData,
+                        city: cityName,
+                        city_mr: cityMaster?.city_name_mr || formData.city_mr,
+                      });
+                    }}
                     placeholder="City"
                   />
                   <datalist id="consignee-city-options">
@@ -186,6 +199,15 @@ export default function ConsigneesPage() {
                       <option key={city.id} value={city.city_name} />
                     ))}
                   </datalist>
+                </div>
+                <div>
+                  <Label htmlFor="city_mr">City (Marathi)</Label>
+                  <Input
+                    id="city_mr"
+                    value={formData.city_mr}
+                    onChange={(e) => setFormData({ ...formData, city_mr: e.target.value })}
+                    placeholder="मराठी शहर"
+                  />
                 </div>
               </div>
 
