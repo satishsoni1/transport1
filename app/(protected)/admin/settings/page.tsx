@@ -360,8 +360,8 @@ export default function AdminSettingsPage() {
                 setFormData({ ...formData, lr_copies: e.target.value as 'single' | 'double' })
               }
             >
-              <option value="double">Double (2 copies on A4)</option>
-              <option value="single">Single (1 copy on A5)</option>
+              <option value="single">Single Page (2 copies on A4)</option>
+              <option value="double">Two Pages (1 copy per A4 page)</option>
             </select>
           </div>
           <div className="col-span-2">

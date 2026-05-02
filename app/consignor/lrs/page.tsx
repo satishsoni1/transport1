@@ -313,7 +313,8 @@ export default function ConsignorLrsPage() {
 
   const handlePrint = useCallback((lr: ConsignorLR) => {
     const html = generateLRPrintHTML(buildPrintPayload(lr));
-    printHTML(html);
+    const copies = settingsRef.current?.lr_copies === 'double' ? 1 : 2;
+    printHTML(html, copies);
   }, [buildPrintPayload]);
 
   const handleDownload = useCallback(async (lr: ConsignorLR) => {
@@ -323,9 +324,10 @@ export default function ConsignorLrsPage() {
 
   const printSelectedLrs = useCallback(() => {
     const selected = filteredLrs.filter((e) => lrPrintSelection.has(e.id));
+    const copies = settingsRef.current?.lr_copies === 'double' ? 1 : 2;
     selected.forEach((lr, index) => {
       window.setTimeout(
-        () => printHTML(generateLRPrintHTML(buildPrintPayload(lr))),
+        () => printHTML(generateLRPrintHTML(buildPrintPayload(lr)), copies),
         index * 500
       );
     });

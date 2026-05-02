@@ -16,6 +16,7 @@ export interface CompanyPrintData {
   lr_print_format?: LRPrintFormat;
   invoice_print_format?: InvoicePrintFormat;
   lr_print_instructions?: string;
+  lr_copies?: 'single' | 'double';
 }
 
 export type LRPrintFormat = 'classic' | 'compact' | 'detailed';
@@ -1229,8 +1230,8 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
       }
       .challan-sheet .meta-grid {
         display: grid;
-        grid-template-columns: 1.2fr 0.9fr 0.9fr;
-        gap: 2px 10px;
+        grid-template-columns: 1.4fr 1fr;
+        gap: 2px 14px;
       }
       .challan-sheet .meta-item {
         display: grid;
@@ -1353,21 +1354,20 @@ export function generateChallanPrintHTML(data: ChallanPrintData): string {
 
       <div class="meta-head">
         <div class="meta-grid">
-          <div class="meta-item"><span class="label">Tpt Name</span><span>:</span><span>${escapeHtml(company.company_name || company.app_title || 'Transport Company')}</span></div>
+          <!-- Left col: Driver, Mobile, From, To, Owner, MV.No., Eway No. -->
+          <!-- Right col: CH.No., Date, Time, Page -->
           <div class="meta-item"><span class="label">Driver</span><span>:</span><span>${escapeHtml(data.driver_name || '-')}</span></div>
           <div class="meta-item"><span class="label">CH.No.</span><span>:</span><span>${escapeHtml(data.challan_no || '-')}</span></div>
-          <div class="meta-item"><span class="label">Owner</span><span>:</span><span>${escapeHtml(data.owner_name || '-')}</span></div>
-          <div class="meta-item"><span class="label">Mob No.</span><span>:</span><span>${escapeHtml(data.driver_mobile || '-')}</span></div>
-          <div class="meta-item"><span class="label">From</span><span>:</span><span>${escapeHtml(data.from_city || '-')}</span></div>
-          <div class="meta-item"><span class="label">MV.No.</span><span>:</span><span>${escapeHtml(data.truck_no || '-')}</span></div>
-          <div class="meta-item"><span class="label">To</span><span>:</span><span>${escapeHtml(data.to_city || '-')}</span></div>
+          <div class="meta-item"><span class="label">Mobile</span><span>:</span><span>${escapeHtml(data.driver_mobile || '-')}</span></div>
           <div class="meta-item"><span class="label">Date</span><span>:</span><span>${escapeHtml(new Date(data.challan_date).toLocaleDateString('en-IN'))}</span></div>
+          <div class="meta-item"><span class="label">From</span><span>:</span><span>${escapeHtml(data.from_city || '-')}</span></div>
+          <div class="meta-item"><span class="label">Time</span><span>:</span><span>${escapeHtml(nowTime)}</span></div>
+          <div class="meta-item"><span class="label">To</span><span>:</span><span>${escapeHtml(data.to_city || '-')}</span></div>
+          <div class="meta-item"><span class="label">Page</span><span>:</span><span>1 / 1</span></div>
+          <div class="meta-item"><span class="label">Owner</span><span>:</span><span>${escapeHtml(data.owner_name || '-')}</span></div>
+          <div class="meta-item"><span class="label">MV.No.</span><span>:</span><span>${escapeHtml(data.truck_no || '-')}</span></div>
           <div class="meta-item"><span class="label">Eway No</span><span>:</span><span>${escapeHtml(data.eway_no || '-')}</span></div>
           <div class="meta-item"></div>
-          <div class="meta-item"><span class="label">Time</span><span>:</span><span>${escapeHtml(nowTime)}</span></div>
-          <div class="meta-item"></div>
-          <div class="meta-item"></div>
-          <div class="meta-item"><span class="label">Page</span><span>:</span><span>1 / 1</span></div>
         </div>
       </div>
 

@@ -799,7 +799,8 @@ export default function LREntryPage() {
   const handlePrint = useCallback(
     (entry: LREntry) => {
       const html = generateLRPrintHTML(buildPrintPayload(entry));
-      const copies = settings?.lr_copies === 'single' ? 1 : 2;
+      // 'single' = both copies on one A4 sheet; 'double' = one copy per full A4 page
+      const copies = settings?.lr_copies === 'double' ? 1 : 2;
       printHTML(html, copies);
     },
     [buildPrintPayload, settings?.lr_copies]
