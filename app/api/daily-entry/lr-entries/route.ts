@@ -54,9 +54,11 @@ export async function GET(request: NextRequest) {
 
     if (!hasFilters) {
       const { rows } = await sql`
-        SELECT * FROM lr_entries 
-        WHERE transport_id = ${transportId}
-        ORDER BY id DESC
+        SELECT lr_entries.*, consignees.name AS consignee_name
+        FROM lr_entries
+        LEFT JOIN consignees ON consignees.id = lr_entries.consignee_id
+        WHERE lr_entries.transport_id = ${transportId}
+        ORDER BY lr_entries.id DESC
       `;
       return NextResponse.json(rows.map(toResponseRow), { status: 200 });
     }

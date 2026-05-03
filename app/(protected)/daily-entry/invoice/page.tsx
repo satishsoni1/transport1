@@ -630,8 +630,24 @@ export default function InvoicePage() {
     (invoice: Invoice) => {
       try {
         const consignor = consignors.find((item) => item.id === invoice.consignor_id);
+
+        // Build lr_no → consignee_name lookup so old items that stored "Goods from LR"
+        // are printed with the real consignee name.
+        const lrConsigneeMap = new Map<string, string>();
+        for (const lr of lrEntries) {
+          if (lr.lr_no && lr.consignee_name) {
+            lrConsigneeMap.set(lr.lr_no, lr.consignee_name);
+          }
+        }
+
+        const enrichedItems = (invoice.items || []).map((item) => {
+          const realConsignee = item.lr_no ? lrConsigneeMap.get(item.lr_no) : undefined;
+          return realConsignee ? { ...item, consignee: realConsignee } : item;
+        });
+
         const html = generateInvoicePrintHTML({
           ...invoice,
+          items: enrichedItems,
           party_name_mr: consignor?.name ? transliterateToMarathi(consignor.name) : transliterateToMarathi(invoice.party_name || ''),
           format: settings?.invoice_print_format || 'classic',
           company: settings,
@@ -641,7 +657,7 @@ export default function InvoicePage() {
         toast.error('Failed to print invoice');
       }
     },
-    [consignors, settings]
+    [consignors, settings, lrEntries]
   );
 
   const totals = calculateTotals();
