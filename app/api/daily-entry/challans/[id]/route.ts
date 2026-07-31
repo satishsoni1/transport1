@@ -105,6 +105,21 @@ export async function PUT(
         ? shortReading * ratePerKm
         : Number(body.reading_total) || 0;
 
+    // vehicle_id/driver_id are auto-matched client-side, not user-asserted — verify tenant
+    // ownership and silently fall back rather than reject if they don't resolve to this tenant.
+    const vehicleId =
+      body.vehicle_id === undefined
+        ? existing.vehicle_id
+        : body.vehicle_id
+          ? (await sql`SELECT id FROM vehicles WHERE id = ${Number(body.vehicle_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+          : null;
+    const driverId =
+      body.driver_id === undefined
+        ? existing.driver_id
+        : body.driver_id
+          ? (await sql`SELECT id FROM drivers WHERE id = ${Number(body.driver_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+          : null;
+
     const { rows } = await sql`
       UPDATE challans
       SET
@@ -126,7 +141,9 @@ export async function PUT(
         total_freight = ${totalFreight},
         total_to_pay = ${totalToPay},
         total_paid = ${totalPaid},
-        status = ${body.status ?? existing.status}
+        status = ${body.status ?? existing.status},
+        vehicle_id = ${vehicleId},
+        driver_id = ${driverId}
       WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;

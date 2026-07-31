@@ -19,7 +19,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { Truck, FileText, DollarSign, Users } from 'lucide-react';
+import { Truck, FileText, DollarSign, Users, Wallet } from 'lucide-react';
 
 interface LREntry {
   id: number;
@@ -53,6 +53,18 @@ interface Challan {
   status: string;
 }
 
+interface AccountsSummary {
+  totalIncome: number;
+  totalExpense: number;
+  net: number;
+  monthly: { month: string; income: number; expense: number }[];
+}
+
+function sixMonthsAgoDate() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10);
+}
+
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#06b6d4'];
 
 function formatMonth(d: Date) {
@@ -68,6 +80,10 @@ export default function DashboardPage() {
   const { data: consignors = [], isLoading: consignorLoading, error: consignorError } = useSWR<Party[]>('/api/masters/consignors', apiClient.get);
   const { data: consignees = [], isLoading: consigneeLoading, error: consigneeError } = useSWR<Party[]>('/api/masters/consignees', apiClient.get);
   const { data: challans = [], isLoading: challanLoading, error: challanError } = useSWR<Challan[]>('/api/daily-entry/challans', apiClient.get);
+  const { data: accountsSummary } = useSWR<AccountsSummary>(
+    `/api/accounts/summary?from=${sixMonthsAgoDate()}&to=${new Date().toISOString().slice(0, 10)}`,
+    apiClient.get
+  );
 
   const hasAnyError = Boolean(
     lrError ||
@@ -115,36 +131,41 @@ export default function DashboardPage() {
   const totalParties = consignors.length + consignees.length;
 
   const monthlyData = useMemo(() => {
-    const map = new Map<string, { month: string; revenue: number; freight: number; order: number }>();
+    const map = new Map<string, { month: string; revenue: number; freight: number; expense: number; order: number }>();
     const now = new Date();
+    const keyForMonth = (year: number, month0: number) => `${year}-${month0 + 1}`;
 
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-      map.set(key, {
+      map.set(keyForMonth(d.getFullYear(), d.getMonth()), {
         month: formatMonth(d),
         revenue: 0,
         freight: 0,
+        expense: 0,
         order: d.getFullYear() * 100 + d.getMonth(),
       });
     }
 
     for (const inv of invoices) {
       const d = new Date(inv.invoice_date);
-      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-      const existing = map.get(key);
+      const existing = map.get(keyForMonth(d.getFullYear(), d.getMonth()));
       if (existing) existing.revenue += Number(inv.total_amount) || 0;
     }
 
     for (const lr of lrEntries) {
       const d = new Date(lr.lr_date);
-      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-      const existing = map.get(key);
+      const existing = map.get(keyForMonth(d.getFullYear(), d.getMonth()));
       if (existing) existing.freight += Number(lr.freight) || 0;
     }
 
+    for (const row of accountsSummary?.monthly || []) {
+      const [year, month1] = row.month.split('-').map(Number);
+      const existing = map.get(keyForMonth(year, month1 - 1));
+      if (existing) existing.expense = row.expense;
+    }
+
     return Array.from(map.values()).sort((a, b) => a.order - b.order);
-  }, [invoices, lrEntries]);
+  }, [invoices, lrEntries, accountsSummary]);
 
   const cityData = useMemo(() => {
     const map = new Map<string, number>();
@@ -189,7 +210,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Freight</CardTitle>
@@ -237,6 +258,19 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Net Cash Flow</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${(accountsSummary?.net ?? 0) < 0 ? 'text-red-600' : ''}`}>
+              Rs {(accountsSummary?.net ?? 0).toLocaleString('en-IN')}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Income minus expense, last 6 months</p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -255,6 +289,7 @@ export default function DashboardPage() {
                 <Legend />
                 <Bar dataKey="revenue" fill="#3b82f6" />
                 <Bar dataKey="freight" fill="#8b5cf6" />
+                <Bar dataKey="expense" fill="#f59e0b" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

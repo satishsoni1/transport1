@@ -226,11 +226,21 @@ export async function POST(request: NextRequest) {
     const lrPrefix = String(lrSeqRows[0]?.prefix || '');
     const lrNo     = lrPrefix + String(seqNo).padStart(5, '0');
 
+    // vehicle_id/driver_id are auto-matched client-side, not user-asserted — verify tenant
+    // ownership and silently drop rather than reject if they don't resolve to this tenant.
+    const vehicleId = body.vehicle_id
+      ? (await sql`SELECT id FROM vehicles WHERE id = ${Number(body.vehicle_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+      : null;
+    const driverId = body.driver_id
+      ? (await sql`SELECT id FROM drivers WHERE id = ${Number(body.driver_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+      : null;
+
     const { rows } = await sql`
       INSERT INTO lr_entries (
         lr_no, lr_date, transport_id, consignor_id, consignee_id, from_city, to_city, delivery_address,
         freight, hamali, lr_charge, advance, balance, invoice_no, invoice_date, truck_no,
-        driver_name, driver_mobile, eway_no, remarks, return_status, return_remark, pod_received, goods_items, status, created_by
+        driver_name, driver_mobile, eway_no, remarks, return_status, return_remark, pod_received, goods_items, status, created_by,
+        vehicle_id, driver_id
       )
       VALUES (
         ${lrNo},
@@ -258,7 +268,9 @@ export async function POST(request: NextRequest) {
         ${Boolean(body.pod_received)},
         ${JSON.stringify(Array.isArray(body.goods_items) ? body.goods_items : [])}::jsonb,
         ${body.status === 'paid' || body.status === 'tbb' ? body.status : 'to_pay'},
-        ${String(body.created_by || '').trim()}
+        ${String(body.created_by || '').trim()},
+        ${vehicleId},
+        ${driverId}
       )
       RETURNING *
     `;

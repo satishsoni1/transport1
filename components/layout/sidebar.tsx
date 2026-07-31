@@ -6,114 +6,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/app/context/auth-context';
 import { useAppSettings } from '@/app/context/app-settings-context';
-import {
-  LayoutDashboard,
-  FileText,
-  BarChart3,
-  Users,
-  Settings,
-  ChevronDown,
-  Truck,
-  Package,
-  DollarSign,
-  Scroll,
-  User,
-  MapPin,
-  Navigation,
-  Receipt,
-  Wallet,
-  Upload,
-  Printer,
-  Building2,
-  ShieldCheck,
-  CalendarDays,
-  ClipboardList,
-  LogOut,
-  Boxes,
-} from 'lucide-react';
-
-interface NavItem {
-  label: string;
-  href?: string;
-  icon: React.ReactNode;
-  submenu?: NavItem[];
-  requiredRoles?: string[];
-  badge?: string;
-}
-
-const navItems: NavItem[] = [
-  {
-    label: 'Dashboard',
-    href: '/dashboard',
-    icon: <LayoutDashboard size={18} />,
-  },
-  {
-    label: 'Daily Entry',
-    icon: <ClipboardList size={18} />,
-    submenu: [
-      { label: 'L.R. Entry', href: '/daily-entry/lr-entry', icon: <Scroll size={16} /> },
-      { label: 'Challan', href: '/daily-entry/challan', icon: <Truck size={16} /> },
-      { label: 'Invoice', href: '/daily-entry/invoice', icon: <FileText size={16} /> },
-      { label: 'Receipt', href: '/daily-entry/receipt', icon: <Receipt size={16} /> },
-      { label: 'On Account Receipt', href: '/daily-entry/on-account-receipt', icon: <Wallet size={16} /> },
-      { label: 'POD Upload', href: '/daily-entry/pod-upload', icon: <Upload size={16} /> },
-    ],
-  },
-  {
-    label: 'Reports',
-    icon: <BarChart3 size={18} />,
-    submenu: [
-      { label: 'Reports & Analytics', href: '/reports', icon: <BarChart3 size={16} /> },
-      { label: 'Consignor Ledger', href: '/reports/consignor-ledger', icon: <FileText size={16} /> },
-    ],
-  },
-  {
-    label: 'Print & Export',
-    href: '/print-preview',
-    icon: <Printer size={18} />,
-    requiredRoles: ['Admin', 'Operator', 'Accountant'],
-  },
-  {
-    label: 'Parties',
-    icon: <Users size={18} />,
-    submenu: [
-      { label: 'Consignors', href: '/masters/consignors', icon: <Building2 size={16} /> },
-      { label: 'Consignees', href: '/masters/consignees', icon: <Building2 size={16} /> },
-    ],
-  },
-  {
-    label: 'Logistics',
-    icon: <Truck size={18} />,
-    submenu: [
-      { label: 'Drivers', href: '/masters/drivers', icon: <Users size={16} /> },
-      { label: 'Vehicles', href: '/masters/vehicles', icon: <Truck size={16} /> },
-      { label: 'Cities', href: '/masters/cities', icon: <MapPin size={16} /> },
-      { label: 'Routes', href: '/masters/routes', icon: <Navigation size={16} /> },
-    ],
-  },
-  {
-    label: 'Rate Masters',
-    icon: <DollarSign size={18} />,
-    submenu: [
-      { label: 'Banks', href: '/masters/banks', icon: <Wallet size={16} /> },
-      { label: 'Goods Types', href: '/masters/goods-types', icon: <Package size={16} /> },
-      { label: 'Goods Natures', href: '/masters/goods-natures', icon: <Boxes size={16} /> },
-      { label: 'Freight Rates', href: '/masters/freight-rates', icon: <DollarSign size={16} /> },
-    ],
-  },
-  {
-    label: 'Administration',
-    icon: <ShieldCheck size={18} />,
-    requiredRoles: ['Admin', 'Super Admin'],
-    submenu: [
-      { label: 'Users', href: '/admin/users', icon: <Users size={16} /> },
-      { label: 'Financial Years', href: '/settings/financial-years', icon: <CalendarDays size={16} /> },
-      { label: 'Settings', href: '/admin/settings', icon: <Settings size={16} /> },
-      { label: 'Transports', href: '/admin/transports', icon: <Truck size={16} /> },
-      { label: 'Audit Log', href: '/admin/audit-log', icon: <FileText size={16} /> },
-    ],
-  },
-];
+import { navItems, type NavItem } from '@/lib/nav-config';
+import { can } from '@/lib/roles';
+import { User, LogOut, Truck } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -122,9 +18,18 @@ export function Sidebar() {
   const { settings } = useAppSettings();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
+  const hasAccess = (item: NavItem): boolean => !item.permission || can(user, item.permission);
+
+  const visibleItems = navItems
+    .filter(hasAccess)
+    .map((item) =>
+      item.submenu ? { ...item, submenu: item.submenu.filter(hasAccess) } : item
+    )
+    .filter((item) => !item.submenu || item.submenu.length > 0);
+
   useEffect(() => {
     const toExpand: string[] = [];
-    for (const item of navItems) {
+    for (const item of visibleItems) {
       if (item.submenu?.some((sub) => sub.href && pathname.startsWith(sub.href))) {
         toExpand.push(item.label);
       }
@@ -134,6 +39,7 @@ export function Sidebar() {
     } else {
       setExpandedItems(['Daily Entry']);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   const handleLogout = () => {
@@ -150,11 +56,6 @@ export function Sidebar() {
   const isItemActive = (href?: string): boolean => {
     if (!href) return false;
     return pathname.startsWith(href);
-  };
-
-  const hasAccess = (item: NavItem): boolean => {
-    if (!item.requiredRoles) return true;
-    return item.requiredRoles.includes(user?.role || '');
   };
 
   return (
@@ -195,13 +96,12 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-        {navItems.map((item) => {
-          if (!hasAccess(item)) return null;
-
+        {visibleItems.map((item) => {
           const hasSubmenu = !!item.submenu;
           const isExpanded = expandedItems.includes(item.label);
           const isActive = isItemActive(item.href);
           const hasActiveChild = item.submenu?.some((s) => s.href && pathname.startsWith(s.href));
+          const Icon = item.icon;
 
           if (!hasSubmenu) {
             return (
@@ -215,7 +115,7 @@ export function Sidebar() {
                   )}
                 >
                   <span className={cn('shrink-0', isActive ? 'text-white' : 'text-slate-400')}>
-                    {item.icon}
+                    <Icon size={18} />
                   </span>
                   {item.label}
                 </div>
@@ -236,7 +136,7 @@ export function Sidebar() {
               >
                 <div className="flex items-center gap-2.5">
                   <span className={cn('shrink-0', hasActiveChild ? 'text-blue-400' : 'text-slate-400')}>
-                    {item.icon}
+                    <Icon size={18} />
                   </span>
                   {item.label}
                 </div>
@@ -250,6 +150,7 @@ export function Sidebar() {
                 <div className="mt-0.5 ml-3 space-y-0.5 border-l border-slate-800 pl-3">
                   {item.submenu.map((subitem) => {
                     const subActive = subitem.href ? pathname.startsWith(subitem.href) : false;
+                    const SubIcon = subitem.icon;
                     return (
                       <Link key={subitem.label} href={subitem.href || '#'}>
                         <div
@@ -261,7 +162,7 @@ export function Sidebar() {
                           )}
                         >
                           <span className={cn('shrink-0', subActive ? 'text-blue-400' : 'text-slate-500')}>
-                            {subitem.icon}
+                            <SubIcon size={16} />
                           </span>
                           {subitem.label}
                         </div>

@@ -16,6 +16,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -56,6 +63,8 @@ interface LREntry {
   truck_no: string;
   driver_name: string;
   driver_mobile: string;
+  vehicle_id?: number | null;
+  driver_id?: number | null;
   eway_no: string;
   remarks: string;
   return_status?: 'normal' | 'returned';
@@ -208,6 +217,8 @@ export default function LREntryPage() {
     truck_no: '',
     driver_name: '',
     driver_mobile: '',
+    vehicle_id: 'none' as string,
+    driver_id: 'none' as string,
     eway_no: '',
     remarks: '',
     return_status: 'normal' as 'normal' | 'returned',
@@ -371,6 +382,14 @@ export default function LREntryPage() {
     apiClient.get
   );
   const { data: cities = [] } = useSWR<City[]>('/api/masters/cities', apiClient.get);
+  const { data: vehicles = [] } = useSWR<{ id: number; vehicle_no: string }[]>(
+    '/api/masters/vehicles',
+    apiClient.get
+  );
+  const { data: driverMasters = [] } = useSWR<{ id: number; driver_name: string; mobile: string }[]>(
+    '/api/masters/drivers',
+    apiClient.get
+  );
   const { data: settings } = useSWR<AdminSettings>('/api/admin/settings', apiClient.get);
   const { data: goodsTypes = [] } = useSWR<GoodsTypeMaster[]>(
     '/api/masters/goods-types',
@@ -417,6 +436,15 @@ export default function LREntryPage() {
   const selectedConsignee = useMemo(
     () => consignees.find((item) => item.id === Number(formData.consignee_id)),
     [consignees, formData.consignee_id]
+  );
+
+  const selectedLrVehicle = useMemo(
+    () => vehicles.find((item) => item.id === Number(formData.vehicle_id)),
+    [vehicles, formData.vehicle_id]
+  );
+  const selectedLrDriver = useMemo(
+    () => driverMasters.find((item) => item.id === Number(formData.driver_id)),
+    [driverMasters, formData.driver_id]
   );
 
   useEffect(() => {
@@ -514,6 +542,8 @@ export default function LREntryPage() {
       truck_no: '',
       driver_name: '',
       driver_mobile: '',
+      vehicle_id: 'none',
+      driver_id: 'none',
       eway_no: '',
       remarks: '',
       return_status: 'normal',
@@ -731,6 +761,8 @@ export default function LREntryPage() {
         truck_no: '',
         driver_name: '',
         driver_mobile: '',
+        vehicle_id: entry.vehicle_id ? String(entry.vehicle_id) : 'none',
+        driver_id: entry.driver_id ? String(entry.driver_id) : 'none',
         eway_no: entry.eway_no || '',
         remarks: entry.remarks || '',
         return_status: entry.return_status || 'normal',
@@ -881,9 +913,11 @@ export default function LREntryPage() {
         lr_charge: parseFloat(formData.lr_charge) || 0,
         advance: parseFloat(formData.advance) || 0,
         invoice_no: invoiceNo,
-        truck_no: '',
-        driver_name: '',
-        driver_mobile: '',
+        truck_no: selectedLrVehicle?.vehicle_no || '',
+        driver_name: selectedLrDriver?.driver_name || '',
+        driver_mobile: selectedLrDriver?.mobile || '',
+        vehicle_id: formData.vehicle_id === 'none' ? null : Number(formData.vehicle_id),
+        driver_id: formData.driver_id === 'none' ? null : Number(formData.driver_id),
         eway_no: formData.eway_no,
         remarks: formData.remarks,
         return_status: formData.return_status,
@@ -1313,6 +1347,39 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                   ))}
                 </div>
               </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="lr_vehicle_id">Vehicle (optional)</Label>
+                  <Select
+                    value={formData.vehicle_id}
+                    onValueChange={(v) => setFormData({ ...formData, vehicle_id: v })}
+                  >
+                    <SelectTrigger id="lr_vehicle_id"><SelectValue placeholder="No vehicle" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No vehicle</SelectItem>
+                      {vehicles.map((v) => (
+                        <SelectItem key={v.id} value={String(v.id)}>{v.vehicle_no}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="lr_driver_id">Driver (optional)</Label>
+                  <Select
+                    value={formData.driver_id}
+                    onValueChange={(v) => setFormData({ ...formData, driver_id: v })}
+                  >
+                    <SelectTrigger id="lr_driver_id"><SelectValue placeholder="No driver" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No driver</SelectItem>
+                      {driverMasters.map((d) => (
+                        <SelectItem key={d.id} value={String(d.id)}>{d.driver_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>

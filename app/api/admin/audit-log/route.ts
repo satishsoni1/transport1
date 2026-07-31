@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { ensureSchema, sql } from '@/lib/db';
+import { requireSuperAdmin } from '@/lib/app-auth';
 
 export async function GET(request: Request) {
+  const { response } = await requireSuperAdmin(request);
+  if (response) return response;
+
   try {
     await ensureSchema();
     const { searchParams } = new URL(request.url);

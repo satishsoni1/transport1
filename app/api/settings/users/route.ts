@@ -1,13 +1,28 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
-import { resolveTransportAuth } from '@/lib/transport-auth';
+import { getAuthenticatedUser } from '@/lib/transport-auth';
+import { can, isStaffRole } from '@/lib/roles';
 import bcrypt from 'bcryptjs';
+
+async function requireUserManagement(request: NextRequest) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return { ok: false as const, error: 'Login required', status: 401 as const };
+  }
+  if (user.platformRole !== 'transport_admin' || !user.transportId) {
+    return { ok: false as const, error: 'Access denied: transport admin account required', status: 403 as const };
+  }
+  if (!can(user, 'manage-users')) {
+    return { ok: false as const, error: 'Your role does not permit managing users', status: 403 as const };
+  }
+  return { ok: true as const, transportId: user.transportId };
+}
 
 export async function GET(request: NextRequest) {
   try {
     await ensureSchema();
 
-    const auth = await resolveTransportAuth(request);
+    const auth = await requireUserManagement(request);
     if (!auth.ok) {
       return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
@@ -33,7 +48,7 @@ export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
 
-    const auth = await resolveTransportAuth(request);
+    const auth = await requireUserManagement(request);
     if (!auth.ok) {
       return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
@@ -46,6 +61,13 @@ export async function POST(request: NextRequest) {
     if (!body.email || !username || !password || !body.first_name || !body.last_name || !body.role) {
       return NextResponse.json(
         { success: false, error: 'Username, email, password, first name, last name and role are required' },
+        { status: 400 }
+      );
+    }
+
+    if (!isStaffRole(body.role)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid role. Must be one of Transport Admin, Manager, Accountant, Operator.' },
         { status: 400 }
       );
     }

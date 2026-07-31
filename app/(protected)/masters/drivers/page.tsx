@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useAuth } from '@/app/context/auth-context';
 import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -23,7 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Edit2, Trash2, Plus } from 'lucide-react';
+import { Edit2, Trash2, Plus, Wallet } from 'lucide-react';
 import useSWR from 'swr';
 
 interface Driver {
@@ -35,6 +42,9 @@ interface Driver {
   license_no: string;
   address: string;
   vehicle_no: string;
+  vehicle_id: number | null;
+  employment_type: 'own' | 'hired';
+  hire_date: string;
   license_valid_from: string;
   license_valid_to: string;
   renewal_date: string;
@@ -42,6 +52,133 @@ interface Driver {
   thumb_image_url: string;
   status: 'active' | 'inactive';
   created_at: string;
+}
+
+interface Vehicle {
+  id: number;
+  vehicle_no: string;
+  owner_name: string;
+}
+
+interface LedgerEntry {
+  id: number;
+  entry_type: 'advance' | 'rent' | 'deduction';
+  amount: number;
+  entry_date: string;
+  remarks: string;
+  created_at: string;
+}
+
+const EMPTY_LEDGER_FORM = { entry_type: 'advance' as LedgerEntry['entry_type'], amount: '', entry_date: '', remarks: '' };
+
+function DriverLedgerDialog({ driver }: { driver: Driver }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_LEDGER_FORM);
+  const [saving, setSaving] = useState(false);
+
+  const { data, mutate } = useSWR<{ entries: LedgerEntry[]; balance: number }>(
+    open ? `/api/masters/drivers/${driver.id}/ledger` : null,
+    apiClient.get
+  );
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.amount || Number(form.amount) <= 0 || !form.entry_date) {
+      toast.error('Amount and date are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiClient.post(`/api/masters/drivers/${driver.id}/ledger`, {
+        ...form,
+        amount: Number(form.amount),
+      });
+      toast.success('Entry added');
+      setForm(EMPTY_LEDGER_FORM);
+      mutate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add entry');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" title="Advance / Rent Ledger">
+          <Wallet className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Ledger — {driver.driver_name}</DialogTitle>
+        </DialogHeader>
+
+        <div className="rounded-md border p-3 text-sm">
+          Balance:{' '}
+          <span className={`font-semibold ${((data?.balance ?? 0) < 0) ? 'text-red-600' : 'text-emerald-700'}`}>
+            ₹{Math.abs(data?.balance ?? 0).toLocaleString('en-IN')}
+          </span>{' '}
+          {data && data.balance < 0 ? '(driver owes company — unrecovered advance)' : '(company owes driver)'}
+        </div>
+
+        <form onSubmit={handleAdd} className="grid grid-cols-4 gap-2 items-end">
+          <div>
+            <Label htmlFor="entry_type">Type</Label>
+            <Select value={form.entry_type} onValueChange={(v) => setForm({ ...form, entry_type: v as LedgerEntry['entry_type'] })}>
+              <SelectTrigger id="entry_type"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="advance">Advance</SelectItem>
+                <SelectItem value="rent">Rent</SelectItem>
+                <SelectItem value="deduction">Deduction</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="amount">Amount</Label>
+            <Input id="amount" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+          </div>
+          <div>
+            <Label htmlFor="entry_date">Date</Label>
+            <Input id="entry_date" type="date" value={form.entry_date} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} />
+          </div>
+          <Button type="submit" disabled={saving}>{saving ? 'Adding...' : 'Add'}</Button>
+          <div className="col-span-4">
+            <Label htmlFor="remarks">Remarks</Label>
+            <Input id="remarks" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} />
+          </div>
+        </form>
+
+        <div className="max-h-64 overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Remarks</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {!data || data.entries.length === 0 ? (
+                <TableRow><TableCell colSpan={4} className="text-center text-sm text-slate-500">No entries yet</TableCell></TableRow>
+              ) : (
+                data.entries.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell>{entry.entry_date}</TableCell>
+                    <TableCell className="capitalize">{entry.entry_type}</TableCell>
+                    <TableCell>₹{Number(entry.amount).toLocaleString('en-IN')}</TableCell>
+                    <TableCell className="text-slate-500">{entry.remarks || '-'}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function DriversPage() {
@@ -55,7 +192,9 @@ export default function DriversPage() {
     mobile: '',
     license_no: '',
     address: '',
-    vehicle_no: '',
+    vehicle_id: 'none' as string,
+    employment_type: 'own' as 'own' | 'hired',
+    hire_date: '',
     license_valid_from: '',
     license_valid_to: '',
     renewal_date: '',
@@ -68,6 +207,12 @@ export default function DriversPage() {
     '/api/masters/drivers',
     apiClient.get
   );
+  const { data: vehicles = [] } = useSWR<Vehicle[]>('/api/masters/vehicles', apiClient.get);
+
+  const vehicleLabel = useMemo(() => {
+    const map = new Map(vehicles.map((v) => [v.id, v.vehicle_no]));
+    return (id: number | null) => (id ? map.get(id) || '-' : '-');
+  }, [vehicles]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -78,7 +223,9 @@ export default function DriversPage() {
       mobile: '',
       license_no: '',
       address: '',
-      vehicle_no: '',
+      vehicle_id: 'none',
+      employment_type: 'own',
+      hire_date: '',
       license_valid_from: '',
       license_valid_to: '',
       renewal_date: '',
@@ -101,12 +248,17 @@ export default function DriversPage() {
         return;
       }
 
+      const payload = {
+        ...formData,
+        vehicle_id: formData.vehicle_id === 'none' ? null : Number(formData.vehicle_id),
+      };
+
       try {
         if (editingId) {
-          await apiClient.put(`/api/masters/drivers/${editingId}`, formData);
+          await apiClient.put(`/api/masters/drivers/${editingId}`, payload);
           toast.success('Driver updated successfully');
         } else {
-          await apiClient.post('/api/masters/drivers', formData);
+          await apiClient.post('/api/masters/drivers', payload);
           toast.success('Driver added successfully');
         }
         mutate();
@@ -127,7 +279,9 @@ export default function DriversPage() {
       mobile: driver.mobile || '',
       license_no: driver.license_no || '',
       address: driver.address || '',
-      vehicle_no: driver.vehicle_no || '',
+      vehicle_id: driver.vehicle_id ? String(driver.vehicle_id) : 'none',
+      employment_type: driver.employment_type || 'own',
+      hire_date: driver.hire_date || '',
       license_valid_from: driver.license_valid_from || '',
       license_valid_to: driver.license_valid_to || '',
       renewal_date: driver.renewal_date || '',
@@ -232,13 +386,40 @@ export default function DriversPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="vehicle_no">Vehicle No</Label>
+                <Label htmlFor="vehicle_id">Assigned Vehicle</Label>
+                <Select
+                  value={formData.vehicle_id}
+                  onValueChange={(v) => setFormData({ ...formData, vehicle_id: v })}
+                >
+                  <SelectTrigger id="vehicle_id"><SelectValue placeholder="No vehicle assigned" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No vehicle assigned</SelectItem>
+                    {vehicles.map((v) => (
+                      <SelectItem key={v.id} value={String(v.id)}>{v.vehicle_no}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="employment_type">Employment Type</Label>
+                <Select
+                  value={formData.employment_type}
+                  onValueChange={(v) => setFormData({ ...formData, employment_type: v as 'own' | 'hired' })}
+                >
+                  <SelectTrigger id="employment_type"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="own">Own Driver</SelectItem>
+                    <SelectItem value="hired">Hired Driver</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="hire_date">Hire Date</Label>
                 <Input
-                  id="vehicle_no"
-                  value={formData.vehicle_no}
-                  onChange={(e) =>
-                    setFormData({ ...formData, vehicle_no: e.target.value.toUpperCase() })
-                  }
+                  id="hire_date"
+                  type="date"
+                  value={formData.hire_date}
+                  onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })}
                 />
               </div>
               <div className="col-span-2">
@@ -351,6 +532,7 @@ export default function DriversPage() {
               <TableHead>Mobile</TableHead>
               <TableHead>License</TableHead>
               <TableHead>Vehicle</TableHead>
+              <TableHead>Employment</TableHead>
               <TableHead>Valid To</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
@@ -359,7 +541,7 @@ export default function DriversPage() {
           <TableBody>
             {drivers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-4">
+                <TableCell colSpan={9} className="text-center py-4">
                   No drivers found
                 </TableCell>
               </TableRow>
@@ -370,7 +552,8 @@ export default function DriversPage() {
                   <TableCell>{driver.username || '-'}</TableCell>
                   <TableCell>{driver.mobile}</TableCell>
                   <TableCell>{driver.license_no}</TableCell>
-                  <TableCell>{driver.vehicle_no || '-'}</TableCell>
+                  <TableCell>{driver.vehicle_id ? vehicleLabel(driver.vehicle_id) : driver.vehicle_no || '-'}</TableCell>
+                  <TableCell className="capitalize">{driver.employment_type === 'hired' ? 'Hired' : 'Own'}</TableCell>
                   <TableCell>{driver.license_valid_to || '-'}</TableCell>
                   <TableCell>
                     <span className={`rounded px-2 py-1 text-xs font-medium ${driver.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -379,6 +562,7 @@ export default function DriversPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
+                      <DriverLedgerDialog driver={driver} />
                       <Button size="sm" variant="ghost" onClick={() => handleEdit(driver)}>
                         <Edit2 className="w-4 h-4" />
                       </Button>

@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { ensureSchema, sql } from '@/lib/db';
 import { getAuthenticatedUser } from '@/lib/transport-auth';
+import { can } from '@/lib/roles';
 
 async function getTransportIdFromRequest(request: NextRequest): Promise<number | null> {
   const user = await getAuthenticatedUser(request);
@@ -49,6 +50,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Login required' }, { status: 401 });
+  }
+  if (!can(user, 'app-settings')) {
+    return NextResponse.json(
+      { success: false, error: 'Your role does not permit changing app settings' },
+      { status: 403 }
+    );
+  }
+
   try {
     await ensureSchema();
     const body = await request.json();

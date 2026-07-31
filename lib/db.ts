@@ -334,6 +334,30 @@ export async function ensureSchema() {
     END $$
   `;
 
+  // Normalize legacy free-text role values onto the fixed staff-role enum before
+  // constraining the column, so existing tenants keep working after upgrade.
+  await sql`
+    UPDATE users SET role = 'Transport Admin'
+    WHERE platform_role = 'transport_admin' AND role IN ('Admin', 'User', '')
+  `;
+  await sql`
+    UPDATE users SET role = 'Operator'
+    WHERE platform_role = 'transport_admin'
+      AND role NOT IN ('Transport Admin', 'Manager', 'Accountant', 'Operator')
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'users_role_check'
+      ) THEN
+        ALTER TABLE users
+          ADD CONSTRAINT users_role_check
+          CHECK (role IN ('Transport Admin', 'Manager', 'Accountant', 'Operator', 'Super Admin'));
+      END IF;
+    END $$
+  `;
+
   await sql`
     CREATE TABLE IF NOT EXISTS app_users (
       id SERIAL PRIMARY KEY,
@@ -826,6 +850,282 @@ export async function ensureSchema() {
   await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_app_settings_transport_id
     ON app_settings(transport_id)
+    WHERE transport_id IS NOT NULL
+  `;
+
+  // --- Phase 2: driver hiring/advance ledger + vehicle-linked LR/challan ---
+  // All additive: new nullable columns and a new table only, so existing tenant data is untouched.
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS vehicle_id INTEGER`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS employment_type TEXT NOT NULL DEFAULT 'own'`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS hire_date TEXT NOT NULL DEFAULT ''`;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'drivers_vehicle_id_fkey'
+      ) THEN
+        ALTER TABLE drivers
+          ADD CONSTRAINT drivers_vehicle_id_fkey
+          FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'drivers_employment_type_check'
+      ) THEN
+        ALTER TABLE drivers
+          ADD CONSTRAINT drivers_employment_type_check
+          CHECK (employment_type IN ('own', 'hired'));
+      END IF;
+    END $$
+  `;
+
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS vehicle_id INTEGER`;
+  await sql`ALTER TABLE challans ADD COLUMN IF NOT EXISTS driver_id INTEGER`;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'challans_vehicle_id_fkey'
+      ) THEN
+        ALTER TABLE challans
+          ADD CONSTRAINT challans_vehicle_id_fkey
+          FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'challans_driver_id_fkey'
+      ) THEN
+        ALTER TABLE challans
+          ADD CONSTRAINT challans_driver_id_fkey
+          FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE SET NULL;
+      END IF;
+    END $$
+  `;
+
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS vehicle_id INTEGER`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS driver_id INTEGER`;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'lr_entries_vehicle_id_fkey'
+      ) THEN
+        ALTER TABLE lr_entries
+          ADD CONSTRAINT lr_entries_vehicle_id_fkey
+          FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'lr_entries_driver_id_fkey'
+      ) THEN
+        ALTER TABLE lr_entries
+          ADD CONSTRAINT lr_entries_driver_id_fkey
+          FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE SET NULL;
+      END IF;
+    END $$
+  `;
+
+  // Best-effort backfill: link existing free-text truck_no/driver_name to master records
+  // wherever they cleanly match within the same tenant. Idempotent (only fills NULLs).
+  await sql`
+    UPDATE drivers d SET vehicle_id = v.id
+    FROM vehicles v
+    WHERE d.vehicle_id IS NULL
+      AND d.transport_id = v.transport_id
+      AND d.vehicle_no <> ''
+      AND UPPER(TRIM(d.vehicle_no)) = v.vehicle_no
+  `;
+  await sql`
+    UPDATE challans c SET vehicle_id = v.id
+    FROM vehicles v
+    WHERE c.vehicle_id IS NULL
+      AND c.transport_id = v.transport_id
+      AND c.truck_no <> ''
+      AND UPPER(TRIM(c.truck_no)) = v.vehicle_no
+  `;
+  await sql`
+    UPDATE challans c SET driver_id = d.id
+    FROM drivers d
+    WHERE c.driver_id IS NULL
+      AND c.transport_id = d.transport_id
+      AND c.driver_name <> ''
+      AND LOWER(TRIM(c.driver_name)) = LOWER(TRIM(d.driver_name))
+  `;
+  await sql`
+    UPDATE lr_entries l SET vehicle_id = v.id
+    FROM vehicles v
+    WHERE l.vehicle_id IS NULL
+      AND l.transport_id = v.transport_id
+      AND l.truck_no <> ''
+      AND UPPER(TRIM(l.truck_no)) = v.vehicle_no
+  `;
+  await sql`
+    UPDATE lr_entries l SET driver_id = d.id
+    FROM drivers d
+    WHERE l.driver_id IS NULL
+      AND l.transport_id = d.transport_id
+      AND l.driver_name <> ''
+      AND LOWER(TRIM(l.driver_name)) = LOWER(TRIM(d.driver_name))
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS driver_ledger_entries (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      driver_id INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+      entry_type TEXT NOT NULL,
+      amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      entry_date TEXT NOT NULL,
+      remarks TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'driver_ledger_entries_type_check'
+      ) THEN
+        ALTER TABLE driver_ledger_entries
+          ADD CONSTRAINT driver_ledger_entries_type_check
+          CHECK (entry_type IN ('advance', 'rent', 'deduction'));
+      END IF;
+    END $$
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_driver_ledger_entries_driver_id
+    ON driver_ledger_entries(driver_id)
+  `;
+
+  // --- Phase 3: ERP expense/income module ---
+  await sql`
+    CREATE TABLE IF NOT EXISTS expense_income_categories (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      name TEXT NOT NULL,
+      category_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'expense_income_categories_type_check'
+      ) THEN
+        ALTER TABLE expense_income_categories
+          ADD CONSTRAINT expense_income_categories_type_check
+          CHECK (category_type IN ('expense', 'income'));
+      END IF;
+    END $$
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS expense_income_entries (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      entry_type TEXT NOT NULL,
+      category_id INTEGER,
+      amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      entry_date TEXT NOT NULL,
+      payment_mode TEXT NOT NULL DEFAULT 'cash',
+      cheque_no TEXT NOT NULL DEFAULT '',
+      cheque_date TEXT NOT NULL DEFAULT '',
+      bank_name TEXT NOT NULL DEFAULT '',
+      vehicle_id INTEGER,
+      driver_id INTEGER,
+      remarks TEXT NOT NULL DEFAULT '',
+      attachment_url TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'expense_income_entries_type_check'
+      ) THEN
+        ALTER TABLE expense_income_entries
+          ADD CONSTRAINT expense_income_entries_type_check
+          CHECK (entry_type IN ('expense', 'income'));
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'expense_income_entries_mode_check'
+      ) THEN
+        ALTER TABLE expense_income_entries
+          ADD CONSTRAINT expense_income_entries_mode_check
+          CHECK (payment_mode IN ('cash', 'bank', 'cheque'));
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'expense_income_entries_category_id_fkey'
+      ) THEN
+        ALTER TABLE expense_income_entries
+          ADD CONSTRAINT expense_income_entries_category_id_fkey
+          FOREIGN KEY (category_id) REFERENCES expense_income_categories(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'expense_income_entries_vehicle_id_fkey'
+      ) THEN
+        ALTER TABLE expense_income_entries
+          ADD CONSTRAINT expense_income_entries_vehicle_id_fkey
+          FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'expense_income_entries_driver_id_fkey'
+      ) THEN
+        ALTER TABLE expense_income_entries
+          ADD CONSTRAINT expense_income_entries_driver_id_fkey
+          FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE SET NULL;
+      END IF;
+    END $$
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_expense_income_entries_transport_date
+    ON expense_income_entries(transport_id, entry_date)
+  `;
+
+  // --- Login redesign / forgot-password / notification infrastructure ---
+  await sql`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token_hash
+    ON password_reset_tokens(token_hash)
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS notification_settings (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      email_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      smtp_host TEXT NOT NULL DEFAULT '',
+      smtp_port INTEGER NOT NULL DEFAULT 587,
+      smtp_username TEXT NOT NULL DEFAULT '',
+      smtp_password TEXT NOT NULL DEFAULT '',
+      smtp_from_email TEXT NOT NULL DEFAULT '',
+      smtp_from_name TEXT NOT NULL DEFAULT '',
+      whatsapp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      whatsapp_phone_number_id TEXT NOT NULL DEFAULT '',
+      whatsapp_access_token TEXT NOT NULL DEFAULT '',
+      notify_lr_created BOOLEAN NOT NULL DEFAULT FALSE,
+      notify_invoice_created BOOLEAN NOT NULL DEFAULT FALSE,
+      notify_receipt_created BOOLEAN NOT NULL DEFAULT FALSE,
+      notify_challan_created BOOLEAN NOT NULL DEFAULT FALSE,
+      notify_consignor BOOLEAN NOT NULL DEFAULT TRUE,
+      notify_consignee BOOLEAN NOT NULL DEFAULT TRUE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_settings_transport_id
+    ON notification_settings(transport_id)
     WHERE transport_id IS NOT NULL
   `;
 

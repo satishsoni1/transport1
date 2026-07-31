@@ -114,11 +114,21 @@ export async function POST(request: NextRequest) {
     const { rows: seqRows } = await sql`SELECT get_next_doc_number(${transportId}, 'challan') AS seq`;
     const challanNo = `CH${String(Number(seqRows[0].seq)).padStart(5, '0')}`;
 
+    // vehicle_id/driver_id are auto-matched client-side, not user-asserted — verify tenant
+    // ownership and silently drop rather than reject if they don't resolve to this tenant.
+    const vehicleId = body.vehicle_id
+      ? (await sql`SELECT id FROM vehicles WHERE id = ${Number(body.vehicle_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+      : null;
+    const driverId = body.driver_id
+      ? (await sql`SELECT id FROM drivers WHERE id = ${Number(body.driver_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+      : null;
+
     const { rows } = await sql`
       INSERT INTO challans (
         transport_id, challan_no, challan_date, from_city, to_city, truck_no, driver_name, driver_mobile,
         owner_name, eway_no, remarks, engine_reading, short_reading, rate_per_km, reading_total,
-        hamali, advance, lr_list, total_freight, total_to_pay, total_paid, status, created_by
+        hamali, advance, lr_list, total_freight, total_to_pay, total_paid, status, created_by,
+        vehicle_id, driver_id
       )
       VALUES (
         ${transportId},
@@ -143,7 +153,9 @@ export async function POST(request: NextRequest) {
         ${totalToPay},
         ${totalPaid},
         'open',
-        ${String(body.created_by || '').trim()}
+        ${String(body.created_by || '').trim()},
+        ${vehicleId},
+        ${driverId}
       )
       RETURNING *
     `;

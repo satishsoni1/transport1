@@ -1,7 +1,25 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { ensureSchema, sql } from '@/lib/db';
+import { getAuthenticatedUser } from '@/lib/transport-auth';
+import { can } from '@/lib/roles';
 
-export async function GET() {
+async function requireFinancialYearsAccess(request: NextRequest) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return { ok: false as const, error: 'Login required', status: 401 as const };
+  }
+  if (!can(user, 'financial-years')) {
+    return { ok: false as const, error: 'Your role does not permit managing financial years', status: 403 as const };
+  }
+  return { ok: true as const };
+}
+
+export async function GET(request: NextRequest) {
+  const auth = await requireFinancialYearsAccess(request);
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
     await ensureSchema();
     const { rows } = await sql`
@@ -19,7 +37,12 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const auth = await requireFinancialYearsAccess(request);
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
     await ensureSchema();
     const body = await request.json();

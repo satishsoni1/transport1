@@ -50,6 +50,31 @@ export async function PUT(
       );
     }
 
+    const employmentType =
+      body.employment_type === undefined
+        ? existing.employment_type
+        : body.employment_type === 'hired' ? 'hired' : 'own';
+
+    let vehicleId: number | null = existing.vehicle_id;
+    let vehicleNo = body.vehicle_no ?? existing.vehicle_no;
+    if (body.vehicle_id !== undefined) {
+      if (body.vehicle_id === null || body.vehicle_id === '') {
+        vehicleId = null;
+      } else {
+        const { rows: vehicleRows } = await sql`
+          SELECT id, vehicle_no FROM vehicles WHERE id = ${Number(body.vehicle_id)} AND transport_id = ${transportId}
+        `;
+        if (vehicleRows.length === 0) {
+          return NextResponse.json(
+            { success: false, error: 'Selected vehicle not found' },
+            { status: 400 }
+          );
+        }
+        vehicleId = vehicleRows[0].id;
+        vehicleNo = vehicleRows[0].vehicle_no;
+      }
+    }
+
     if (!nextUsername && submittedPassword && submittedPassword !== '') {
       return NextResponse.json(
         { success: false, error: 'Provide both username and password, or leave both blank' },
@@ -88,13 +113,16 @@ export async function PUT(
         mobile = ${body.mobile ?? existing.mobile},
         license_no = ${body.license_no ?? existing.license_no},
         address = ${body.address ?? existing.address},
-        vehicle_no = ${body.vehicle_no ?? existing.vehicle_no},
+        vehicle_no = ${vehicleNo},
         license_valid_from = ${body.license_valid_from ?? existing.license_valid_from},
         license_valid_to = ${body.license_valid_to ?? existing.license_valid_to},
         renewal_date = ${body.renewal_date ?? existing.renewal_date},
         passport_photo_url = ${body.passport_photo_url ?? existing.passport_photo_url},
         thumb_image_url = ${body.thumb_image_url ?? existing.thumb_image_url},
-        status = ${body.status ?? existing.status}
+        status = ${body.status ?? existing.status},
+        vehicle_id = ${vehicleId},
+        employment_type = ${employmentType},
+        hire_date = ${body.hire_date ?? existing.hire_date}
       WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;

@@ -173,7 +173,7 @@ export async function POST(request: Request) {
         ${passwordHash},
         ${adminFirstName},
         ${adminLastName},
-        'Admin',
+        'Transport Admin',
         'transport_admin',
         ${transport.id},
         'active'

@@ -21,9 +21,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import useSWR from 'swr';
+import { STAFF_ROLES } from '@/lib/roles';
 
 interface AppUser {
   id: number;
@@ -181,11 +189,21 @@ export default function SettingsUsersPage() {
               </div>
               <div>
                 <Label htmlFor="role">Role *</Label>
-                <Input
-                  id="role"
+                <Select
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                />
+                  onValueChange={(value) => setFormData({ ...formData, role: value })}
+                >
+                  <SelectTrigger id="role">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STAFF_ROLES.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button

@@ -99,6 +99,21 @@ export async function PUT(
       }
     }
 
+    // vehicle_id/driver_id are auto-matched client-side, not user-asserted — verify tenant
+    // ownership and silently fall back rather than reject if they don't resolve to this tenant.
+    const vehicleId =
+      body.vehicle_id === undefined
+        ? existing.vehicle_id
+        : body.vehicle_id
+          ? (await sql`SELECT id FROM vehicles WHERE id = ${Number(body.vehicle_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+          : null;
+    const driverId =
+      body.driver_id === undefined
+        ? existing.driver_id
+        : body.driver_id
+          ? (await sql`SELECT id FROM drivers WHERE id = ${Number(body.driver_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+          : null;
+
     const { rows } = await sql`
       UPDATE lr_entries
       SET
@@ -123,7 +138,9 @@ export async function PUT(
         return_remark = ${body.return_remark ?? existing.return_remark},
         pod_received = ${body.pod_received ?? existing.pod_received},
         goods_items = ${JSON.stringify(goodsItems)}::jsonb,
-        status = ${statusValue}
+        status = ${statusValue},
+        vehicle_id = ${vehicleId},
+        driver_id = ${driverId}
       WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;

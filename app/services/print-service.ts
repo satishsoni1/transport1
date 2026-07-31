@@ -1671,38 +1671,123 @@ export function printPodImagesBatch(items: { title: string; imageUrl: string }[]
   printWindow.document.close();
 }
 
+const PDF_PAGE_SIZES_MM: Record<'a4' | 'a5', { width: number; height: number }> = {
+  a4: { width: 210, height: 297 },
+  a5: { width: 148, height: 210 },
+};
+
+function detectPdfPageFormat(html: string): 'a4' | 'a5' {
+  const match = html.match(/@page\s*\{[^}]*size:\s*(a4|a5)/i);
+  return match && match[1].toLowerCase() === 'a5' ? 'a5' : 'a4';
+}
+
+function waitForFrameImages(doc: Document, timeoutMs = 2000): Promise<void> {
+  const images = Array.from(doc.images || []);
+  if (images.length === 0) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    let pending = images.length;
+    const timeout = setTimeout(resolve, timeoutMs);
+    const done = () => {
+      pending -= 1;
+      if (pending <= 0) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    };
+    images.forEach((img) => {
+      if (img.complete) {
+        done();
+        return;
+      }
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+    });
+  });
+}
+
+function downloadHtmlFallback(html: string, filename: string) {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}.html`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Renders the print HTML off-screen in this browser (via html2canvas) and embeds the
+ * resulting image into a jsPDF document sized to match the template's own @page rule
+ * (A4 for invoices/challans, A5 for LR sheets) — a real, one-click PDF download with no
+ * server round-trip. Falls back to downloading the raw HTML if rendering fails for any
+ * reason (e.g. an unsupported CSS feature), so the button never silently does nothing.
+ */
 export async function downloadPDF(html: string, filename: string): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  const format = detectPdfPageFormat(html);
+  const pageMm = PDF_PAGE_SIZES_MM[format];
+  const pxPerMm = 3.7795; // ~96dpi CSS px per mm, matches @page mm sizing used in the templates
+  const frame = document.createElement('iframe');
+  frame.style.position = 'fixed';
+  frame.style.left = '-10000px';
+  frame.style.top = '0';
+  frame.style.border = '0';
+  frame.style.width = `${Math.round(pageMm.width * pxPerMm)}px`;
+  frame.style.height = `${Math.round(pageMm.height * pxPerMm)}px`;
+  document.body.appendChild(frame);
+
   try {
-    const response = await fetch('/api/export/pdf', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ html, filename }),
+    const frameDoc = frame.contentDocument;
+    if (!frameDoc) throw new Error('Unable to prepare PDF render frame');
+
+    frameDoc.open();
+    frameDoc.write(html);
+    frameDoc.close();
+
+    await waitForFrameImages(frameDoc);
+    await new Promise((resolve) => setTimeout(resolve, 60)); // let layout/fonts settle
+
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await html2canvas(frameDoc.body, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      windowWidth: frameDoc.documentElement.scrollWidth,
+      windowHeight: frameDoc.documentElement.scrollHeight,
     });
 
-    if (!response.ok) throw new Error('PDF generation failed');
+    const { jsPDF } = await import('jspdf');
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format });
+    const imgWidth = pageMm.width;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${filename}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if (imgHeight <= pageMm.height) {
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+    } else {
+      // Content taller than one page (e.g. a long invoice) — paginate by slicing the
+      // same tall image across additional pages rather than clipping it.
+      let heightLeft = imgHeight;
+      let position = 0;
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageMm.height;
+      while (heightLeft > 0) {
+        position -= pageMm.height;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageMm.height;
+      }
+    }
+
+    pdf.save(`${filename}.pdf`);
   } catch (error) {
-    console.error('Error downloading PDF:', error);
-    // Fallback: download printable HTML if PDF API is not configured.
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${filename}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    console.error('Error generating PDF, falling back to HTML download:', error);
+    downloadHtmlFallback(html, filename);
+  } finally {
+    document.body.removeChild(frame);
   }
 }

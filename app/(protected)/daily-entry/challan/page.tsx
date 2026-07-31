@@ -121,6 +121,8 @@ interface Challan {
   driver_address?: string;
   owner_name: string;
   eway_no: string;
+  vehicle_id?: number | null;
+  driver_id?: number | null;
   engine_reading?: number;
   short_reading?: number;
   rate_per_km?: number;
@@ -211,6 +213,11 @@ export default function ChallanPage() {
     remarks: '',
   });
 
+  // Resolved from formData.truck_no/driver_name matching a master record — see the
+  // match-lookup effect below. Persisted alongside the free-text fields as the real FK link.
+  const [linkedVehicleId, setLinkedVehicleId] = useState<number | null>(null);
+  const [linkedDriverId, setLinkedDriverId] = useState<number | null>(null);
+
   const [selectedLRs, setSelectedLRs] = useState<ChallanLR[]>([]);
   const [newLRInput, setNewLRInput] = useState('');
   const [qrScanning, setQrScanning] = useState(false);
@@ -288,6 +295,9 @@ export default function ChallanPage() {
     const mappedDriver = drivers.find(
       (item) => item.vehicle_no && item.vehicle_no.toLowerCase() === formData.truck_no.trim().toLowerCase()
     );
+
+    setLinkedVehicleId(selectedVehicle?.id ?? null);
+    setLinkedDriverId(mappedDriver?.id ?? null);
 
     if (!selectedVehicle && !mappedDriver) return;
 
@@ -515,6 +525,8 @@ export default function ChallanPage() {
 
   const handleEdit = useCallback((challan: Challan) => {
     setEditingId(challan.id);
+    setLinkedVehicleId(challan.vehicle_id ?? null);
+    setLinkedDriverId(challan.driver_id ?? null);
     setFormData({
       from_city: challan.from_city || '',
       to_city: challan.to_city || '',
@@ -605,6 +617,8 @@ export default function ChallanPage() {
           remarks: formData.remarks,
           lr_list: selectedLRs,
           created_by: user?.email || `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+          vehicle_id: linkedVehicleId,
+          driver_id: linkedDriverId,
         };
 
         if (editingId) {
@@ -619,11 +633,13 @@ export default function ChallanPage() {
         setActiveTab('list');
         setEditingId(null);
         setSelectedLRs([]);
+        setLinkedVehicleId(null);
+        setLinkedDriverId(null);
       } catch (error) {
         toast.error('Failed to save challan');
       }
     },
-    [editingId, formData, selectedLRs, mutate]
+    [editingId, formData, selectedLRs, mutate, linkedVehicleId, linkedDriverId, user]
   );
 
   const handlePrint = useCallback(
@@ -667,6 +683,8 @@ export default function ChallanPage() {
               setActiveTab('form');
               setEditingId(null);
               setSelectedLRs([]);
+              setLinkedVehicleId(null);
+              setLinkedDriverId(null);
             }}
             className="gap-2"
           >
@@ -762,6 +780,7 @@ export default function ChallanPage() {
                           item.vehicle_no.toLowerCase() ===
                           value.trim().toLowerCase()
                       );
+                      setLinkedVehicleId(selected?.id ?? null);
                       setFormData({
                         ...formData,
                         truck_no: selected?.vehicle_no || value,
@@ -797,6 +816,13 @@ export default function ChallanPage() {
                           item.driver_name.toLowerCase() ===
                           value.trim().toLowerCase()
                       );
+                      const matchedVehicle = vehicles.find(
+                        (item) =>
+                          item.vehicle_no.toLowerCase() ===
+                          String(selected?.vehicle_no || '').trim().toLowerCase()
+                      );
+                      setLinkedDriverId(selected?.id ?? null);
+                      setLinkedVehicleId(matchedVehicle?.id ?? linkedVehicleId);
                       setFormData({
                         ...formData,
                         driver_name: value,
@@ -804,12 +830,7 @@ export default function ChallanPage() {
                         driver_license_no: selected?.license_no || formData.driver_license_no,
                         driver_address: selected?.address || formData.driver_address,
                         truck_no: selected?.vehicle_no || formData.truck_no,
-                        owner_name:
-                          vehicles.find(
-                            (item) =>
-                              item.vehicle_no.toLowerCase() ===
-                              String(selected?.vehicle_no || '').trim().toLowerCase()
-                          )?.owner_name || formData.owner_name,
+                        owner_name: matchedVehicle?.owner_name || formData.owner_name,
                       });
                     }}
                     placeholder="Driver name"

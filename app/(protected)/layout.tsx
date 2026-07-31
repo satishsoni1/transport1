@@ -4,6 +4,7 @@ import { useAuth } from '@/app/context/auth-context';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
+import { SuperAdminSidebar } from '@/components/layout/super-admin-sidebar';
 import { Header } from '@/components/layout/header';
 
 const SIDEBAR_HIDDEN_KEY = 'tms_sidebar_hidden';
@@ -59,9 +60,11 @@ export default function ProtectedLayout({
     subscription &&
     (subscription.status === 'near_expiry' || subscription.status === 'expired');
 
+  const isSuperAdmin = user?.platformRole === 'super_admin';
+
   return (
     <div className="flex h-screen bg-background">
-      {!sidebarHidden ? <Sidebar /> : null}
+      {!sidebarHidden ? (isSuperAdmin ? <SuperAdminSidebar /> : <Sidebar />) : null}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header sidebarHidden={sidebarHidden} onToggleSidebar={toggleSidebar} />
         {showSubscriptionWarning ? (

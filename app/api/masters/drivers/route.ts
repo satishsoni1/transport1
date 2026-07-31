@@ -38,12 +38,29 @@ export async function POST(request: NextRequest) {
     const driverName = String(body.driver_name || '').trim();
     const username = String(body.username || '').trim();
     const password = String(body.password || '').trim();
+    const employmentType = body.employment_type === 'hired' ? 'hired' : 'own';
 
     if (!driverName) {
       return NextResponse.json(
         { success: false, error: 'Driver name is required' },
         { status: 400 }
       );
+    }
+
+    let vehicleId: number | null = null;
+    let vehicleNo = String(body.vehicle_no || '').trim().toUpperCase();
+    if (body.vehicle_id) {
+      const { rows: vehicleRows } = await sql`
+        SELECT id, vehicle_no FROM vehicles WHERE id = ${Number(body.vehicle_id)} AND transport_id = ${transportId}
+      `;
+      if (vehicleRows.length === 0) {
+        return NextResponse.json(
+          { success: false, error: 'Selected vehicle not found' },
+          { status: 400 }
+        );
+      }
+      vehicleId = vehicleRows[0].id;
+      vehicleNo = vehicleRows[0].vehicle_no;
     }
 
     if ((username && !password) || (!username && password)) {
@@ -72,7 +89,8 @@ export async function POST(request: NextRequest) {
     const { rows } = await sql`
       INSERT INTO drivers (
         transport_id, driver_name, username, password, password_hash, mobile, license_no, address, vehicle_no,
-        license_valid_from, license_valid_to, renewal_date, passport_photo_url, thumb_image_url, status
+        license_valid_from, license_valid_to, renewal_date, passport_photo_url, thumb_image_url, status,
+        vehicle_id, employment_type, hire_date
       )
       VALUES (
         ${transportId},
@@ -83,13 +101,16 @@ export async function POST(request: NextRequest) {
         ${String(body.mobile || '').trim()},
         ${String(body.license_no || '').trim()},
         ${String(body.address || '').trim()},
-        ${String(body.vehicle_no || '').trim().toUpperCase()},
+        ${vehicleNo},
         ${String(body.license_valid_from || '').trim()},
         ${String(body.license_valid_to || '').trim()},
         ${String(body.renewal_date || '').trim()},
         ${String(body.passport_photo_url || '').trim()},
         ${String(body.thumb_image_url || '').trim()},
-        ${body.status === 'inactive' ? 'inactive' : 'active'}
+        ${body.status === 'inactive' ? 'inactive' : 'active'},
+        ${vehicleId},
+        ${employmentType},
+        ${String(body.hire_date || '').trim()}
       )
       RETURNING *
     `;

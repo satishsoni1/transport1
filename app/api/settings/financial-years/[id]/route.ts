@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { ensureSchema, sql } from '@/lib/db';
+import { getAuthenticatedUser } from '@/lib/transport-auth';
+import { can } from '@/lib/roles';
 
 function parseId(rawId: string) {
   const id = Number(rawId);
@@ -7,9 +9,20 @@ function parseId(rawId: string) {
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Login required' }, { status: 401 });
+  }
+  if (!can(user, 'financial-years')) {
+    return NextResponse.json(
+      { success: false, error: 'Your role does not permit managing financial years' },
+      { status: 403 }
+    );
+  }
+
   try {
     await ensureSchema();
     const { id: rawId } = await context.params;

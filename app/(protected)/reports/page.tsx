@@ -23,7 +23,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { Download, Filter } from 'lucide-react';
+import { Download, Filter, FileText } from 'lucide-react';
+import { exportRowsToCSV, exportRowsToPDF } from '@/lib/report-export';
 
 interface LREntry {
   id?: number;
@@ -37,6 +38,27 @@ interface LREntry {
   freight: number;
   status: 'to_pay' | 'paid' | 'tbb';
   goods_items?: Array<{ qty?: number }>;
+  vehicle_id?: number | null;
+}
+
+interface Vehicle {
+  id: number;
+  vehicle_no: string;
+}
+
+interface AccountEntry {
+  entry_type: 'expense' | 'income';
+  amount: number;
+  vehicle_id: number | null;
+}
+
+interface DriverLedgerSummaryRow {
+  driverId: number;
+  driverName: string;
+  totalAdvance: number;
+  totalRent: number;
+  totalDeduction: number;
+  balance: number;
 }
 
 interface ChallanListItem {
@@ -86,23 +108,11 @@ function inRange(dateStr: string, from: string, to: string) {
   return true;
 }
 
-function toCSV(rows: Array<Record<string, string | number>>) {
-  if (rows.length === 0) return '';
-  const headers = Object.keys(rows[0]);
-  const escape = (val: string | number) => {
-    const s = String(val ?? '');
-    return `"${s.replace(/"/g, '""')}"`;
-  };
-  const lines = [headers.join(',')];
-  for (const row of rows) {
-    lines.push(headers.map((h) => escape(row[h] ?? '')).join(','));
-  }
-  return lines.join('\n');
-}
-
 export default function ReportsPage() {
   const { user } = useAuth();
-  const [reportType, setReportType] = useState<'lr' | 'city' | 'consignor' | 'payment'>('lr');
+  const [reportType, setReportType] = useState<
+    'lr' | 'city' | 'consignor' | 'payment' | 'vehicle-pnl' | 'driver-ledger'
+  >('lr');
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
     to: new Date().toISOString().slice(0, 10),
@@ -117,6 +127,15 @@ export default function ReportsPage() {
   const { data: invoices = [] } = useSWR<Invoice[]>('/api/daily-entry/invoices', apiClient.get);
   const { data: consignors = [] } = useSWR<Consignor[]>('/api/masters/consignors', apiClient.get);
   const { data: consignees = [] } = useSWR<Consignee[]>('/api/masters/consignees', apiClient.get);
+  const { data: vehicles = [] } = useSWR<Vehicle[]>('/api/masters/vehicles', apiClient.get);
+  const { data: accountEntries = [] } = useSWR<AccountEntry[]>(
+    `/api/accounts/entries?from=${appliedRange.from}&to=${appliedRange.to}`,
+    apiClient.get
+  );
+  const { data: driverLedgerSummary = [] } = useSWR<DriverLedgerSummaryRow[]>(
+    '/api/masters/drivers/ledger-summary',
+    apiClient.get
+  );
 
   const lrNoToChallanMeta = useMemo(() => {
     const map = new Map<
@@ -234,6 +253,27 @@ export default function ReportsPage() {
     };
   }, [filteredLR]);
 
+  const vehiclePnlData = useMemo(() => {
+    const income = new Map<number, number>();
+    for (const row of filteredLR) {
+      if (!row.vehicle_id) continue;
+      income.set(row.vehicle_id, (income.get(row.vehicle_id) || 0) + (Number(row.freight) || 0));
+    }
+    const expense = new Map<number, number>();
+    for (const entry of accountEntries) {
+      if (entry.entry_type !== 'expense' || !entry.vehicle_id) continue;
+      expense.set(entry.vehicle_id, (expense.get(entry.vehicle_id) || 0) + (Number(entry.amount) || 0));
+    }
+    return vehicles
+      .map((v) => {
+        const incomeAmt = income.get(v.id) || 0;
+        const expenseAmt = expense.get(v.id) || 0;
+        return { vehicle_no: v.vehicle_no, income: incomeAmt, expense: expenseAmt, net: incomeAmt - expenseAmt };
+      })
+      .filter((row) => row.income > 0 || row.expense > 0)
+      .sort((a, b) => b.net - a.net);
+  }, [filteredLR, accountEntries, vehicles]);
+
   const reportRows = useMemo(() => {
     const consignorMap = new Map(consignors.map((item) => [item.id, item.name]));
     const consigneeMap = new Map(consignees.map((item) => [item.id, item.name]));
@@ -282,10 +322,31 @@ export default function ReportsPage() {
       }));
     }
 
-    return paymentData.map((row, index) => ({
+    if (reportType === 'payment') {
+      return paymentData.map((row, index) => ({
+        sr: index + 1,
+        payment_type: row.name,
+        amount: Number(row.value || 0).toFixed(2),
+      }));
+    }
+
+    if (reportType === 'vehicle-pnl') {
+      return vehiclePnlData.map((row, index) => ({
+        sr: index + 1,
+        vehicle_no: row.vehicle_no,
+        freight_income: row.income.toFixed(2),
+        expense: row.expense.toFixed(2),
+        net: row.net.toFixed(2),
+      }));
+    }
+
+    return driverLedgerSummary.map((row, index) => ({
       sr: index + 1,
-      payment_type: row.name,
-      amount: Number(row.value || 0).toFixed(2),
+      driver: row.driverName,
+      total_advance: row.totalAdvance.toFixed(2),
+      total_rent: row.totalRent.toFixed(2),
+      total_deduction: row.totalDeduction.toFixed(2),
+      balance: row.balance.toFixed(2),
     }));
   }, [
     reportType,
@@ -293,6 +354,8 @@ export default function ReportsPage() {
     cityData,
     consignorData,
     paymentData,
+    vehiclePnlData,
+    driverLedgerSummary,
     consignors,
     consignees,
     lrNoToChallanMeta,
@@ -302,19 +365,21 @@ export default function ReportsPage() {
     if (reportType === 'lr') return 'L.R. Register';
     if (reportType === 'city') return 'City Wise Freight Report';
     if (reportType === 'consignor') return 'Consignor Summary';
-    return 'Payment Status Report';
+    if (reportType === 'payment') return 'Payment Status Report';
+    if (reportType === 'vehicle-pnl') return 'Vehicle-wise P&L';
+    return 'Driver Ledger Summary';
   }, [reportType]);
 
-  const exportReport = useCallback(() => {
-    const csv = toCSV(reportRows);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `report-${reportType}-${appliedRange.from}-to-${appliedRange.to}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [reportRows, reportType, appliedRange]);
+  const exportFilenameBase = `report-${reportType}-${appliedRange.from}-to-${appliedRange.to}`;
+  const exportSubtitle = `Period: ${appliedRange.from} to ${appliedRange.to}`;
+
+  const exportCSV = useCallback(() => {
+    exportRowsToCSV(reportRows, exportFilenameBase);
+  }, [reportRows, exportFilenameBase]);
+
+  const exportPDF = useCallback(() => {
+    exportRowsToPDF(reportRows, exportFilenameBase, reportTitle, exportSubtitle);
+  }, [reportRows, exportFilenameBase, reportTitle, exportSubtitle]);
 
   if (!user) return null;
 
@@ -327,10 +392,16 @@ export default function ReportsPage() {
             Register-style operational reports with export support.
           </p>
         </div>
-        <Button className="gap-2" onClick={exportReport}>
-          <Download className="w-4 h-4" />
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={exportCSV}>
+            <Download className="w-4 h-4" />
+            Export CSV
+          </Button>
+          <Button className="gap-2" onClick={exportPDF}>
+            <FileText className="w-4 h-4" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -369,7 +440,7 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
         <Button variant={reportType === 'lr' ? 'default' : 'outline'} onClick={() => setReportType('lr')}>
           L.R. Report
         </Button>
@@ -387,6 +458,18 @@ export default function ReportsPage() {
           onClick={() => setReportType('payment')}
         >
           Payment Status
+        </Button>
+        <Button
+          variant={reportType === 'vehicle-pnl' ? 'default' : 'outline'}
+          onClick={() => setReportType('vehicle-pnl')}
+        >
+          Vehicle P&amp;L
+        </Button>
+        <Button
+          variant={reportType === 'driver-ledger' ? 'default' : 'outline'}
+          onClick={() => setReportType('driver-ledger')}
+        >
+          Driver Ledger
         </Button>
       </div>
 
@@ -604,6 +687,63 @@ export default function ReportsPage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {reportType === 'vehicle-pnl' && (
+        <div className="grid grid-cols-1 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vehicle-wise Income vs. Expense</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {vehiclePnlData.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No LR freight or expense entries are linked to a vehicle yet in this period.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={vehiclePnlData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="vehicle_no" angle={-45} textAnchor="end" height={100} />
+                    <YAxis />
+                    <Tooltip formatter={(value) => `Rs ${Number(value).toLocaleString('en-IN')}`} />
+                    <Legend />
+                    <Bar dataKey="income" fill="#00C49F" name="Freight Income" />
+                    <Bar dataKey="expense" fill="#FF8042" name="Expense" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {reportType === 'driver-ledger' && (
+        <div className="grid grid-cols-1 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Driver Advance / Rent / Deduction Totals</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {driverLedgerSummary.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No driver ledger entries recorded yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={driverLedgerSummary}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="driverName" angle={-45} textAnchor="end" height={100} />
+                    <YAxis />
+                    <Tooltip formatter={(value) => `Rs ${Number(value).toLocaleString('en-IN')}`} />
+                    <Legend />
+                    <Bar dataKey="totalAdvance" fill="#FFBB28" name="Advance" />
+                    <Bar dataKey="totalRent" fill="#00C49F" name="Rent" />
+                    <Bar dataKey="totalDeduction" fill="#FF8042" name="Deduction" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </div>
