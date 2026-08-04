@@ -38,6 +38,7 @@ import {
   CalendarClock,
   Users2,
   Warehouse,
+  BookOpen,
 } from 'lucide-react';
 
 import type { PermissionKey } from '@/lib/roles';
@@ -56,6 +57,11 @@ export const navItems: NavItem[] = [
     label: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
+  },
+  {
+    label: 'Help & Docs',
+    href: '/docs',
+    icon: BookOpen,
   },
   {
     label: 'Daily Entry',
