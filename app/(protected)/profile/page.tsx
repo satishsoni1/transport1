@@ -9,6 +9,99 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
+function TwoFactorCard() {
+  const { user } = useAuth();
+  const [enabled, setEnabled] = useState(Boolean(user?.totpEnabled));
+  const [setupData, setSetupData] = useState<{ secret: string; qr_image_url: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const handleStartSetup = async () => {
+    setBusy(true);
+    try {
+      const data = await apiClient.post<{ secret: string; qr_image_url: string }>('/api/account/2fa/setup', {});
+      setSetupData(data);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to start 2FA setup');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfirmEnable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await apiClient.post('/api/account/2fa/enable', { code });
+      toast.success('Two-factor authentication enabled');
+      setEnabled(true);
+      setSetupData(null);
+      setCode('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Invalid code');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDisable = async () => {
+    if (!confirm('Disable two-factor authentication?')) return;
+    setBusy(true);
+    try {
+      await apiClient.post('/api/account/2fa/disable', {});
+      toast.success('Two-factor authentication disabled');
+      setEnabled(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to disable 2FA');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Two-Factor Authentication</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {enabled ? (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-emerald-700">Enabled — your account requires a 6-digit code at login.</p>
+            <Button type="button" variant="outline" onClick={handleDisable} disabled={busy}>Disable</Button>
+          </div>
+        ) : setupData ? (
+          <form onSubmit={handleConfirmEnable} className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Scan this QR code with Google Authenticator, Authy, or a similar app, then enter the 6-digit code it shows.
+            </p>
+            <img src={setupData.qr_image_url} alt="2FA QR code" className="h-40 w-40" />
+            <p className="text-xs text-muted-foreground">Or enter this key manually: <code>{setupData.secret}</code></p>
+            <div>
+              <Label htmlFor="totp_setup_code">6-digit code</Label>
+              <Input
+                id="totp_setup_code"
+                inputMode="numeric"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy || code.length !== 6}>Confirm & Enable</Button>
+              <Button type="button" variant="outline" onClick={() => setSetupData(null)}>Cancel</Button>
+            </div>
+          </form>
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Not enabled. Add an extra layer of security to your login.</p>
+            <Button type="button" onClick={handleStartSetup} disabled={busy}>Set Up 2FA</Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 type ProfileResponse = {
   id: number;
   email: string;
@@ -235,6 +328,8 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+
+      <TwoFactorCard />
     </div>
   );
 }

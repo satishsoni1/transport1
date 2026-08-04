@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Camera, Plus, ScanLine, Trash2, Edit2, Printer, ImageUp, LoaderCircle, X } from 'lucide-react';
+import { Camera, Plus, ScanLine, Trash2, Edit2, Printer, ImageUp, LoaderCircle, X, FileCheck2 } from 'lucide-react';
 import useSWR from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 import {
@@ -80,6 +80,7 @@ interface Invoice {
   status: 'draft' | 'issued' | 'paid';
   created_by?: string;
   created_at: string;
+  irn?: string;
 }
 
 interface AdminSettings extends CompanyPrintData {
@@ -154,6 +155,25 @@ export default function InvoicePage() {
   const { data: invoices = [], mutate } = useSWR<Invoice[]>(
     '/api/daily-entry/invoices',
     apiClient.get
+  );
+  const [generatingEInvoiceId, setGeneratingEInvoiceId] = useState<number | null>(null);
+  const handleGenerateEInvoice = useCallback(
+    async (invoice: Invoice) => {
+      setGeneratingEInvoiceId(invoice.id);
+      try {
+        const result = await apiClient.post<{ irn: string }>(
+          `/api/daily-entry/invoices/${invoice.id}/einvoice`,
+          {}
+        );
+        toast.success(`E-invoice generated: IRN ${result.irn.slice(0, 12)}...`);
+        mutate();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to generate e-invoice');
+      } finally {
+        setGeneratingEInvoiceId(null);
+      }
+    },
+    [mutate]
   );
   const { data: consignors = [] } = useSWR<Consignor[]>(
     '/api/masters/consignors',
@@ -1193,6 +1213,15 @@ export default function InvoicePage() {
                         onClick={() => handleEdit(invoice)}
                       >
                         <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={!!invoice.irn || generatingEInvoiceId === invoice.id}
+                        onClick={() => handleGenerateEInvoice(invoice)}
+                        title={invoice.irn ? `IRN: ${invoice.irn}` : 'Generate e-invoice'}
+                      >
+                        <FileCheck2 className="w-4 h-4" />
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -14,6 +14,7 @@ interface User {
   transportId?: number | null;
   transportName?: string | null;
   transportSlug?: string | null;
+  totpEnabled?: boolean;
   subscription?: {
     plan?: string | null;
     status?: 'none' | 'active' | 'near_expiry' | 'expired';
@@ -25,13 +26,15 @@ interface User {
   };
 }
 
+type LoginResult = User | { requires2fa: true; pendingToken: string };
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   updateSession: (session: { token: string; user: User }) => void;
-  login: (email: string, password: string) => Promise<User>;
+  login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => void;
   register: (email: string, password: string, firstName: string, lastName: string, role: string) => Promise<void>;
 }
@@ -104,12 +107,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('auth_user', JSON.stringify(nextUser));
   };
 
-  const login = async (email: string, password: string): Promise<User> => {
-    const data = await apiClient.post<{ token: string; user: User }, { email: string; password: string }>(
-      '/api/auth/login',
-      { email, password }
-    );
-    updateSession(data);
+  const login = async (email: string, password: string): Promise<LoginResult> => {
+    const data = await apiClient.post<
+      { token?: string; user?: User; requires_2fa?: boolean; pending_token?: string },
+      { email: string; password: string }
+    >('/api/auth/login', { email, password });
+
+    if (data.requires_2fa && data.pending_token) {
+      return { requires2fa: true, pendingToken: data.pending_token };
+    }
+    if (!data.token || !data.user) {
+      throw new Error('Unexpected login response');
+    }
+    updateSession({ token: data.token, user: data.user });
     return data.user;
   };
 

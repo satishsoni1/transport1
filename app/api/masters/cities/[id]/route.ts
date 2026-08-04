@@ -54,7 +54,10 @@ export async function PUT(
         city_name_mr = ${body.city_name_mr ?? existing.city_name_mr},
         taluka = ${body.taluka ?? existing.taluka ?? ''},
         district = ${body.district ?? existing.district ?? ''},
+        state = ${body.state ?? existing.state ?? ''},
+        pincode = ${body.pincode ?? existing.pincode ?? ''},
         distance_km = ${body.distance_km !== undefined ? Number(body.distance_km) : (existing.distance_km ?? 0)},
+        transit_time_hours = ${body.transit_time_hours !== undefined ? Number(body.transit_time_hours) : (existing.transit_time_hours ?? 0)},
         consignor_id = ${body.consignor_id === undefined || body.consignor_id === '' ? existing.consignor_id : Number(body.consignor_id)},
         consignee_id = ${body.consignee_id === undefined || body.consignee_id === '' ? existing.consignee_id : Number(body.consignee_id)},
         status = ${body.status ?? existing.status}

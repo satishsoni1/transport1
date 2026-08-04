@@ -28,6 +28,7 @@ interface NotificationSettings {
   notify_challan_created: boolean;
   notify_consignor: boolean;
   notify_consignee: boolean;
+  notify_compliance_expiry: boolean;
 }
 
 const EMPTY: NotificationSettings = {
@@ -47,6 +48,7 @@ const EMPTY: NotificationSettings = {
   notify_challan_created: false,
   notify_consignor: true,
   notify_consignee: true,
+  notify_compliance_expiry: false,
 };
 
 function Row({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -66,6 +68,8 @@ export default function NotificationSettingsPage() {
   const [form, setForm] = useState<NotificationSettings>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
+  const [testingWhatsApp, setTestingWhatsApp] = useState(false);
+  const [testWhatsAppNumber, setTestWhatsAppNumber] = useState('');
 
   useEffect(() => {
     if (data) setForm(data);
@@ -93,6 +97,24 @@ export default function NotificationSettingsPage() {
       toast.error(err instanceof Error ? err.message : 'Failed to send test email');
     } finally {
       setTestingEmail(false);
+    }
+  };
+
+  const handleTestWhatsApp = async () => {
+    if (!testWhatsAppNumber.trim()) {
+      toast.error('Enter a mobile number to send the test to');
+      return;
+    }
+    setTestingWhatsApp(true);
+    try {
+      const result = await apiClient.post<{ message: string }>('/api/settings/notifications/test-whatsapp', {
+        mobile: testWhatsAppNumber.trim(),
+      });
+      toast.success(result.message);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send test WhatsApp message');
+    } finally {
+      setTestingWhatsApp(false);
     }
   };
 
@@ -164,6 +186,21 @@ export default function NotificationSettingsPage() {
               <Input id="whatsapp_access_token" type="password" placeholder={form.whatsapp_access_token ? 'Leave unchanged to keep existing' : ''} value={form.whatsapp_access_token} onChange={(e) => setForm({ ...form, whatsapp_access_token: e.target.value })} />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Meta only allows free-form text outside an approved template within a 24-hour window that the customer opened. For reliable delivery in production, set up an approved message template in Meta for Developers.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Mobile number to test (e.g. 9876543210)"
+              value={testWhatsAppNumber}
+              onChange={(e) => setTestWhatsAppNumber(e.target.value)}
+              className="max-w-xs"
+            />
+            <Button type="button" variant="outline" size="sm" className="gap-2" onClick={handleTestWhatsApp} disabled={testingWhatsApp}>
+              <Send className="h-3.5 w-3.5" />
+              {testingWhatsApp ? 'Sending...' : 'Send test WhatsApp'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -182,6 +219,14 @@ export default function NotificationSettingsPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Row label="Notify consignor" hint="Bill-to party" checked={form.notify_consignor} onChange={(v) => setForm({ ...form, notify_consignor: v })} />
             <Row label="Notify consignee" hint="Delivery party" checked={form.notify_consignee} onChange={(v) => setForm({ ...form, notify_consignee: v })} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Row
+              label="Compliance expiry alerts"
+              hint="Enables the 'Email This List' button on the Compliance page"
+              checked={form.notify_compliance_expiry}
+              onChange={(v) => setForm({ ...form, notify_compliance_expiry: v })}
+            />
           </div>
         </CardContent>
       </Card>

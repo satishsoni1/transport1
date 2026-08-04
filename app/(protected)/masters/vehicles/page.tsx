@@ -14,6 +14,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -30,32 +37,56 @@ interface Vehicle {
   vehicle_no: string;
   owner_name: string;
   vehicle_type: string;
+  vendor_id: number | null;
+  rc_expiry: string;
+  insurance_expiry: string;
+  fitness_expiry: string;
+  permit_expiry: string;
+  national_permit_expiry: string;
+  puc_expiry: string;
+  road_tax_expiry: string;
+  fastag_id: string;
+  gps_device_id: string;
   status: 'active' | 'inactive';
   created_at: string;
 }
+
+interface Vendor {
+  id: number;
+  vendor_name: string;
+}
+
+const EMPTY_VEHICLE_FORM = {
+  vehicle_no: '',
+  owner_name: '',
+  vehicle_type: '',
+  vendor_id: '',
+  rc_expiry: '',
+  insurance_expiry: '',
+  fitness_expiry: '',
+  permit_expiry: '',
+  national_permit_expiry: '',
+  puc_expiry: '',
+  road_tax_expiry: '',
+  fastag_id: '',
+  gps_device_id: '',
+};
 
 export default function VehiclesPage() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({
-    vehicle_no: '',
-    owner_name: '',
-    vehicle_type: '',
-  });
+  const [formData, setFormData] = useState(EMPTY_VEHICLE_FORM);
 
   const { data: vehicles = [], mutate } = useSWR<Vehicle[]>(
     '/api/masters/vehicles',
     apiClient.get
   );
+  const { data: vendors = [] } = useSWR<Vendor[]>('/api/masters/vendors', apiClient.get);
 
   const resetForm = () => {
     setEditingId(null);
-    setFormData({
-      vehicle_no: '',
-      owner_name: '',
-      vehicle_type: '',
-    });
+    setFormData(EMPTY_VEHICLE_FORM);
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -94,6 +125,16 @@ export default function VehiclesPage() {
       vehicle_no: vehicle.vehicle_no,
       owner_name: vehicle.owner_name || '',
       vehicle_type: vehicle.vehicle_type || '',
+      vendor_id: vehicle.vendor_id ? String(vehicle.vendor_id) : '',
+      rc_expiry: vehicle.rc_expiry || '',
+      insurance_expiry: vehicle.insurance_expiry || '',
+      fitness_expiry: vehicle.fitness_expiry || '',
+      permit_expiry: vehicle.permit_expiry || '',
+      national_permit_expiry: vehicle.national_permit_expiry || '',
+      puc_expiry: vehicle.puc_expiry || '',
+      road_tax_expiry: vehicle.road_tax_expiry || '',
+      fastag_id: vehicle.fastag_id || '',
+      gps_device_id: vehicle.gps_device_id || '',
     });
     setOpen(true);
   };
@@ -122,7 +163,7 @@ export default function VehiclesPage() {
               Add Vehicle
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Edit Vehicle' : 'Add New Vehicle'}</DialogTitle>
             </DialogHeader>
@@ -138,27 +179,131 @@ export default function VehiclesPage() {
                   placeholder="MH12AB1234"
                 />
               </div>
-              <div>
-                <Label htmlFor="owner_name">Owner Name</Label>
-                <Input
-                  id="owner_name"
-                  value={formData.owner_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, owner_name: e.target.value })
-                  }
-                  placeholder="Owner name"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="owner_name">Owner Name</Label>
+                  <Input
+                    id="owner_name"
+                    value={formData.owner_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, owner_name: e.target.value })
+                    }
+                    placeholder="Owner name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="vehicle_type">Vehicle Type</Label>
+                  <Input
+                    id="vehicle_type"
+                    value={formData.vehicle_type}
+                    onChange={(e) =>
+                      setFormData({ ...formData, vehicle_type: e.target.value })
+                    }
+                    placeholder="Truck / Trailer / Tempo"
+                  />
+                </div>
               </div>
               <div>
-                <Label htmlFor="vehicle_type">Vehicle Type</Label>
-                <Input
-                  id="vehicle_type"
-                  value={formData.vehicle_type}
-                  onChange={(e) =>
-                    setFormData({ ...formData, vehicle_type: e.target.value })
-                  }
-                  placeholder="Truck / Trailer / Tempo"
-                />
+                <Label>Vendor (Owner Account)</Label>
+                <Select
+                  value={formData.vendor_id}
+                  onValueChange={(value) => setFormData({ ...formData, vendor_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((vendor) => (
+                      <SelectItem key={vendor.id} value={String(vendor.id)}>
+                        {vendor.vendor_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="fastag_id">Fastag ID</Label>
+                  <Input
+                    id="fastag_id"
+                    value={formData.fastag_id}
+                    onChange={(e) => setFormData({ ...formData, fastag_id: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="gps_device_id">GPS Device ID</Label>
+                  <Input
+                    id="gps_device_id"
+                    value={formData.gps_device_id}
+                    onChange={(e) => setFormData({ ...formData, gps_device_id: e.target.value })}
+                  />
+                </div>
+              </div>
+              <p className="text-sm font-medium text-muted-foreground pt-1">Compliance Document Expiry</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="rc_expiry">RC Expiry</Label>
+                  <Input
+                    id="rc_expiry"
+                    type="date"
+                    value={formData.rc_expiry}
+                    onChange={(e) => setFormData({ ...formData, rc_expiry: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="insurance_expiry">Insurance Expiry</Label>
+                  <Input
+                    id="insurance_expiry"
+                    type="date"
+                    value={formData.insurance_expiry}
+                    onChange={(e) => setFormData({ ...formData, insurance_expiry: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="fitness_expiry">Fitness Expiry</Label>
+                  <Input
+                    id="fitness_expiry"
+                    type="date"
+                    value={formData.fitness_expiry}
+                    onChange={(e) => setFormData({ ...formData, fitness_expiry: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="permit_expiry">Permit Expiry</Label>
+                  <Input
+                    id="permit_expiry"
+                    type="date"
+                    value={formData.permit_expiry}
+                    onChange={(e) => setFormData({ ...formData, permit_expiry: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="national_permit_expiry">National Permit Expiry</Label>
+                  <Input
+                    id="national_permit_expiry"
+                    type="date"
+                    value={formData.national_permit_expiry}
+                    onChange={(e) => setFormData({ ...formData, national_permit_expiry: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="puc_expiry">PUC Expiry</Label>
+                  <Input
+                    id="puc_expiry"
+                    type="date"
+                    value={formData.puc_expiry}
+                    onChange={(e) => setFormData({ ...formData, puc_expiry: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="road_tax_expiry">Road Tax Expiry</Label>
+                  <Input
+                    id="road_tax_expiry"
+                    type="date"
+                    value={formData.road_tax_expiry}
+                    onChange={(e) => setFormData({ ...formData, road_tax_expiry: e.target.value })}
+                  />
+                </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button

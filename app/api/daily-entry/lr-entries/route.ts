@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
 import { resolveTransportAuth } from '@/lib/transport-auth';
+import { notifyDocumentCreated } from '@/lib/notify';
 
 function toResponseRow(row: any) {
   return {
@@ -274,6 +275,24 @@ export async function POST(request: NextRequest) {
       )
       RETURNING *
     `;
+
+    const [{ email: consignorEmail, mobile: consignorMobile } = { email: null, mobile: null }] = (
+      await sql`SELECT email, mobile FROM consignors WHERE id = ${Number(body.consignor_id)}`
+    ).rows;
+    const [{ email: consigneeEmail, mobile: consigneeMobile } = { email: null, mobile: null }] = (
+      await sql`SELECT email, mobile FROM consignees WHERE id = ${Number(body.consignee_id)}`
+    ).rows;
+    await notifyDocumentCreated({
+      transportId,
+      docType: 'lr',
+      consignorEmail,
+      consigneeEmail,
+      consignorMobile,
+      consigneeMobile,
+      subject: `New L.R. Created: ${lrNo}`,
+      html: `<p>A new L.R. <strong>${lrNo}</strong> has been created (${body.from_city || ''} → ${body.to_city || ''}).</p>`,
+      text: `New L.R. ${lrNo} created (${body.from_city || ''} → ${body.to_city || ''}).`,
+    });
 
     return NextResponse.json(toResponseRow(rows[0]), { status: 201 });
   } catch (error) {

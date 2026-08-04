@@ -32,7 +32,10 @@ interface City {
   city_name_mr?: string;
   taluka?: string;
   district?: string;
+  state?: string;
+  pincode?: string;
   distance_km?: number;
+  transit_time_hours?: number;
   status: 'active' | 'inactive';
   created_at: string;
 }
@@ -47,7 +50,10 @@ export default function CitiesPage() {
     city_name_mr: '',
     taluka: '',
     district: '',
+    state: '',
+    pincode: '',
     distance_km: '0',
+    transit_time_hours: '0',
   });
 
   const { data: cities = [], mutate } = useSWR<City[]>(
@@ -63,7 +69,10 @@ export default function CitiesPage() {
       city_name_mr: '',
       taluka: '',
       district: '',
+      state: '',
+      pincode: '',
       distance_km: '0',
+      transit_time_hours: '0',
     });
   };
 
@@ -89,7 +98,10 @@ export default function CitiesPage() {
             city_name_mr: formData.city_name_mr.trim(),
             taluka: formData.taluka.trim(),
             district: formData.district.trim(),
+            state: formData.state.trim(),
+            pincode: formData.pincode.trim(),
             distance_km: Number(formData.distance_km) || 0,
+            transit_time_hours: Number(formData.transit_time_hours) || 0,
           });
           toast.success('City updated successfully');
         } else {
@@ -99,7 +111,10 @@ export default function CitiesPage() {
             city_name_mr: formData.city_name_mr.trim(),
             taluka: formData.taluka.trim(),
             district: formData.district.trim(),
+            state: formData.state.trim(),
+            pincode: formData.pincode.trim(),
             distance_km: Number(formData.distance_km) || 0,
+            transit_time_hours: Number(formData.transit_time_hours) || 0,
           });
           toast.success('City added successfully');
         }
@@ -120,7 +135,10 @@ export default function CitiesPage() {
       city_name_mr: city.city_name_mr || '',
       taluka: city.taluka || '',
       district: city.district || '',
+      state: city.state || '',
+      pincode: city.pincode || '',
       distance_km: city.distance_km !== undefined ? String(city.distance_km) : '0',
+      transit_time_hours: city.transit_time_hours !== undefined ? String(city.transit_time_hours) : '0',
     });
     setOpen(true);
   };
@@ -196,6 +214,20 @@ export default function CitiesPage() {
                 <div>
                   <Label htmlFor="distance_km">Distance (KM)</Label>
                   <Input id="distance_km" type="number" value={formData.distance_km} onChange={(e) => setFormData({ ...formData, distance_km: e.target.value })} placeholder="0" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="state">State</Label>
+                  <Input id="state" value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} placeholder="State" />
+                </div>
+                <div>
+                  <Label htmlFor="pincode">Pincode</Label>
+                  <Input id="pincode" value={formData.pincode} onChange={(e) => setFormData({ ...formData, pincode: e.target.value })} placeholder="Pincode" />
+                </div>
+                <div>
+                  <Label htmlFor="transit_time_hours">Transit Time (hrs)</Label>
+                  <Input id="transit_time_hours" type="number" value={formData.transit_time_hours} onChange={(e) => setFormData({ ...formData, transit_time_hours: e.target.value })} placeholder="0" />
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">

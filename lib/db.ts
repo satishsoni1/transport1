@@ -1129,6 +1129,632 @@ export async function ensureSchema() {
     WHERE transport_id IS NOT NULL
   `;
 
+  // --- Roadmap Phase 1: Vendor Master, Trip Management, Compliance, Alerts ---
+  await sql`
+    CREATE TABLE IF NOT EXISTS vendors (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      vendor_name TEXT NOT NULL,
+      vendor_type TEXT NOT NULL DEFAULT 'owner',
+      contact_person TEXT NOT NULL DEFAULT '',
+      mobile TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      gst_no TEXT NOT NULL DEFAULT '',
+      bank_name TEXT NOT NULL DEFAULT '',
+      account_no TEXT NOT NULL DEFAULT '',
+      username TEXT NOT NULL DEFAULT '',
+      password_hash TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'vendors_vendor_type_check'
+      ) THEN
+        ALTER TABLE vendors
+          ADD CONSTRAINT vendors_vendor_type_check
+          CHECK (vendor_type IN ('owner', 'broker', 'fuel', 'workshop', 'toll'));
+      END IF;
+    END $$
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_vendors_transport_id ON vendors(transport_id)`;
+
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vendor_id INTEGER`;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'vehicles_vendor_id_fkey'
+      ) THEN
+        ALTER TABLE vehicles
+          ADD CONSTRAINT vehicles_vendor_id_fkey
+          FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE SET NULL;
+      END IF;
+    END $$
+  `;
+
+  // Compliance expiry tracking (vehicle documents)
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS rc_expiry TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS insurance_expiry TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fitness_expiry TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS permit_expiry TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS national_permit_expiry TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS puc_expiry TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS road_tax_expiry TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fastag_id TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS gps_device_id TEXT NOT NULL DEFAULT ''`;
+
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS aadhaar_no TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS pan_no TEXT NOT NULL DEFAULT ''`;
+
+  // Email address for document-notification sending (mobile-only until now)
+  await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`;
+
+  // Pincode, needed for e-way bill generation (GST integration, 2026-08-04)
+  await sql`ALTER TABLE consignors ADD COLUMN IF NOT EXISTS pincode TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE consignees ADD COLUMN IF NOT EXISTS pincode TEXT NOT NULL DEFAULT ''`;
+
+  // Trip Management
+  await sql`
+    CREATE TABLE IF NOT EXISTS trips (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      trip_no TEXT NOT NULL,
+      vehicle_id INTEGER,
+      driver_id INTEGER,
+      from_city TEXT NOT NULL DEFAULT '',
+      to_city TEXT NOT NULL DEFAULT '',
+      start_date TEXT NOT NULL DEFAULT '',
+      end_date TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'planned',
+      lr_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+      total_revenue DOUBLE PRECISION NOT NULL DEFAULT 0,
+      total_expense DOUBLE PRECISION NOT NULL DEFAULT 0,
+      remarks TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'trips_status_check'
+      ) THEN
+        ALTER TABLE trips
+          ADD CONSTRAINT trips_status_check
+          CHECK (status IN ('planned', 'ongoing', 'completed', 'cancelled'));
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'trips_vehicle_id_fkey'
+      ) THEN
+        ALTER TABLE trips
+          ADD CONSTRAINT trips_vehicle_id_fkey
+          FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'trips_driver_id_fkey'
+      ) THEN
+        ALTER TABLE trips
+          ADD CONSTRAINT trips_driver_id_fkey
+          FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'trips_transport_trip_no_key'
+      ) THEN
+        ALTER TABLE trips
+          ADD CONSTRAINT trips_transport_trip_no_key
+          UNIQUE (transport_id, trip_no);
+      END IF;
+    END $$
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_trips_transport_id ON trips(transport_id)`;
+
+  // Notification settings: allow per-transport toggle for compliance-expiry alerts
+  await sql`ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS notify_compliance_expiry BOOLEAN NOT NULL DEFAULT FALSE`;
+
+  // --- Roadmap Phase 2: Fuel, Tyre, Workshop/Maintenance, Quotation ---
+  await sql`
+    CREATE TABLE IF NOT EXISTS fuel_entries (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      vehicle_id INTEGER,
+      driver_id INTEGER,
+      trip_id INTEGER,
+      entry_date TEXT NOT NULL,
+      quantity_liters DOUBLE PRECISION NOT NULL DEFAULT 0,
+      rate_per_liter DOUBLE PRECISION NOT NULL DEFAULT 0,
+      amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      odometer_reading DOUBLE PRECISION NOT NULL DEFAULT 0,
+      fuel_station TEXT NOT NULL DEFAULT '',
+      payment_mode TEXT NOT NULL DEFAULT 'cash',
+      remarks TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fuel_entries_vehicle_id_fkey'
+      ) THEN
+        ALTER TABLE fuel_entries
+          ADD CONSTRAINT fuel_entries_vehicle_id_fkey
+          FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+      END IF;
+    END $$
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_fuel_entries_vehicle_odometer ON fuel_entries(vehicle_id, odometer_reading)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS tyres (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      tyre_serial_no TEXT NOT NULL DEFAULT '',
+      brand TEXT NOT NULL DEFAULT '',
+      vehicle_id INTEGER,
+      position TEXT NOT NULL DEFAULT '',
+      purchase_date TEXT NOT NULL DEFAULT '',
+      purchase_cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'in_use',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'tyres_status_check'
+      ) THEN
+        ALTER TABLE tyres
+          ADD CONSTRAINT tyres_status_check
+          CHECK (status IN ('in_use', 'retreaded', 'scrapped'));
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'tyres_vehicle_id_fkey'
+      ) THEN
+        ALTER TABLE tyres
+          ADD CONSTRAINT tyres_vehicle_id_fkey
+          FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+      END IF;
+    END $$
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS tyre_events (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      tyre_id INTEGER NOT NULL REFERENCES tyres(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      event_date TEXT NOT NULL,
+      vehicle_id INTEGER,
+      position TEXT NOT NULL DEFAULT '',
+      cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+      remarks TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'tyre_events_type_check'
+      ) THEN
+        ALTER TABLE tyre_events
+          ADD CONSTRAINT tyre_events_type_check
+          CHECK (event_type IN ('allocation', 'rotation', 'retreading', 'replacement'));
+      END IF;
+    END $$
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_tyre_events_tyre_id ON tyre_events(tyre_id)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS maintenance_records (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      vehicle_id INTEGER,
+      vendor_id INTEGER,
+      service_type TEXT NOT NULL DEFAULT '',
+      service_date TEXT NOT NULL,
+      odometer_reading DOUBLE PRECISION NOT NULL DEFAULT 0,
+      cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+      is_breakdown BOOLEAN NOT NULL DEFAULT FALSE,
+      next_due_date TEXT NOT NULL DEFAULT '',
+      next_due_odometer DOUBLE PRECISION NOT NULL DEFAULT 0,
+      remarks TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'maintenance_records_vehicle_id_fkey'
+      ) THEN
+        ALTER TABLE maintenance_records
+          ADD CONSTRAINT maintenance_records_vehicle_id_fkey
+          FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'maintenance_records_vendor_id_fkey'
+      ) THEN
+        ALTER TABLE maintenance_records
+          ADD CONSTRAINT maintenance_records_vendor_id_fkey
+          FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE SET NULL;
+      END IF;
+    END $$
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_maintenance_records_vehicle_id ON maintenance_records(vehicle_id)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS quotations (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      quotation_no TEXT NOT NULL,
+      consignor_id INTEGER,
+      from_city TEXT NOT NULL DEFAULT '',
+      to_city TEXT NOT NULL DEFAULT '',
+      vehicle_type TEXT NOT NULL DEFAULT '',
+      rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+      fuel_surcharge_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+      valid_until TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft',
+      remarks TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'quotations_status_check'
+      ) THEN
+        ALTER TABLE quotations
+          ADD CONSTRAINT quotations_status_check
+          CHECK (status IN ('draft', 'sent', 'approved', 'rejected', 'expired'));
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'quotations_consignor_id_fkey'
+      ) THEN
+        ALTER TABLE quotations
+          ADD CONSTRAINT quotations_consignor_id_fkey
+          FOREIGN KEY (consignor_id) REFERENCES consignors(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'quotations_transport_quotation_no_key'
+      ) THEN
+        ALTER TABLE quotations
+          ADD CONSTRAINT quotations_transport_quotation_no_key
+          UNIQUE (transport_id, quotation_no);
+      END IF;
+    END $$
+  `;
+
+  // --- Roadmap Phase 3: Vendor Portal, Driver App expansion, Customer complaints ---
+  await sql`
+    CREATE TABLE IF NOT EXISTS vehicle_checklists (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      vehicle_id INTEGER,
+      driver_id INTEGER,
+      trip_id INTEGER,
+      checklist_date TEXT NOT NULL,
+      items JSONB NOT NULL DEFAULT '[]'::jsonb,
+      remarks TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_vehicle_checklists_vehicle_id ON vehicle_checklists(vehicle_id)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS incident_reports (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      vehicle_id INTEGER,
+      driver_id INTEGER,
+      trip_id INTEGER,
+      incident_date TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      photo_url TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'incident_reports_status_check'
+      ) THEN
+        ALTER TABLE incident_reports
+          ADD CONSTRAINT incident_reports_status_check
+          CHECK (status IN ('open', 'reviewed', 'closed'));
+      END IF;
+    END $$
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_incident_reports_transport_id ON incident_reports(transport_id)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS complaints (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      consignor_id INTEGER,
+      lr_no TEXT NOT NULL DEFAULT '',
+      subject TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open',
+      resolution_remarks TEXT NOT NULL DEFAULT '',
+      resolved_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'complaints_status_check'
+      ) THEN
+        ALTER TABLE complaints
+          ADD CONSTRAINT complaints_status_check
+          CHECK (status IN ('open', 'in_progress', 'resolved', 'closed'));
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'complaints_consignor_id_fkey'
+      ) THEN
+        ALTER TABLE complaints
+          ADD CONSTRAINT complaints_consignor_id_fkey
+          FOREIGN KEY (consignor_id) REFERENCES consignors(id) ON DELETE SET NULL;
+      END IF;
+    END $$
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_complaints_transport_id ON complaints(transport_id)`;
+
+  // --- Integrations roadmap (2026-08-04): WhatsApp send, Razorpay, GST GSP (Masters India), GPS (Mappls) ---
+  await sql`
+    CREATE TABLE IF NOT EXISTS payment_gateway_settings (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      provider TEXT NOT NULL DEFAULT 'razorpay',
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      key_id TEXT NOT NULL DEFAULT '',
+      key_secret TEXT NOT NULL DEFAULT '',
+      webhook_secret TEXT NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_gateway_settings_transport_id
+    ON payment_gateway_settings(transport_id) WHERE transport_id IS NOT NULL
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS gst_integration_settings (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      provider TEXT NOT NULL DEFAULT 'masters_india',
+      environment TEXT NOT NULL DEFAULT 'sandbox',
+      api_base_url TEXT NOT NULL DEFAULT '',
+      client_id TEXT NOT NULL DEFAULT '',
+      client_secret TEXT NOT NULL DEFAULT '',
+      gstin TEXT NOT NULL DEFAULT '',
+      eway_bill_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      einvoice_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`ALTER TABLE gst_integration_settings ADD COLUMN IF NOT EXISTS api_base_url TEXT NOT NULL DEFAULT ''`;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_gst_integration_settings_transport_id
+    ON gst_integration_settings(transport_id) WHERE transport_id IS NOT NULL
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS gps_integration_settings (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      provider TEXT NOT NULL DEFAULT 'mappls',
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      api_base_url TEXT NOT NULL DEFAULT '',
+      client_id TEXT NOT NULL DEFAULT '',
+      client_secret TEXT NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`ALTER TABLE gps_integration_settings ADD COLUMN IF NOT EXISTS api_base_url TEXT NOT NULL DEFAULT ''`;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_gps_integration_settings_transport_id
+    ON gps_integration_settings(transport_id) WHERE transport_id IS NOT NULL
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS vehicle_locations (
+      vehicle_id INTEGER PRIMARY KEY REFERENCES vehicles(id) ON DELETE CASCADE,
+      transport_id INTEGER,
+      latitude DOUBLE PRECISION,
+      longitude DOUBLE PRECISION,
+      speed_kmph DOUBLE PRECISION NOT NULL DEFAULT 0,
+      heading DOUBLE PRECISION NOT NULL DEFAULT 0,
+      recorded_at TIMESTAMPTZ
+    )
+  `;
+
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS irn TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS irn_ack_no TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS irn_ack_date TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS irn_qr_code TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS razorpay_order_id TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS razorpay_payment_id TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS online_payment_status TEXT NOT NULL DEFAULT ''`;
+
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS eway_bill_generated_at TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE lr_entries ADD COLUMN IF NOT EXISTS eway_bill_valid_until TEXT NOT NULL DEFAULT ''`;
+
+  // --- Remaining roadmap items (2026-08-04): Company structure, Location hierarchy, Vehicle
+  // Planning, HR, Warehouse, Barcode/QR, 2FA, extra report types, AI (Groq) ---
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS branches (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      branch_name TEXT NOT NULL,
+      address TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_branches_transport_id ON branches(transport_id)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS cost_centers (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_cost_centers_transport_id ON cost_centers(transport_id)`;
+
+  await sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS branch_id INTEGER`;
+  await sql`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS branch_id INTEGER`;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'vehicles_branch_id_fkey') THEN
+        ALTER TABLE vehicles ADD CONSTRAINT vehicles_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'drivers_branch_id_fkey') THEN
+        ALTER TABLE drivers ADD CONSTRAINT drivers_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL;
+      END IF;
+    END $$
+  `;
+
+  // Location Master: state/pincode/transit time (additive to the existing district/taluka/distance_km)
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS state TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS pincode TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE cities ADD COLUMN IF NOT EXISTS transit_time_hours DOUBLE PRECISION NOT NULL DEFAULT 0`;
+
+  // HR: staff attendance + leave (separate from the existing driver advance/rent ledger)
+  await sql`
+    CREATE TABLE IF NOT EXISTS staff_attendance (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      attendance_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'present',
+      remarks TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'staff_attendance_status_check') THEN
+        ALTER TABLE staff_attendance ADD CONSTRAINT staff_attendance_status_check
+          CHECK (status IN ('present', 'absent', 'half_day', 'leave'));
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'staff_attendance_user_date_key') THEN
+        ALTER TABLE staff_attendance ADD CONSTRAINT staff_attendance_user_date_key UNIQUE (user_id, attendance_date);
+      END IF;
+    END $$
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS staff_leave_requests (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      leave_type TEXT NOT NULL DEFAULT 'casual',
+      from_date TEXT NOT NULL,
+      to_date TEXT NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'staff_leave_requests_status_check') THEN
+        ALTER TABLE staff_leave_requests ADD CONSTRAINT staff_leave_requests_status_check
+          CHECK (status IN ('pending', 'approved', 'rejected'));
+      END IF;
+    END $$
+  `;
+
+  // Warehouse (inward/outward/dispatch tracking — deliberately simplified, no bin-level detail)
+  await sql`
+    CREATE TABLE IF NOT EXISTS warehouses (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      warehouse_name TEXT NOT NULL,
+      address TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT '',
+      capacity_sqft DOUBLE PRECISION NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS warehouse_entries (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
+      entry_type TEXT NOT NULL,
+      lr_no TEXT NOT NULL DEFAULT '',
+      item_description TEXT NOT NULL DEFAULT '',
+      quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+      unit TEXT NOT NULL DEFAULT 'pcs',
+      entry_date TEXT NOT NULL,
+      remarks TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'warehouse_entries_type_check') THEN
+        ALTER TABLE warehouse_entries ADD CONSTRAINT warehouse_entries_type_check
+          CHECK (entry_type IN ('inward', 'outward'));
+      END IF;
+    END $$
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_warehouse_entries_warehouse_id ON warehouse_entries(warehouse_id)`;
+
+  // 2FA (TOTP, hand-rolled RFC 6238 — no new dependency)
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE`;
+
+  // AI (Groq)
+  await sql`
+    CREATE TABLE IF NOT EXISTS ai_settings (
+      id SERIAL PRIMARY KEY,
+      transport_id INTEGER,
+      provider TEXT NOT NULL DEFAULT 'groq',
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      api_key TEXT NOT NULL DEFAULT '',
+      chat_model TEXT NOT NULL DEFAULT 'llama-3.3-70b-versatile',
+      vision_model TEXT NOT NULL DEFAULT 'meta-llama/llama-4-scout-17b-16e-instruct',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_settings_transport_id
+    ON ai_settings(transport_id) WHERE transport_id IS NOT NULL
+  `;
+
   schemaReady = true;
   })();
 

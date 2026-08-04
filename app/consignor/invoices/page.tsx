@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,27 @@ interface ConsignorInvoice {
   gst_amount: number;
   net_amount: number;
   status?: string;
+  online_payment_status?: string;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 }
 
 interface LrSummaryResponse {
@@ -57,6 +79,63 @@ export default function ConsignorInvoicesPage() {
   const [invoices, setInvoices] = useState<ConsignorInvoice[]>([]);
   const [pendingPodCount, setPendingPodCount] = useState(0);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [payingInvoiceId, setPayingInvoiceId] = useState<number | null>(null);
+
+  const handlePayNow = useCallback(async (invoice: ConsignorInvoice) => {
+    setPayingInvoiceId(invoice.id);
+    try {
+      const order = await consignorFetch<{
+        order_id: string;
+        amount_paise: number;
+        currency: string;
+        key_id: string;
+        invoice_no: string;
+      }>('/api/payments/create-order', {
+        method: 'POST',
+        body: JSON.stringify({ invoice_id: invoice.id }),
+      });
+
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded || !window.Razorpay) {
+        toast.error('Could not load the payment widget. Check your connection and try again.');
+        return;
+      }
+
+      const razorpay = new window.Razorpay({
+        key: order.key_id,
+        amount: order.amount_paise,
+        currency: order.currency,
+        order_id: order.order_id,
+        name: consignor?.name || 'Freight Payment',
+        description: `Invoice ${order.invoice_no}`,
+        handler: async (paymentResponse: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          try {
+            await consignorFetch('/api/payments/verify', {
+              method: 'POST',
+              body: JSON.stringify({ invoice_id: invoice.id, ...paymentResponse }),
+            });
+            toast.success('Payment successful');
+            await loadInvoices();
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Payment verification failed');
+          }
+        },
+        modal: {
+          ondismiss: () => setPayingInvoiceId(null),
+        },
+      });
+      razorpay.open();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to start payment');
+    } finally {
+      setPayingInvoiceId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consignor]);
 
   const loadInvoices = useCallback(async () => {
     const params = new URLSearchParams();
@@ -227,6 +306,24 @@ export default function ConsignorInvoicesPage() {
                       <tr key={`${inv.id}-detail`} className="bg-slate-50">
                         <td colSpan={8} className="px-4 py-3">
                           <div className="space-y-3 text-sm">
+                            <div className="flex items-center gap-3">
+                              {inv.online_payment_status === 'paid' ? (
+                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                                  Paid online
+                                </span>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handlePayNow(inv);
+                                  }}
+                                  disabled={payingInvoiceId === inv.id}
+                                >
+                                  {payingInvoiceId === inv.id ? 'Opening payment...' : 'Pay Now'}
+                                </Button>
+                              )}
+                            </div>
                             {inv.remarks && <div><span className="font-semibold text-slate-600">Remarks:</span> {inv.remarks}</div>}
                             {(inv.items || []).length > 0 && (
                               <div>

@@ -59,13 +59,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const vendorId = body.vendor_id
+      ? (await sql`SELECT id FROM vendors WHERE id = ${Number(body.vendor_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+      : null;
+
     const { rows } = await sql`
-      INSERT INTO vehicles (transport_id, vehicle_no, owner_name, vehicle_type, status)
+      INSERT INTO vehicles (
+        transport_id, vehicle_no, owner_name, vehicle_type, vendor_id,
+        rc_expiry, insurance_expiry, fitness_expiry, permit_expiry,
+        national_permit_expiry, puc_expiry, road_tax_expiry, fastag_id, gps_device_id, status
+      )
       VALUES (
         ${transportId},
         ${vehicleNo},
         ${String(body.owner_name || '').trim()},
         ${String(body.vehicle_type || '').trim()},
+        ${vendorId},
+        ${String(body.rc_expiry || '').trim()},
+        ${String(body.insurance_expiry || '').trim()},
+        ${String(body.fitness_expiry || '').trim()},
+        ${String(body.permit_expiry || '').trim()},
+        ${String(body.national_permit_expiry || '').trim()},
+        ${String(body.puc_expiry || '').trim()},
+        ${String(body.road_tax_expiry || '').trim()},
+        ${String(body.fastag_id || '').trim()},
+        ${String(body.gps_device_id || '').trim()},
         'active'
       )
       RETURNING *

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/auth-context';
+import { apiClient } from '@/app/services/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Truck, Eye, EyeOff, ShieldCheck, BarChart3, Wallet } from 'lucide-react';
@@ -17,29 +18,59 @@ const FEATURES = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, updateSession } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [twoFaCode, setTwoFaCode] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const goToDashboard = (user: { platformRole?: string } | undefined) => {
+    if (user?.platformRole === 'super_admin') {
+      router.push('/admin');
+    } else {
+      router.push('/dashboard');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const user = await login(formData.email, formData.password);
-      toast.success('Login successful');
-      if (user?.platformRole === 'super_admin') {
-        router.push('/admin');
-      } else {
-        router.push('/dashboard');
+      const result = await login(formData.email, formData.password);
+      if ('requires2fa' in result) {
+        setPendingToken(result.pendingToken);
+        toast.info('Enter the 6-digit code from your authenticator app');
+        return;
       }
+      toast.success('Login successful');
+      goToDashboard(result);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Login failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerify2fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingToken) return;
+    setIsLoading(true);
+    try {
+      const data = await apiClient.post<{ token: string; user: any }>('/api/auth/verify-2fa', {
+        pending_token: pendingToken,
+        code: twoFaCode.trim(),
+      });
+      updateSession({ token: data.token, user: data.user });
+      toast.success('Login successful');
+      goToDashboard(data.user);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Invalid code');
     } finally {
       setIsLoading(false);
     }
@@ -95,12 +126,46 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Sign in</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+              {pendingToken ? 'Two-factor authentication' : 'Sign in'}
+            </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Enter your credentials to access your workspace.
+              {pendingToken
+                ? 'Enter the 6-digit code from your authenticator app.'
+                : 'Enter your credentials to access your workspace.'}
             </p>
           </div>
 
+          {pendingToken ? (
+            <form onSubmit={handleVerify2fa} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="totp_code" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Authentication Code
+                </label>
+                <Input
+                  id="totp_code"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={twoFaCode}
+                  onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ''))}
+                  disabled={isLoading}
+                  autoFocus
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading || twoFaCode.length !== 6}>
+                {isLoading ? 'Verifying...' : 'Verify & Sign In'}
+              </Button>
+              <button
+                type="button"
+                className="w-full text-center text-xs text-slate-500 hover:underline dark:text-slate-400"
+                onClick={() => { setPendingToken(null); setTwoFaCode(''); }}
+              >
+                Back to login
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -154,6 +219,7 @@ export default function LoginPage() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
+          )}
 
           <div className="mt-8 flex items-center justify-center gap-4 text-xs text-slate-500 dark:text-slate-400">
             <Link href="/consignor/login" className="font-medium hover:text-slate-900 hover:underline dark:hover:text-white">
@@ -162,6 +228,10 @@ export default function LoginPage() {
             <span className="text-slate-300 dark:text-slate-700">|</span>
             <Link href="/driver/login" className="font-medium hover:text-slate-900 hover:underline dark:hover:text-white">
               Driver Portal
+            </Link>
+            <span className="text-slate-300 dark:text-slate-700">|</span>
+            <Link href="/vendor/login" className="font-medium hover:text-slate-900 hover:underline dark:hover:text-white">
+              Vendor Portal
             </Link>
           </div>
         </div>

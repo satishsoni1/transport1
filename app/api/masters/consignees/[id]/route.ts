@@ -51,8 +51,10 @@ export async function PUT(
         city = ${body.city ?? existing.city},
         city_mr = ${body.city_mr ?? existing.city_mr},
         gst_no = ${body.gst_no ?? existing.gst_no},
+        pincode = ${body.pincode ?? existing.pincode},
         contact_person = ${body.contact_person ?? existing.contact_person},
-        mobile = ${body.mobile ?? existing.mobile}
+        mobile = ${body.mobile ?? existing.mobile},
+        email = ${body.email ?? existing.email}
       WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *
     `;

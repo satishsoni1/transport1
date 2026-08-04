@@ -19,6 +19,7 @@ export type AuthenticatedUser = {
   transportName: string | null;
   transportSlug: string | null;
   transportStatus: string | null;
+  totpEnabled: boolean;
   subscription: {
     plan: string | null;
     status: 'none' | 'active' | 'near_expiry' | 'expired';
@@ -47,6 +48,8 @@ type UserRow = {
   subscription_start_date: string | null;
   subscription_end_date: string | null;
   subscription_warning_days: number | null;
+  totp_enabled?: boolean;
+  totp_secret?: string;
 };
 
 function signToken(payload: string) {
@@ -137,6 +140,7 @@ export function toAuthenticatedUser(row: UserRow): AuthenticatedUser {
     transportName: row.transport_name,
     transportSlug: row.transport_slug,
     transportStatus: row.transport_status,
+    totpEnabled: Boolean(row.totp_enabled),
     subscription: buildSubscription(row),
   };
 }
@@ -155,6 +159,8 @@ export async function getUserByEmail(email: string) {
       users.platform_role,
       users.status,
       users.transport_id,
+      users.totp_enabled,
+      users.totp_secret,
       transports.company_name AS transport_name,
       transports.slug AS transport_slug,
       transports.status AS transport_status,
@@ -187,6 +193,8 @@ export async function getUserById(id: number) {
       users.platform_role,
       users.status,
       users.transport_id,
+      users.totp_enabled,
+      users.totp_secret,
       transports.company_name AS transport_name,
       transports.slug AS transport_slug,
       transports.status AS transport_status,
@@ -200,6 +208,58 @@ export async function getUserById(id: number) {
     LIMIT 1
   `;
   return rows[0] || null;
+}
+
+const PENDING_2FA_TOKEN_PREFIX = 'pending-2fa:';
+const PENDING_2FA_TTL_MS = 5 * 60 * 1000;
+
+/** Short-lived token proving "password already verified for this user", issued after a
+ * successful password check when the account has 2FA enabled, and consumed by /api/auth/verify-2fa.
+ * Deliberately separate from the full session token (createAppToken) so a leaked pending token
+ * can't be used to skip the second factor. */
+export function createPending2faToken(user: { id: number; email: string; password_hash: string }) {
+  const expiresAt = Date.now() + PENDING_2FA_TTL_MS;
+  const payload = Buffer.from(
+    JSON.stringify({
+      id: user.id,
+      email: user.email,
+      expiresAt,
+      signature: signToken(`${user.id}:${user.email}:${expiresAt}:${user.password_hash}`),
+    })
+  ).toString('base64url');
+
+  return `${PENDING_2FA_TOKEN_PREFIX}${payload}`;
+}
+
+export async function verifyPending2faToken(token: string) {
+  await ensureSchema();
+  if (!token.startsWith(PENDING_2FA_TOKEN_PREFIX)) return null;
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(token.slice(PENDING_2FA_TOKEN_PREFIX.length), 'base64url').toString('utf8')
+    ) as { id?: number; email?: string; expiresAt?: number; signature?: string };
+
+    if (!payload.id || !payload.email || !payload.expiresAt || !payload.signature) return null;
+    if (Date.now() > payload.expiresAt) return null;
+
+    const row = await getUserById(payload.id);
+    if (!row) return null;
+
+    const expectedSignature = signToken(`${row.id}:${row.email}:${payload.expiresAt}:${row.password_hash}`);
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+    const receivedBuffer = Buffer.from(payload.signature, 'utf8');
+    if (
+      expectedBuffer.length !== receivedBuffer.length ||
+      !timingSafeEqual(expectedBuffer, receivedBuffer)
+    ) {
+      return null;
+    }
+
+    return row;
+  } catch {
+    return null;
+  }
 }
 
 export function createAppToken(user: { id: number; email: string; password_hash: string }) {

@@ -20,6 +20,7 @@ const DEFAULTS = {
   notify_challan_created: false,
   notify_consignor: true,
   notify_consignee: true,
+  notify_compliance_expiry: false,
 };
 
 async function requireNotificationSettingsAccess(request: NextRequest) {
@@ -105,6 +106,7 @@ export async function PUT(request: NextRequest) {
       notify_challan_created: Boolean(body.notify_challan_created),
       notify_consignor: body.notify_consignor === undefined ? Boolean(existing.notify_consignor ?? true) : Boolean(body.notify_consignor),
       notify_consignee: body.notify_consignee === undefined ? Boolean(existing.notify_consignee ?? true) : Boolean(body.notify_consignee),
+      notify_compliance_expiry: Boolean(body.notify_compliance_expiry),
     };
 
     let rows;
@@ -127,6 +129,7 @@ export async function PUT(request: NextRequest) {
           notify_challan_created = ${values.notify_challan_created},
           notify_consignor = ${values.notify_consignor},
           notify_consignee = ${values.notify_consignee},
+          notify_compliance_expiry = ${values.notify_compliance_expiry},
           updated_at = NOW()
         WHERE transport_id = ${auth.transportId}
         RETURNING *
@@ -137,14 +140,14 @@ export async function PUT(request: NextRequest) {
           transport_id, email_enabled, smtp_host, smtp_port, smtp_username, smtp_password,
           smtp_from_email, smtp_from_name, whatsapp_enabled, whatsapp_phone_number_id, whatsapp_access_token,
           notify_lr_created, notify_invoice_created, notify_receipt_created, notify_challan_created,
-          notify_consignor, notify_consignee
+          notify_consignor, notify_consignee, notify_compliance_expiry
         )
         VALUES (
           ${auth.transportId}, ${values.email_enabled}, ${values.smtp_host}, ${values.smtp_port},
           ${values.smtp_username}, ${values.smtp_password}, ${values.smtp_from_email}, ${values.smtp_from_name},
           ${values.whatsapp_enabled}, ${values.whatsapp_phone_number_id}, ${values.whatsapp_access_token},
           ${values.notify_lr_created}, ${values.notify_invoice_created}, ${values.notify_receipt_created}, ${values.notify_challan_created},
-          ${values.notify_consignor}, ${values.notify_consignee}
+          ${values.notify_consignor}, ${values.notify_consignee}, ${values.notify_compliance_expiry}
         )
         RETURNING *
       `);

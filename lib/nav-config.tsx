@@ -23,6 +23,21 @@ import {
   Landmark,
   Tags,
   BellRing,
+  Route,
+  ShieldCheck,
+  Store,
+  Fuel,
+  Disc,
+  Wrench,
+  AlertTriangle,
+  FileSignature,
+  MessageSquareWarning,
+  MapPinned,
+  Plug,
+  Building,
+  CalendarClock,
+  Users2,
+  Warehouse,
 } from 'lucide-react';
 
 import type { PermissionKey } from '@/lib/roles';
@@ -78,6 +93,7 @@ export const navItems: NavItem[] = [
     submenu: [
       { label: 'Consignors', href: '/masters/consignors', icon: Building2 },
       { label: 'Consignees', href: '/masters/consignees', icon: Building2 },
+      { label: 'Complaints', href: '/complaints', icon: MessageSquareWarning },
     ],
   },
   {
@@ -89,7 +105,35 @@ export const navItems: NavItem[] = [
       { label: 'Vehicles', href: '/masters/vehicles', icon: Truck },
       { label: 'Cities', href: '/masters/cities', icon: MapPin },
       { label: 'Routes', href: '/masters/routes', icon: Navigation },
+      { label: 'Vendors', href: '/masters/vendors', icon: Store },
+      { label: 'Compliance', href: '/compliance', icon: ShieldCheck },
+      { label: 'Vehicle Planning', href: '/planning', icon: CalendarClock },
+      { label: 'Warehouse', href: '/warehouse', icon: Warehouse },
     ],
+  },
+  {
+    label: 'Trips',
+    href: '/trips',
+    icon: Route,
+    permission: 'trips',
+  },
+  {
+    label: 'Fleet',
+    icon: Wrench,
+    permission: 'fleet',
+    submenu: [
+      { label: 'Fuel Entries', href: '/fleet/fuel', icon: Fuel },
+      { label: 'Tyres', href: '/fleet/tyres', icon: Disc },
+      { label: 'Maintenance', href: '/fleet/maintenance', icon: Wrench },
+      { label: 'Incidents', href: '/fleet/incidents', icon: AlertTriangle },
+      { label: 'GPS Tracking', href: '/gps', icon: MapPinned },
+    ],
+  },
+  {
+    label: 'Quotations',
+    href: '/quotations',
+    icon: FileSignature,
+    permission: 'quotations',
   },
   {
     label: 'Rate Masters',
@@ -116,6 +160,8 @@ export const navItems: NavItem[] = [
     icon: Settings,
     submenu: [
       { label: 'Users', href: '/settings/users', icon: Users, permission: 'manage-users' },
+      { label: 'HR', href: '/hr', icon: Users2, permission: 'manage-users' },
+      { label: 'Company Structure', href: '/masters/company', icon: Building, permission: 'app-settings' },
       {
         label: 'Financial Years',
         href: '/settings/financial-years',
@@ -127,6 +173,12 @@ export const navItems: NavItem[] = [
         label: 'Notifications',
         href: '/settings/notifications',
         icon: BellRing,
+        permission: 'app-settings',
+      },
+      {
+        label: 'Integrations',
+        href: '/settings/integrations',
+        icon: Plug,
         permission: 'app-settings',
       },
     ],

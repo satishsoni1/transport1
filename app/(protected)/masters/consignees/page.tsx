@@ -34,8 +34,10 @@ interface Consignee {
   city: string;
   city_mr?: string;
   gst_no: string;
+  pincode?: string;
   contact_person: string;
   mobile: string;
+  email?: string;
   status: 'active' | 'inactive';
   created_at: string;
 }
@@ -57,8 +59,10 @@ export default function ConsigneesPage() {
     city: '',
     city_mr: '',
     gst_no: '',
+    pincode: '',
     contact_person: '',
     mobile: '',
+    email: '',
   });
 
   const { data: consignees = [], mutate } = useSWR<Consignee[]>(
@@ -80,8 +84,10 @@ export default function ConsigneesPage() {
         city: '',
         city_mr: '',
         gst_no: '',
+        pincode: '',
         contact_person: '',
         mobile: '',
+        email: '',
       });
     }
     setOpen(newOpen);
@@ -124,8 +130,10 @@ export default function ConsigneesPage() {
       city: consignee.city,
       city_mr: cityMr,
       gst_no: consignee.gst_no,
+      pincode: consignee.pincode || '',
       contact_person: consignee.contact_person,
       mobile: consignee.mobile,
+      email: consignee.email || '',
     });
     setOpen(true);
   };
@@ -236,6 +244,18 @@ export default function ConsigneesPage() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="pincode">Pincode</Label>
+                  <Input
+                    id="pincode"
+                    value={formData.pincode}
+                    onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                    placeholder="For e-way bill"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label htmlFor="contact">Contact Person</Label>
                   <Input
                     id="contact"
@@ -251,16 +271,28 @@ export default function ConsigneesPage() {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="mobile">Mobile</Label>
-                <Input
-                  id="mobile"
-                  value={formData.mobile}
-                  onChange={(e) =>
-                    setFormData({ ...formData, mobile: e.target.value })
-                  }
-                  placeholder="Mobile number"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="mobile">Mobile</Label>
+                  <Input
+                    id="mobile"
+                    value={formData.mobile}
+                    onChange={(e) =>
+                      setFormData({ ...formData, mobile: e.target.value })
+                    }
+                    placeholder="Mobile number"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="For document email alerts"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-4">

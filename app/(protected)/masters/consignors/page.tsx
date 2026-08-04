@@ -35,9 +35,11 @@ interface Consignor {
   address: string;
   city: string;
   gst_no: string;
+  pincode?: string;
   lr_print_instructions?: string;
   contact_person: string;
   mobile: string;
+  email?: string;
   bank_name?: string;
   account_no?: string;
   default_payment_method?: 'to_pay' | 'paid' | 'tbb';
@@ -62,9 +64,11 @@ export default function ConsignorsPage() {
     address: '',
     city: '',
     gst_no: '',
+    pincode: '',
     lr_print_instructions: '',
     contact_person: '',
     mobile: '',
+    email: '',
     bank_name: '',
     account_no: '',
     default_payment_method: 'to_pay' as 'to_pay' | 'paid' | 'tbb',
@@ -91,9 +95,11 @@ export default function ConsignorsPage() {
         address: '',
         city: '',
         gst_no: '',
+        pincode: '',
         lr_print_instructions: '',
         contact_person: '',
         mobile: '',
+        email: '',
         bank_name: '',
         account_no: '',
         default_payment_method: 'to_pay',
@@ -143,9 +149,11 @@ export default function ConsignorsPage() {
       address: consignor.address,
       city: consignor.city,
       gst_no: consignor.gst_no,
+      pincode: consignor.pincode || '',
       lr_print_instructions: consignor.lr_print_instructions || '',
       contact_person: consignor.contact_person,
       mobile: consignor.mobile,
+      email: consignor.email || '',
       bank_name: consignor.bank_name || '',
       account_no: consignor.account_no || '',
       default_payment_method: consignor.default_payment_method || 'to_pay',
@@ -269,6 +277,15 @@ export default function ConsignorsPage() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="pincode">Pincode</Label>
+                  <Input
+                    id="pincode"
+                    value={formData.pincode}
+                    onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                    placeholder="For e-way bill"
+                  />
+                </div>
+                <div>
                   <Label htmlFor="contact">Contact Person</Label>
                   <Input
                     id="contact"
@@ -296,6 +313,19 @@ export default function ConsignorsPage() {
                     placeholder="Mobile number"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="For document email alerts"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="bank">Bank Name</Label>
                   <Input

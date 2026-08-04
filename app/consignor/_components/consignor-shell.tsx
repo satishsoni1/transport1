@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/consignor/lrs', label: 'LR Desk' },
   { href: '/consignor/invoices', label: 'Invoices' },
   { href: '/consignor/ledger', label: 'Payment Ledger' },
+  { href: '/consignor/complaints', label: 'Complaints' },
 ];
 
 interface ConsignorShellProps {

@@ -91,6 +91,31 @@ interface Consignor {
   name: string;
 }
 
+interface FuelEntryReport {
+  entry_date: string;
+  vehicle_no: string;
+  quantity_liters: number;
+  amount: number;
+  mileage_kmpl: number | null;
+}
+
+interface TyreReport {
+  tyre_serial_no: string;
+  brand: string;
+  vehicle_no: string | null;
+  position: string;
+  purchase_cost: number;
+  status: string;
+}
+
+interface MaintenanceReport {
+  service_date: string;
+  vehicle_no: string;
+  service_type: string;
+  cost: number;
+  is_breakdown: boolean;
+}
+
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 function inRange(dateStr: string, from: string, to: string) {
@@ -111,7 +136,7 @@ function inRange(dateStr: string, from: string, to: string) {
 export default function ReportsPage() {
   const { user } = useAuth();
   const [reportType, setReportType] = useState<
-    'lr' | 'city' | 'consignor' | 'payment' | 'vehicle-pnl' | 'driver-ledger'
+    'lr' | 'city' | 'consignor' | 'payment' | 'vehicle-pnl' | 'driver-ledger' | 'fuel' | 'tyre' | 'maintenance'
   >('lr');
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
@@ -136,6 +161,9 @@ export default function ReportsPage() {
     '/api/masters/drivers/ledger-summary',
     apiClient.get
   );
+  const { data: fuelEntries = [] } = useSWR<FuelEntryReport[]>('/api/fleet/fuel', apiClient.get);
+  const { data: tyres = [] } = useSWR<TyreReport[]>('/api/fleet/tyres', apiClient.get);
+  const { data: maintenanceRecords = [] } = useSWR<MaintenanceReport[]>('/api/fleet/maintenance', apiClient.get);
 
   const lrNoToChallanMeta = useMemo(() => {
     const map = new Map<
@@ -176,6 +204,16 @@ export default function ReportsPage() {
         inRange(item.invoice_date, appliedRange.from, appliedRange.to)
       ),
     [invoices, appliedRange]
+  );
+
+  const filteredFuel = useMemo(
+    () => fuelEntries.filter((item) => inRange(item.entry_date, appliedRange.from, appliedRange.to)),
+    [fuelEntries, appliedRange]
+  );
+
+  const filteredMaintenance = useMemo(
+    () => maintenanceRecords.filter((item) => inRange(item.service_date, appliedRange.from, appliedRange.to)),
+    [maintenanceRecords, appliedRange]
   );
 
   const monthlyLRData = useMemo(() => {
@@ -340,13 +378,47 @@ export default function ReportsPage() {
       }));
     }
 
-    return driverLedgerSummary.map((row, index) => ({
+    if (reportType === 'driver-ledger') {
+      return driverLedgerSummary.map((row, index) => ({
+        sr: index + 1,
+        driver: row.driverName,
+        total_advance: row.totalAdvance.toFixed(2),
+        total_rent: row.totalRent.toFixed(2),
+        total_deduction: row.totalDeduction.toFixed(2),
+        balance: row.balance.toFixed(2),
+      }));
+    }
+
+    if (reportType === 'fuel') {
+      return filteredFuel.map((row, index) => ({
+        sr: index + 1,
+        date: row.entry_date,
+        vehicle_no: row.vehicle_no,
+        quantity_liters: row.quantity_liters,
+        amount: Number(row.amount || 0).toFixed(2),
+        mileage_kmpl: row.mileage_kmpl ? Number(row.mileage_kmpl).toFixed(2) : '-',
+      }));
+    }
+
+    if (reportType === 'tyre') {
+      return tyres.map((row, index) => ({
+        sr: index + 1,
+        serial_no: row.tyre_serial_no || '-',
+        brand: row.brand,
+        vehicle_no: row.vehicle_no || '-',
+        position: row.position,
+        purchase_cost: Number(row.purchase_cost || 0).toFixed(2),
+        status: row.status,
+      }));
+    }
+
+    return filteredMaintenance.map((row, index) => ({
       sr: index + 1,
-      driver: row.driverName,
-      total_advance: row.totalAdvance.toFixed(2),
-      total_rent: row.totalRent.toFixed(2),
-      total_deduction: row.totalDeduction.toFixed(2),
-      balance: row.balance.toFixed(2),
+      date: row.service_date,
+      vehicle_no: row.vehicle_no,
+      service_type: row.service_type,
+      cost: Number(row.cost || 0).toFixed(2),
+      breakdown: row.is_breakdown ? 'Yes' : 'No',
     }));
   }, [
     reportType,
@@ -359,6 +431,9 @@ export default function ReportsPage() {
     consignors,
     consignees,
     lrNoToChallanMeta,
+    filteredFuel,
+    tyres,
+    filteredMaintenance,
   ]);
 
   const reportTitle = useMemo(() => {
@@ -367,7 +442,10 @@ export default function ReportsPage() {
     if (reportType === 'consignor') return 'Consignor Summary';
     if (reportType === 'payment') return 'Payment Status Report';
     if (reportType === 'vehicle-pnl') return 'Vehicle-wise P&L';
-    return 'Driver Ledger Summary';
+    if (reportType === 'driver-ledger') return 'Driver Ledger Summary';
+    if (reportType === 'fuel') return 'Fuel Consumption Report';
+    if (reportType === 'tyre') return 'Tyre Report';
+    return 'Maintenance Report';
   }, [reportType]);
 
   const exportFilenameBase = `report-${reportType}-${appliedRange.from}-to-${appliedRange.to}`;
@@ -470,6 +548,18 @@ export default function ReportsPage() {
           onClick={() => setReportType('driver-ledger')}
         >
           Driver Ledger
+        </Button>
+        <Button variant={reportType === 'fuel' ? 'default' : 'outline'} onClick={() => setReportType('fuel')}>
+          Fuel
+        </Button>
+        <Button variant={reportType === 'tyre' ? 'default' : 'outline'} onClick={() => setReportType('tyre')}>
+          Tyres
+        </Button>
+        <Button
+          variant={reportType === 'maintenance' ? 'default' : 'outline'}
+          onClick={() => setReportType('maintenance')}
+        >
+          Maintenance
         </Button>
       </div>
 

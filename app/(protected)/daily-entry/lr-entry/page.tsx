@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Download, Trash2, Edit2, Printer, FileImage, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Download, Trash2, Edit2, Printer, FileImage, ChevronLeft, ChevronRight, Loader2, FileCheck2 } from 'lucide-react';
 import useSWR, { mutate as globalMutate } from 'swr';
 import { transliterateToMarathi } from '@/app/services/marathi';
 
@@ -193,6 +193,7 @@ export default function LREntryPage() {
 
   const [activeTab, setActiveTab] = useState<'list' | 'new' | 'update' | 'preview'>('list');
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [generatingEwayBillId, setGeneratingEwayBillId] = useState<number | null>(null);
   const [consignorSearch, setConsignorSearch] = useState('');
   const [consigneeSearch, setConsigneeSearch] = useState('');
   const [showNewConsignor, setShowNewConsignor] = useState(false);
@@ -737,6 +738,22 @@ export default function LREntryPage() {
       toast.error('Failed to create consignee');
     }
   }, [newConsignee, cities]);
+
+  const handleGenerateEwayBill = useCallback(async (entry: LREntry) => {
+    setGeneratingEwayBillId(entry.id);
+    try {
+      const result = await apiClient.post<{ eway_no: string }>(
+        `/api/daily-entry/lr-entries/${entry.id}/eway-bill`,
+        {}
+      );
+      toast.success(`E-way bill generated: ${result.eway_no}`);
+      mutateLrEntries();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to generate e-way bill');
+    } finally {
+      setGeneratingEwayBillId(null);
+    }
+  }, [mutateLrEntries]);
 
   const handleEdit = useCallback(
     (entry: LREntry) => {
@@ -1994,6 +2011,15 @@ const scrollTable = useCallback((direction: 'left' | 'right') => {
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => handleEdit(entry)}>
                               <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={!!entry.eway_no || generatingEwayBillId === entry.id}
+                              onClick={() => handleGenerateEwayBill(entry)}
+                              title={entry.eway_no ? `E-way bill: ${entry.eway_no}` : 'Generate e-way bill'}
+                            >
+                              <FileCheck2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </TableCell>

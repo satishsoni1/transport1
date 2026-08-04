@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
 import { resolveTransportAuth } from '@/lib/transport-auth';
+import { notifyDocumentCreated } from '@/lib/notify';
 
 function toResponseRow(row: any) {
   return {
@@ -124,6 +125,20 @@ export async function POST(request: NextRequest) {
       )
       RETURNING *
     `;
+
+    const [{ email: consignorEmail, mobile: consignorMobile } = { email: null, mobile: null }] = (
+      await sql`SELECT email, mobile FROM consignors WHERE id = ${Number(body.consignor_id)}`
+    ).rows;
+    await notifyDocumentCreated({
+      transportId,
+      docType: 'invoice',
+      consignorEmail,
+      consignorMobile,
+      subject: `New Invoice Created: ${invoiceNo}`,
+      html: `<p>A new invoice <strong>${invoiceNo}</strong> has been created for ${body.party_name}.</p>`,
+      text: `New invoice ${invoiceNo} created for ${body.party_name}.`,
+    });
+
     return NextResponse.json(toResponseRow(rows[0]), { status: 201 });
   } catch (error) {
     console.error('Error creating invoice', error);

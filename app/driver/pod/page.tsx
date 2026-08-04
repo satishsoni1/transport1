@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -182,6 +183,11 @@ export default function DriverPodPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="flex gap-2 text-xs font-semibold text-blue-700">
+              <Link href="/driver/trips" className="underline">Trips</Link>
+              <Link href="/driver/checklist" className="underline">Checklist</Link>
+              <Link href="/driver/incidents" className="underline">Report Incident</Link>
+            </div>
             <div className="flex gap-2">
               <Input
                 value={search}

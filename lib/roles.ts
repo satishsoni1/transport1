@@ -12,7 +12,10 @@ export type PermissionKey =
   | 'manage-users'
   | 'financial-years'
   | 'app-settings'
-  | 'accounts';
+  | 'accounts'
+  | 'trips'
+  | 'fleet'
+  | 'quotations';
 
 const ALL_PERMISSIONS: PermissionKey[] = [
   'daily-entry',
@@ -25,13 +28,27 @@ const ALL_PERMISSIONS: PermissionKey[] = [
   'financial-years',
   'app-settings',
   'accounts',
+  'trips',
+  'fleet',
+  'quotations',
 ];
 
 export const ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
   'Transport Admin': ALL_PERMISSIONS,
-  Manager: ['daily-entry', 'reports', 'print-export', 'parties', 'logistics', 'rate-masters', 'accounts'],
-  Accountant: ['daily-entry', 'reports', 'print-export', 'parties', 'rate-masters', 'accounts'],
-  Operator: ['daily-entry', 'print-export'],
+  Manager: [
+    'daily-entry',
+    'reports',
+    'print-export',
+    'parties',
+    'logistics',
+    'rate-masters',
+    'accounts',
+    'trips',
+    'fleet',
+    'quotations',
+  ],
+  Accountant: ['daily-entry', 'reports', 'print-export', 'parties', 'rate-masters', 'accounts', 'quotations'],
+  Operator: ['daily-entry', 'print-export', 'trips', 'fleet'],
 };
 
 export function isStaffRole(value: string | null | undefined): value is StaffRole {

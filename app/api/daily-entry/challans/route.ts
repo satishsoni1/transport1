@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { sql } from '@/lib/db';
 import { ensureSchema, parseJsonField } from '@/lib/db';
 import { resolveTransportAuth } from '@/lib/transport-auth';
+import { notifyDocumentCreated } from '@/lib/notify';
 
 function toResponseRow(row: any) {
   return { ...row, lr_list: parseJsonField(row.lr_list, []) };
@@ -159,6 +160,33 @@ export async function POST(request: NextRequest) {
       )
       RETURNING *
     `;
+
+    // Challans aren't directly linked to a consignor/consignee — notify whoever owns the
+    // linked LRs (deduped) instead, using the same per-transport toggles as the other docs.
+    if (lrNos.length > 0) {
+      const { rows: lrPartyRows } = await sql`
+        SELECT DISTINCT consignors.email AS consignor_email, consignors.mobile AS consignor_mobile,
+          consignees.email AS consignee_email, consignees.mobile AS consignee_mobile
+        FROM lr_entries
+        LEFT JOIN consignors ON consignors.id = lr_entries.consignor_id
+        LEFT JOIN consignees ON consignees.id = lr_entries.consignee_id
+        WHERE lr_entries.transport_id = ${transportId} AND lr_entries.lr_no = ANY(${lrNos})
+      `;
+      for (const partyRow of lrPartyRows) {
+        await notifyDocumentCreated({
+          transportId,
+          docType: 'challan',
+          consignorEmail: partyRow.consignor_email,
+          consigneeEmail: partyRow.consignee_email,
+          consignorMobile: partyRow.consignor_mobile,
+          consigneeMobile: partyRow.consignee_mobile,
+          subject: `New Challan Created: ${challanNo}`,
+          html: `<p>A new challan <strong>${challanNo}</strong> has been created (${body.from_city} → ${body.to_city}).</p>`,
+          text: `New challan ${challanNo} created (${body.from_city} → ${body.to_city}).`,
+        });
+      }
+    }
+
     return NextResponse.json(toResponseRow(rows[0]), { status: 201 });
   } catch (error) {
     console.error('Error creating challan', error);

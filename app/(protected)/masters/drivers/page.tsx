@@ -304,6 +304,32 @@ export default function DriversPage() {
     []
   );
 
+  const [scanningLicense, setScanningLicense] = useState(false);
+  const handleScanLicense = useCallback(async () => {
+    if (!formData.passport_photo_url) {
+      toast.error('Upload a photo of the license first');
+      return;
+    }
+    setScanningLicense(true);
+    try {
+      const result = await apiClient.post<{ fields: Record<string, string> }>('/api/ai/ocr', {
+        image_base64: formData.passport_photo_url,
+        document_type: 'driver_license',
+      });
+      setFormData((prev) => ({
+        ...prev,
+        driver_name: result.fields.driver_name || prev.driver_name,
+        license_no: result.fields.license_no || prev.license_no,
+        license_valid_to: result.fields.license_valid_to || prev.license_valid_to,
+      }));
+      toast.success('Fields filled from photo — please verify before saving');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to scan document');
+    } finally {
+      setScanningLicense(false);
+    }
+  }, [formData.passport_photo_url]);
+
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this driver?')) return;
     try {
@@ -491,7 +517,12 @@ export default function DriversPage() {
                   }
                 />
                 {formData.passport_photo_url ? (
-                  <img src={formData.passport_photo_url} alt="Passport" className="mt-2 h-20 w-16 rounded border object-cover" />
+                  <div className="mt-2 flex items-center gap-2">
+                    <img src={formData.passport_photo_url} alt="Passport" className="h-20 w-16 rounded border object-cover" />
+                    <Button type="button" size="sm" variant="outline" onClick={handleScanLicense} disabled={scanningLicense}>
+                      {scanningLicense ? 'Scanning...' : 'Fill from Photo (AI)'}
+                    </Button>
+                  </div>
                 ) : null}
               </div>
               <div>

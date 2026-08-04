@@ -68,12 +68,29 @@ export async function PUT(
       );
     }
 
+    const vendorId =
+      body.vendor_id === undefined
+        ? existing.vendor_id
+        : body.vendor_id
+        ? (await sql`SELECT id FROM vendors WHERE id = ${Number(body.vendor_id)} AND transport_id = ${transportId}`).rows[0]?.id ?? null
+        : null;
+
     const { rows } = await sql`
       UPDATE vehicles
       SET
         vehicle_no = ${vehicleNo},
         owner_name = ${body.owner_name ?? existing.owner_name},
         vehicle_type = ${body.vehicle_type ?? existing.vehicle_type},
+        vendor_id = ${vendorId},
+        rc_expiry = ${body.rc_expiry ?? existing.rc_expiry},
+        insurance_expiry = ${body.insurance_expiry ?? existing.insurance_expiry},
+        fitness_expiry = ${body.fitness_expiry ?? existing.fitness_expiry},
+        permit_expiry = ${body.permit_expiry ?? existing.permit_expiry},
+        national_permit_expiry = ${body.national_permit_expiry ?? existing.national_permit_expiry},
+        puc_expiry = ${body.puc_expiry ?? existing.puc_expiry},
+        road_tax_expiry = ${body.road_tax_expiry ?? existing.road_tax_expiry},
+        fastag_id = ${body.fastag_id ?? existing.fastag_id},
+        gps_device_id = ${body.gps_device_id ?? existing.gps_device_id},
         status = ${body.status ?? existing.status}
       WHERE id = ${id} AND transport_id = ${transportId}
       RETURNING *

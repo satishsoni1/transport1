@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { createAppToken, getUserByEmail, toAuthenticatedUser } from '@/lib/app-auth';
+import { createAppToken, createPending2faToken, getUserByEmail, toAuthenticatedUser } from '@/lib/app-auth';
 import { ensureSchema } from '@/lib/db';
 
 export async function POST(request: Request) {
@@ -41,6 +41,17 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: 'Invalid email or password' },
         { status: 401 }
+      );
+    }
+
+    if (user.totp_enabled) {
+      return NextResponse.json(
+        {
+          success: true,
+          requires_2fa: true,
+          pending_token: createPending2faToken(user),
+        },
+        { status: 200 }
       );
     }
 

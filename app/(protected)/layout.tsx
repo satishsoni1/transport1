@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { SuperAdminSidebar } from '@/components/layout/super-admin-sidebar';
 import { Header } from '@/components/layout/header';
+import { AiChatWidget } from '@/components/ai-chat-widget';
 
 const SIDEBAR_HIDDEN_KEY = 'tms_sidebar_hidden';
 
@@ -87,6 +88,7 @@ export default function ProtectedLayout({
           </div>
         </main>
       </div>
+      <AiChatWidget />
     </div>
   );
 }

@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { rows } = await sql`
-      INSERT INTO consignees (transport_id, name, name_mr, address, city, city_mr, gst_no, contact_person, mobile, status)
+      INSERT INTO consignees (transport_id, name, name_mr, address, city, city_mr, gst_no, pincode, contact_person, mobile, email, status)
       VALUES (
         ${transportId},
         ${body.name},
@@ -57,8 +57,10 @@ export async function POST(request: NextRequest) {
         ${body.city},
         ${body.city_mr || ''},
         ${body.gst_no || ''},
+        ${body.pincode || ''},
         ${body.contact_person || ''},
         ${body.mobile || ''},
+        ${body.email || ''},
         'active'
       )
       RETURNING *
